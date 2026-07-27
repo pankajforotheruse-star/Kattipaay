@@ -1,0 +1,165 @@
+[gd_scene load_steps=2 format=3 uid="uid://rewards_screen_001"]
+
+[ext_resource type="Script" path="res://scripts/ui/RewardsScreen.gd" id="1_script"]
+
+[node name="RewardsScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_script")
+
+[node name="ResultBanner" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 40.0
+offset_right = 620.0
+offset_bottom = 120.0
+text = "✨ VILLAGE SAVED! ✨"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="XPGainedLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 200.0
+offset_top = 180.0
+offset_right = 520.0
+offset_bottom = 210.0
+text = "+345"
+horizontal_alignment = 1
+
+[node name="XPBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 80.0
+offset_top = 220.0
+offset_right = 640.0
+offset_bottom = 250.0
+value = 46.8
+
+[node name="XPLevelLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 200.0
+offset_top = 255.0
+offset_right = 520.0
+offset_bottom = 280.0
+text = "Lvl 12 ────────→ 13!"
+horizontal_alignment = 1
+
+[node name="ChalkDustLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 200.0
+offset_top = 310.0
+offset_right = 520.0
+offset_bottom = 350.0
+text = "+180"
+horizontal_alignment = 1
+
+[node name="ChalkDustPrev" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 250.0
+offset_top = 360.0
+offset_right = 470.0
+offset_bottom = 380.0
+text = "(was 1,250)"
+horizontal_alignment = 1
+
+[node name="RewardsHeader" type="Label" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 460.0
+offset_right = 680.0
+offset_bottom = 488.0
+text = "🎁 REWARDS UNLOCKED"
+
+[node name="RewardCard1" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 500.0
+offset_right = 240.0
+offset_bottom = 650.0
+
+[node name="RewardCard2" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 255.0
+offset_top = 500.0
+offset_right = 455.0
+offset_bottom = 650.0
+
+[node name="RewardCard3" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 470.0
+offset_top = 500.0
+offset_right = 670.0
+offset_bottom = 650.0
+
+[node name="BPTierLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 700.0
+offset_right = 680.0
+offset_bottom = 728.0
+text = "📜 BATTLE PASS    Tier 8 ──→ Tier 10!"
+
+[node name="BPBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 735.0
+offset_right = 680.0
+offset_bottom = 760.0
+value = 50.0
+
+[node name="BPNextReward" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 770.0
+offset_right = 300.0
+offset_bottom = 794.0
+text = "Next: Chalk Dust × 50"
+
+[node name="ClaimButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 130.0
+offset_top = 940.0
+offset_right = 590.0
+offset_bottom = 1012.0
+text = "✅ CLAIM & CONTINUE"
+
+[node name="ShareButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 80.0
+offset_top = 1040.0
+offset_right = 340.0
+offset_bottom = 1092.0
+text = "📸 SHARE"
+
+[node name="HomeButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 380.0
+offset_top = 1040.0
+offset_right = 640.0
+offset_bottom = 1092.0
+text = "🏠 HOME"
+
+[node name="AdButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 80.0
+offset_top = 1160.0
+offset_right = 640.0
+offset_bottom = 1216.0
+text = "📺 WATCH AD FOR 2× CHALK DUST"

@@ -1,0 +1,66 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/GameWorld.gd" id="1_gw"]
+[ext_resource type="Script" path="res://scripts/game/Camera.gd" id="2_cam"]
+[ext_resource type="Script" path="res://scripts/systems/MovementSystem.gd" id="3_ms"]
+[ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="4_hud"]
+[ext_resource type="Script" path="res://scripts/entities/Player.gd" id="5_player"]
+[ext_resource type="Script" path="res://scripts/entities/NPC.gd" id="6_npc"]
+[ext_resource type="Script" path="res://scripts/game/GridOverlay.gd" id="7_grid"]
+
+[node name="GameWorld" type="Node2D"]
+script = ExtResource("1_gw")
+
+[node name="GridOverlay" type="Node2D" parent="."]
+script = ExtResource("7_grid")
+z_index = -1
+
+[node name="Entities" type="Node2D" parent="."]
+
+[node name="Player1" type="CharacterBody2D" parent="Entities"]
+script = ExtResource("5_player")
+player_color = Color(0.91, 0.27, 0.35, 1)
+is_local = true
+entity_id = 1
+position = Vector2(200, 400)
+
+[node name="NPC1" type="CharacterBody2D" parent="Entities"]
+script = ExtResource("6_npc")
+npc_color = Color(0.2, 0.5, 0.9, 1)
+entity_id = 2
+position = Vector2(300, 300)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+script = ExtResource("2_cam")
+position = Vector2(200, 400)
+zoom = Vector2(1, 1)
+
+[node name="MovementSystem" type="Node" parent="."]
+script = ExtResource("3_ms")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("4_hud")
+
+[node name="StateLabel" type="Label" parent="HUD"]
+anchors_preset = 1
+anchor_left = 0.0
+anchor_right = 0.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 400.0
+offset_bottom = 48.0
+text = "Game: SPLASH"
+modulate = Color(1, 1, 1, 0.8)
+
+[node name="InfoLabel" type="Label" parent="HUD"]
+anchors_preset = -1
+anchor_left = 0.0
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 56.0
+offset_right = -16.0
+offset_bottom = 160.0
+text = ""
+modulate = Color(0.8, 0.8, 0.8, 0.7)
+horizontal_alignment = 1
+autowrap_mode = 3

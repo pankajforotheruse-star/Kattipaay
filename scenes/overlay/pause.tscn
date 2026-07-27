@@ -1,0 +1,67 @@
+[gd_scene load_steps=2 format=3 uid="uid://pause_overlay_001"]
+
+[ext_resource type="Script" path="res://scripts/ui/PauseOverlay.gd" id="1_script"]
+
+[node name="PauseOverlay" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_script")
+
+[node name="OverlayBg" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="CenterContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -150.0
+offset_right = 140.0
+offset_bottom = 150.0
+
+[node name="PausedLabel" type="Label" parent="CenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "PAUSED"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer1" type="Control" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 24)
+
+[node name="ResumeButton" type="Button" parent="CenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "▶ RESUME"
+custom_minimum_size = Vector2(280, 56)
+
+[node name="Spacer2" type="Control" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 12)
+
+[node name="SettingsButton" type="Button" parent="CenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "⚙ SETTINGS"
+custom_minimum_size = Vector2(280, 56)
+
+[node name="Spacer3" type="Control" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 12)
+
+[node name="QuitButton" type="Button" parent="CenterContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "🚪 QUIT"
+custom_minimum_size = Vector2(280, 56)

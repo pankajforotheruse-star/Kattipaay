@@ -1,0 +1,269 @@
+[gd_scene load_steps=2 format=3 uid="uid://scoreboard_screen_001"]
+
+[ext_resource type="Script" path="res://scripts/ui/ScoreboardScreen.gd" id="1_script"]
+
+[node name="ScoreboardScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_script")
+
+[node name="Overlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color("1E1D2B", 0.85)
+z_index = -1
+
+[node name="HeaderLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 150.0
+offset_top = 40.0
+offset_right = 570.0
+offset_bottom = 100.0
+text = "WAVE 2 COMPLETE!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TopPlayerCard" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 130.0
+offset_right = 680.0
+offset_bottom = 280.0
+
+[node name="TopAvatar" type="ColorRect" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 96.0
+offset_bottom = 96.0
+color = Color("3B2D23", 1)
+
+[node name="TopNameLabel" type="Label" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 110.0
+offset_top = 16.0
+offset_right = 300.0
+offset_bottom = 40.0
+text = "YOU"
+
+[node name="TopScoreLabel" type="Label" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 110.0
+offset_top = 46.0
+offset_right = 400.0
+offset_bottom = 80.0
+text = "2,450 pts"
+
+[node name="TopGhostsLabel" type="Label" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 110.0
+offset_top = 86.0
+offset_right = 300.0
+offset_bottom = 106.0
+text = "👻 8 banished"
+
+[node name="TopRevivesLabel" type="Label" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 110.0
+offset_top = 110.0
+offset_right = 300.0
+offset_bottom = 130.0
+text = "❤️ 2 revives"
+
+[node name="MVPBadge" type="Label" parent="TopPlayerCard"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 500.0
+offset_top = 30.0
+offset_right = 620.0
+offset_bottom = 70.0
+text = "MVP!"
+horizontal_alignment = 1
+visible = false
+
+; Player 2 row
+[node name="P2Card" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 310.0
+offset_right = 680.0
+offset_bottom = 370.0
+
+[node name="P2Name" type="Label" parent="P2Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 50.0
+text = "🥈 Raj"
+
+[node name="P2Score" type="Label" parent="P2Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 500.0
+offset_top = 10.0
+offset_right = 660.0
+offset_bottom = 50.0
+text = "1,890 pts"
+horizontal_alignment = 2
+
+; Player 3 row
+[node name="P3Card" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 380.0
+offset_right = 680.0
+offset_bottom = 440.0
+
+[node name="P3Name" type="Label" parent="P3Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 50.0
+text = "🥉 Priya"
+
+[node name="P3Score" type="Label" parent="P3Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 500.0
+offset_top = 10.0
+offset_right = 660.0
+offset_bottom = 50.0
+text = "1,230 pts"
+horizontal_alignment = 2
+
+; Player 4 row
+[node name="P4Card" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 450.0
+offset_right = 680.0
+offset_bottom = 510.0
+
+[node name="P4Name" type="Label" parent="P4Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 50.0
+text = "4th Arjun"
+
+[node name="P4Score" type="Label" parent="P4Card"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 500.0
+offset_top = 10.0
+offset_right = 660.0
+offset_bottom = 50.0
+text = "890 pts"
+horizontal_alignment = 2
+
+[node name="TeamTotalLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 530.0
+offset_right = 680.0
+offset_bottom = 570.0
+text = "TEAM TOTAL: 6,460 pts  |  👻 18 banished"
+
+[node name="WaveTimeLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 600.0
+offset_right = 200.0
+offset_bottom = 624.0
+text = "⏱ 2:34"
+
+[node name="ChalkUsedLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 260.0
+offset_top = 600.0
+offset_right = 420.0
+offset_bottom = 624.0
+text = "🖍️ Chalk: 34%"
+
+[node name="DownsLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 500.0
+offset_top = 600.0
+offset_right = 640.0
+offset_bottom = 624.0
+text = "💀 Downs: 1"
+
+[node name="CirclesLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 630.0
+offset_right = 200.0
+offset_bottom = 654.0
+text = "⭕ Circles: 4"
+
+[node name="ScoreBreakdown" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 740.0
+offset_right = 680.0
+offset_bottom = 940.0
+
+[node name="CountdownLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 210.0
+offset_top = 1030.0
+offset_right = 510.0
+offset_bottom = 1080.0
+text = "NEXT WAVE IN 0:30"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CountdownBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 160.0
+offset_top = 1086.0
+offset_right = 560.0
+offset_bottom = 1106.0
+value = 0.0
+
+[node name="SkipButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 240.0
+offset_top = 1140.0
+offset_right = 480.0
+offset_bottom = 1188.0
+text = "🤖 SKIP COUNTDOWN"
+
+[node name="TipLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 60.0
+offset_top = 1220.0
+offset_right = 660.0
+offset_bottom = 1250.0
+text = "💡 Restock chalk before next wave!"
+horizontal_alignment = 1

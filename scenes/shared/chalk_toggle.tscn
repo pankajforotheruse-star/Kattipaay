@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://chalk_toggle_001"]
+
+[ext_resource type="Script" path="res://scripts/shared/ChalkToggle.gd" id="1_script"]
+
+[node name="ChalkToggle" type="HBoxContainer"]
+custom_minimum_size = Vector2(180, 40)
+script = ExtResource("1_script")
+left_label = "ON"
+right_label = "OFF"
+is_on = true
+alignment = 0
+
+[node name="LeftButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ON"
+
+[node name="RightButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "OFF"

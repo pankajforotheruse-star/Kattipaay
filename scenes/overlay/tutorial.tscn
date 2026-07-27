@@ -1,0 +1,84 @@
+[gd_scene load_steps=2 format=3 uid="uid://tutorial_overlay_001"]
+
+[ext_resource type="Script" path="res://scripts/ui/TutorialOverlay.gd" id="1_script"]
+
+[node name="TutorialOverlay" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_script")
+
+[node name="DimOverlay" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.7)
+mouse_filter = 0
+
+[node name="ChalkArrow" type="Line2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(360, 800)
+points = PackedVector2Array(0, 40, 20, 0, 0, -40)
+width = 3.0
+default_color = Color("F5F0E8", 1)
+
+[node name="InstructionBox" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 60.0
+offset_top = 960.0
+offset_right = 660.0
+offset_bottom = 1090.0
+
+[node name="StepTitleLabel" type="Label" parent="InstructionBox"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 584.0
+offset_bottom = 40.0
+text = "1/5. MOVE"
+horizontal_alignment = 0
+vertical_alignment = 1
+
+[node name="StepBodyLabel" type="Label" parent="InstructionBox"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 46.0
+offset_right = 584.0
+offset_bottom = 110.0
+text = "Touch and drag anywhere to move your character."
+horizontal_alignment = 0
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="SkipButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 20.0
+offset_top = 1120.0
+offset_right = 140.0
+offset_bottom = 1168.0
+text = "SKIP"
+
+[node name="DotsContainer" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 300.0
+offset_top = 1125.0
+offset_right = 420.0
+offset_bottom = 1141.0
+alignment = 1
+
+[node name="NextButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 560.0
+offset_top = 1120.0
+offset_right = 700.0
+offset_bottom = 1168.0
+text = "NEXT →"

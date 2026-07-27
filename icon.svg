@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="16" fill="#1a1a2e"/>
+  <circle cx="64" cy="56" r="16" fill="#e94560" opacity="0.9"/>
+  <ellipse cx="64" cy="86" rx="20" ry="6" fill="#e94560" opacity="0.4"/>
+  <text x="64" y="112" text-anchor="middle" font-size="14" fill="#ddd" font-family="sans-serif">Ghost Lines</text>
+</svg>

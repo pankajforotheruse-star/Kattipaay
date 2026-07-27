@@ -1,0 +1,238 @@
+[gd_scene load_steps=2 format=3 uid="uid://game_over_screen_001"]
+
+[ext_resource type="Script" path="res://scripts/ui/GameOverScreen.gd" id="1_script"]
+
+[node name="GameOverScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_script")
+
+[node name="ResultBanner" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 60.0
+offset_top = 70.0
+offset_right = 660.0
+offset_bottom = 190.0
+
+[node name="ResultTitle" type="Label" parent="ResultBanner"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 16.0
+offset_bottom = -60.0
+text = "RIFT SEALED!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ResultSubtitle" type="Label" parent="ResultBanner"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 70.0
+offset_bottom = -16.0
+text = "Village is safe."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FinalScoreLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 160.0
+offset_top = 220.0
+offset_right = 560.0
+offset_bottom = 260.0
+text = "FINAL SCORE: 2,450"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="GhostCountLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 160.0
+offset_top = 270.0
+offset_right = 400.0
+offset_bottom = 292.0
+text = "👻 Banished: 8"
+
+[node name="ReviveCountLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 420.0
+offset_top = 270.0
+offset_right = 560.0
+offset_bottom = 292.0
+text = "❤️ Revives: 2"
+
+[node name="MatchTimeLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 280.0
+offset_top = 300.0
+offset_right = 440.0
+offset_bottom = 320.0
+text = "⏱ Match: 14:32"
+horizontal_alignment = 1
+
+; Stats section
+[node name="StatsPanel" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 380.0
+offset_right = 680.0
+offset_bottom = 560.0
+
+[node name="StatsTitle" type="Label" parent="StatsPanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 8.0
+offset_right = 300.0
+offset_bottom = 32.0
+text = "YOUR STATS"
+
+[node name="ChalkUsedBar" type="ProgressBar" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 42.0
+offset_right = 480.0
+offset_bottom = 62.0
+
+[node name="ChalkUsedValue" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 490.0
+offset_top = 42.0
+offset_right = 620.0
+offset_bottom = 62.0
+text = "78%"
+
+[node name="AccuracyBar" type="ProgressBar" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 68.0
+offset_right = 480.0
+offset_bottom = 88.0
+
+[node name="AccuracyValue" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 490.0
+offset_top = 68.0
+offset_right = 620.0
+offset_bottom = 88.0
+text = "62%"
+
+[node name="DamageBar" type="ProgressBar" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 94.0
+offset_right = 480.0
+offset_bottom = 114.0
+
+[node name="DamageValue" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 490.0
+offset_top = 94.0
+offset_right = 620.0
+offset_bottom = 114.0
+text = "89%"
+
+[node name="SurvivalBar" type="ProgressBar" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 120.0
+offset_right = 480.0
+offset_bottom = 140.0
+
+[node name="SurvivalValue" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 490.0
+offset_top = 120.0
+offset_right = 620.0
+offset_bottom = 140.0
+text = "100%"
+
+[node name="ComboLabel" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 16.0
+offset_top = 148.0
+offset_right = 200.0
+offset_bottom = 168.0
+text = "Combo max: 3×"
+
+[node name="DodgesLabel" type="Label" parent="StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 350.0
+offset_top = 148.0
+offset_right = 500.0
+offset_bottom = 168.0
+text = "Dodges: 12"
+
+; Action buttons
+[node name="Ad2xButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 620.0
+offset_right = 620.0
+offset_bottom = 684.0
+text = "📺 2× DUST  Watch Ad"
+
+[node name="PlayAgainButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 780.0
+offset_right = 620.0
+offset_bottom = 860.0
+text = "▶ PLAY AGAIN\n(same loadout)"
+
+[node name="ChangeLoadoutButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 920.0
+offset_right = 620.0
+offset_bottom = 984.0
+text = "🔄 CHANGE LOADOUT"
+
+[node name="MainMenuButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 1020.0
+offset_right = 620.0
+offset_bottom = 1084.0
+text = "🏠 MAIN MENU"
+
+[node name="ShareResultButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 40.0
+offset_top = 1160.0
+offset_right = 350.0
+offset_bottom = 1212.0
+text = "📸 SHARE RESULT"
+
+[node name="BreakdownButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 370.0
+offset_top = 1160.0
+offset_right = 680.0
+offset_bottom = 1212.0
+text = "ⓘ VIEW FULL BREAKDOWN"

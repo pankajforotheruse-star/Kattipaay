@@ -1,0 +1,33 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not obvious.
+;
+; Format: Godot 4.x
+
+[application]
+config/name="Chalk Gaon: Ghost Lines (Prototype)"
+config/version="0.1.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+EventBus="*res://scripts/autoload/EventBus.gd"
+SaveManager="*res://scripts/autoload/SaveManager.gd"
+InputManager="*res://scripts/autoload/InputManager.gd"
+NetworkManager="*res://scripts/autoload/NetworkManager.gd"
+GameState="*res://scripts/autoload/GameState.gd"
+SceneManager="*res://scripts/autoload/SceneManager.gd"
+
+[display]
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[input_devices]
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+renderer/rendering_method="mobile"
