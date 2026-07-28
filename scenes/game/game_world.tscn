@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/GameWorld.gd" id="1_gw"]
 [ext_resource type="Script" path="res://scripts/game/Camera.gd" id="2_cam"]
@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/entities/Player.gd" id="5_player"]
 [ext_resource type="Script" path="res://scripts/entities/NPC.gd" id="6_npc"]
 [ext_resource type="Script" path="res://scripts/game/GridOverlay.gd" id="7_grid"]
+[ext_resource type="Script" path="res://scripts/systems/DrawSystem.gd" id="8_ds"]
+[ext_resource type="Script" path="res://scripts/systems/FogSystem.gd" id="9_fs"]
 
 [node name="GameWorld" type="Node2D"]
 script = ExtResource("1_gw")
@@ -37,6 +39,14 @@ zoom = Vector2(1, 1)
 
 [node name="MovementSystem" type="Node" parent="."]
 script = ExtResource("3_ms")
+
+[node name="Systems" type="Node" parent="."]
+
+[node name="DrawSystem" type="Node" parent="Systems"]
+script = ExtResource("8_ds")
+
+[node name="FogSystem" type="Node" parent="Systems"]
+script = ExtResource("9_fs")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
