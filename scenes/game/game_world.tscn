@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/GameWorld.gd" id="1_gw"]
 [ext_resource type="Script" path="res://scripts/game/Camera.gd" id="2_cam"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/game/GridOverlay.gd" id="7_grid"]
 [ext_resource type="Script" path="res://scripts/systems/DrawSystem.gd" id="8_ds"]
 [ext_resource type="Script" path="res://scripts/systems/FogSystem.gd" id="9_fs"]
+[ext_resource type="Script" path="res://scripts/systems/ClusterSystem.gd" id="10_cs"]
 
 [node name="GameWorld" type="Node2D"]
 script = ExtResource("1_gw")
@@ -47,6 +48,9 @@ script = ExtResource("8_ds")
 
 [node name="FogSystem" type="Node" parent="Systems"]
 script = ExtResource("9_fs")
+
+[node name="ClusterSystem" type="Node" parent="Systems"]
+script = ExtResource("10_cs")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
