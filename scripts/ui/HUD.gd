@@ -38,6 +38,7 @@ var _argument_overlay: ArgumentOverlay = null
 var _hint_counter_label: Label = null
 var _spectator_button: Button = null
 var _spectator_notification_label: Label = null
+var _sloppy_count_banner: Label = null
 var _spectator_reveal_used: bool = false
 var _is_spectator: bool = false
 
@@ -73,6 +74,10 @@ func _ready() -> void:
     EventBus.on("game.spectator_registered", _on_spectator_registered)
     EventBus.on("game.spectator_reveal_used", _on_spectator_reveal_used_local)
 
+    # --- Sloppy Count events ---
+    EventBus.on("game.sloppy_count_started", _on_sloppy_count_started)
+    EventBus.on("game.sloppy_count_finished", _on_sloppy_count_finished)
+
     # --- Create UI elements ---
     _create_timer_label()
     _create_chalk_label()
@@ -80,6 +85,7 @@ func _ready() -> void:
     _create_hint_counter_label()
     _create_spectator_button()
     _create_spectator_notification()
+    _create_sloppy_count_banner()
 
     _update_info("Tap anywhere to move the RED player.\nBLUE player patrols automatically.\nGreen grid = 100px squares.")
 
@@ -116,6 +122,8 @@ func _exit_tree() -> void:
     EventBus.off("game.hint_trap_triggered", _on_hint_trap_triggered)
     EventBus.off("game.spectator_registered", _on_spectator_registered)
     EventBus.off("game.spectator_reveal_used", _on_spectator_reveal_used_local)
+    EventBus.off("game.sloppy_count_started", _on_sloppy_count_started)
+    EventBus.off("game.sloppy_count_finished", _on_sloppy_count_finished)
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
 
@@ -584,3 +592,44 @@ func _get_hint_system():
     if not systems:
         return null
     return systems.get_node_or_null("HintSystem")
+
+# ── Sloppy Count ─────────────────────────────────────────────────────────────
+
+func _create_sloppy_count_banner() -> void:
+    _sloppy_count_banner = Label.new()
+    _sloppy_count_banner.name = "SloppyCountBanner"
+    _sloppy_count_banner.text = ""
+    _sloppy_count_banner.add_theme_font_size_override("font_size", 22)
+    _sloppy_count_banner.add_theme_color_override("font_color", Color(0.83, 0.63, 0.09, 1.0))
+    _sloppy_count_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _sloppy_count_banner.anchors_preset = Control.PRESET_CENTER_TOP
+    _sloppy_count_banner.offset_top = 32
+    _sloppy_count_banner.offset_left = -200
+    _sloppy_count_banner.offset_right = 200
+    _sloppy_count_banner.offset_bottom = 60
+    _sloppy_count_banner.hide()
+    add_child(_sloppy_count_banner)
+
+func _on_sloppy_count_started(_payload: Dictionary) -> void:
+    if _sloppy_count_banner:
+        _sloppy_count_banner.text = "Analyzing chalk net..."
+        _sloppy_count_banner.add_theme_color_override("font_color", Color(0.83, 0.63, 0.09, 1.0))
+        _sloppy_count_banner.show()
+
+func _on_sloppy_count_finished(payload: Dictionary) -> void:
+    var percentage: float = payload.get("percentage", 0.0)
+    var passed: bool = payload.get("passed", false)
+    if _sloppy_count_banner:
+        if passed:
+            _sloppy_count_banner.text = "%d%% — CLEAN!" % int(percentage)
+            _sloppy_count_banner.add_theme_color_override("font_color", Color(0.2, 0.9, 0.3, 1.0))
+        else:
+            _sloppy_count_banner.text = "%d%% — SLOPPY!" % int(percentage)
+            _sloppy_count_banner.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2, 1.0))
+        # Auto-hide after 3s
+        var tween := create_tween()
+        tween.tween_interval(3.0)
+        tween.tween_callback(func():
+            if _sloppy_count_banner:
+                _sloppy_count_banner.hide()
+        )

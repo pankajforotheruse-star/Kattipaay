@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/systems/GhostDrawSystem.gd" id="11_ghs"]
 [ext_resource type="Script" path="res://scripts/systems/ArgumentSystem.gd" id="12_args"]
 [ext_resource type="Script" path="res://scripts/systems/HintSystem.gd" id="13_hs"]
+[ext_resource type="Script" path="res://scripts/systems/SloppyCountSystem.gd" id="14_scs"]
 
 [node name="GameWorld" type="Node2D"]
 script = ExtResource("1_gw")
@@ -63,6 +64,9 @@ script = ExtResource("12_args")
 
 [node name="HintSystem" type="Node" parent="Systems"]
 script = ExtResource("13_hs")
+
+[node name="SloppyCountSystem" type="Node" parent="Systems"]
+script = ExtResource("14_scs")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
