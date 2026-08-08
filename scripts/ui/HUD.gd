@@ -1,11 +1,15 @@
 # HUD.gd — Heads-up display overlay for CHALK GAON
 # CanvasLayer that sits on top of the game world (layer 1).
 # Shows: state label, info label, timer display, chalk meter, argument button,
-# hint counter, spectator reveal button, trap penalty flash.
+# hint counter, spectator reveal button, trap penalty flash, silent sneak button.
 #
 # ArgumentButton: visible only during SEARCHING, bottom-right corner (y≥850),
 # terracotta background (#CC6B49), pulse animation, 15s cooldown.
 # On press: if no target selected → prompt; if target → call ArgumentSystem.
+#
+# SilentSneakButton: visible only during SEARCHING, bottom-center (y≥850),
+# brown background (#8B7355), disabled during cooldown with countdown.
+# On press: call SilentSneakSystem.activate via EventBus.
 #
 # Hint Trap HUD elements:
 #   - Hint counter: top of screen during SEARCHING, "Hints: N"
@@ -41,6 +45,14 @@ var _spectator_notification_label: Label = null
 var _sloppy_count_banner: Label = null
 var _spectator_reveal_used: bool = false
 var _is_spectator: bool = false
+
+# ── Silent Sneak UI Elements ──────────────────────────────────────────────────
+
+var _silent_sneak_button: Button = null
+var _silent_sneak_cooldown_label: Label = null
+var _silent_sneak_cooldown_timer: float = 0.0
+var _silent_sneak_on_cooldown: bool = false
+var _silent_sneak_active: bool = false
 
 # ── Cooldown ──────────────────────────────────────────────────────────────────
 
@@ -78,10 +90,16 @@ func _ready() -> void:
     EventBus.on("game.sloppy_count_started", _on_sloppy_count_started)
     EventBus.on("game.sloppy_count_finished", _on_sloppy_count_finished)
 
+    # --- Silent Sneak events ---
+    EventBus.on("game.silent_sneak_activated", _on_silent_sneak_activated)
+    EventBus.on("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
+    EventBus.on("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
+
     # --- Create UI elements ---
     _create_timer_label()
     _create_chalk_label()
     _create_argument_button()
+    _create_silent_sneak_button()
     _create_hint_counter_label()
     _create_spectator_button()
     _create_spectator_notification()
@@ -106,6 +124,21 @@ func _process(delta: float) -> void:
             if _argument_cooldown_label:
                 _argument_cooldown_label.text = "%d" % int(ceil(_argument_cooldown_timer))
 
+    # Silent sneak cooldown tick
+    if _silent_sneak_on_cooldown:
+        _silent_sneak_cooldown_timer -= delta
+        if _silent_sneak_cooldown_timer <= 0.0:
+            _silent_sneak_on_cooldown = false
+            _silent_sneak_cooldown_timer = 0.0
+            if _silent_sneak_cooldown_label:
+                _silent_sneak_cooldown_label.text = ""
+            if _silent_sneak_button:
+                _silent_sneak_button.disabled = false
+                _silent_sneak_button.modulate = Color.WHITE
+        else:
+            if _silent_sneak_cooldown_label:
+                _silent_sneak_cooldown_label.text = "%d" % int(ceil(_silent_sneak_cooldown_timer))
+
 
 func _exit_tree() -> void:
     EventBus.off("entity.state_changed", _on_entity_state_changed)
@@ -124,6 +157,9 @@ func _exit_tree() -> void:
     EventBus.off("game.spectator_reveal_used", _on_spectator_reveal_used_local)
     EventBus.off("game.sloppy_count_started", _on_sloppy_count_started)
     EventBus.off("game.sloppy_count_finished", _on_sloppy_count_finished)
+    EventBus.off("game.silent_sneak_activated", _on_silent_sneak_activated)
+    EventBus.off("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
+    EventBus.off("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
 
@@ -244,6 +280,138 @@ func _start_pulse_animation() -> void:
     _argument_pulse_tween.tween_property(_argument_button, "scale", Vector2(1.0, 1.0), 0.6)
     _argument_pulse_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
+# ── Silent Sneak Button ───────────────────────────────────────────────────────
+
+func _create_silent_sneak_button() -> void:
+    _silent_sneak_button = Button.new()
+    _silent_sneak_button.name = "SilentSneakButton"
+    _silent_sneak_button.text = "🐄 Sneak"
+    _silent_sneak_button.add_theme_font_size_override("font_size", 20)
+    _silent_sneak_button.custom_minimum_size = Vector2(160, 56)
+
+    # Position: bottom-center, y≥850
+    _silent_sneak_button.anchors_preset = -1
+    _silent_sneak_button.anchor_left = 0.5
+    _silent_sneak_button.anchor_right = 0.5
+    _silent_sneak_button.anchor_top = 1.0
+    _silent_sneak_button.anchor_bottom = 1.0
+    _silent_sneak_button.offset_left = -80
+    _silent_sneak_button.offset_top = -190
+    _silent_sneak_button.offset_right = 80
+    _silent_sneak_button.offset_bottom = -134
+
+    # Style: brown #8B7355 background
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color(0.545, 0.451, 0.333, 0.9)  # #8B7355
+    style.corner_radius_top_left = 12
+    style.corner_radius_top_right = 12
+    style.corner_radius_bottom_left = 12
+    style.corner_radius_bottom_right = 12
+    style.border_width_left = 2
+    style.border_width_right = 2
+    style.border_width_top = 2
+    style.border_width_bottom = 2
+    style.border_color = Color(0.65, 0.55, 0.42, 1.0)
+    _silent_sneak_button.add_theme_stylebox_override("normal", style)
+
+    # Hover style
+    var hover_style := style.duplicate() as StyleBoxFlat
+    hover_style.bg_color = Color(0.60, 0.50, 0.38, 0.95)
+    _silent_sneak_button.add_theme_stylebox_override("hover", hover_style)
+
+    # Pressed style
+    var pressed_style := style.duplicate() as StyleBoxFlat
+    pressed_style.bg_color = Color(0.48, 0.39, 0.28, 1.0)
+    _silent_sneak_button.add_theme_stylebox_override("pressed", pressed_style)
+
+    # Disabled style
+    var disabled_style := style.duplicate() as StyleBoxFlat
+    disabled_style.bg_color = Color(0.4, 0.35, 0.3, 0.5)
+    _silent_sneak_button.add_theme_stylebox_override("disabled", disabled_style)
+
+    # Font color
+    _silent_sneak_button.add_theme_color_override("font_color", Color.WHITE)
+    _silent_sneak_button.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85, 1.0))
+    _silent_sneak_button.add_theme_color_override("font_pressed_color", Color(0.9, 0.85, 0.75, 1.0))
+    _silent_sneak_button.add_theme_color_override("font_disabled_color", Color(0.6, 0.6, 0.6, 0.6))
+
+    _silent_sneak_button.pressed.connect(_on_silent_sneak_pressed)
+    _silent_sneak_button.hide()
+    add_child(_silent_sneak_button)
+
+    # Cooldown label (below button)
+    _silent_sneak_cooldown_label = Label.new()
+    _silent_sneak_cooldown_label.name = "SilentSneakCooldownLabel"
+    _silent_sneak_cooldown_label.add_theme_font_size_override("font_size", 14)
+    _silent_sneak_cooldown_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.6, 1.0))
+    _silent_sneak_cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _silent_sneak_cooldown_label.anchors_preset = -1
+    _silent_sneak_cooldown_label.anchor_left = 0.5
+    _silent_sneak_cooldown_label.anchor_right = 0.5
+    _silent_sneak_cooldown_label.anchor_top = 1.0
+    _silent_sneak_cooldown_label.anchor_bottom = 1.0
+    _silent_sneak_cooldown_label.offset_left = -80
+    _silent_sneak_cooldown_label.offset_top = -128
+    _silent_sneak_cooldown_label.offset_right = 80
+    _silent_sneak_cooldown_label.offset_bottom = -110
+    add_child(_silent_sneak_cooldown_label)
+
+
+func _on_silent_sneak_pressed() -> void:
+    # Find SilentSneakSystem and activate
+    var sneak_sys := _get_silent_sneak_system()
+    if not sneak_sys:
+        _update_info("Silent Sneak unavailable")
+        return
+
+    var local_player_id := 1  # Prototype: local player is entity_id=1
+    var ok := sneak_sys.activate_silent_sneak(local_player_id)
+    if not ok:
+        _update_info("Cannot use Silent Sneak right now")
+
+
+func _on_silent_sneak_activated(_payload: Dictionary) -> void:
+    _silent_sneak_active = true
+    if _silent_sneak_button:
+        _silent_sneak_button.text = "🐄 Active!"
+        _silent_sneak_button.disabled = true
+        _silent_sneak_button.modulate = Color(0.6, 0.85, 0.6, 0.9)
+    _silent_sneak_on_cooldown = false
+    _silent_sneak_cooldown_timer = 0.0
+    if _silent_sneak_cooldown_label:
+        _silent_sneak_cooldown_label.text = ""
+
+
+func _on_silent_sneak_deactivated(_payload: Dictionary) -> void:
+    _silent_sneak_active = false
+    # Start cooldown
+    _silent_sneak_on_cooldown = true
+    _silent_sneak_cooldown_timer = 30.0
+    if _silent_sneak_button:
+        _silent_sneak_button.text = "🐄 Sneak"
+        _silent_sneak_button.disabled = true
+        _silent_sneak_button.modulate = Color(0.5, 0.5, 0.5, 0.7)
+
+
+func _on_silent_sneak_cooldown_ended(_payload: Dictionary) -> void:
+    _silent_sneak_on_cooldown = false
+    _silent_sneak_cooldown_timer = 0.0
+    if _silent_sneak_button:
+        _silent_sneak_button.disabled = false
+        _silent_sneak_button.modulate = Color.WHITE
+    if _silent_sneak_cooldown_label:
+        _silent_sneak_cooldown_label.text = ""
+
+
+func _get_silent_sneak_system():
+    var root := get_tree().current_scene
+    if not root:
+        return null
+    var systems := root.get_node_or_null("Systems")
+    if not systems:
+        return null
+    return systems.get_node_or_null("SilentSneakSystem")
+
 # ── Argument Button ───────────────────────────────────────────────────────────
 
 func _on_argument_pressed() -> void:
@@ -313,6 +481,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
             _start_pulse_animation()
         if _hint_counter_label:
             _hint_counter_label.show()
+        if _silent_sneak_button:
+            _silent_sneak_button.show()
         _selected_target_id = -1
     elif from_state == GameState.MatchState.SEARCHING:
         _is_searching = false
@@ -320,6 +490,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
             _argument_button.hide()
         if _hint_counter_label:
             _hint_counter_label.hide()
+        if _silent_sneak_button:
+            _silent_sneak_button.hide()
         _selected_target_id = -1
 
     # Show spectator button when spectator enters SEARCHING
