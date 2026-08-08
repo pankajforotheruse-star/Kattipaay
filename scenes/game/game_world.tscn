@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/GameWorld.gd" id="1_gw"]
 [ext_resource type="Script" path="res://scripts/game/Camera.gd" id="2_cam"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/systems/ArgumentSystem.gd" id="12_args"]
 [ext_resource type="Script" path="res://scripts/systems/HintSystem.gd" id="13_hs"]
 [ext_resource type="Script" path="res://scripts/systems/SloppyCountSystem.gd" id="14_scs"]
+[ext_resource type="Script" path="res://scripts/systems/SilentSneakSystem.gd" id="15_sss"]
 
 [node name="GameWorld" type="Node2D"]
 script = ExtResource("1_gw")
@@ -67,6 +68,9 @@ script = ExtResource("13_hs")
 
 [node name="SloppyCountSystem" type="Node" parent="Systems"]
 script = ExtResource("14_scs")
+
+[node name="SilentSneakSystem" type="Node" parent="Systems"]
+script = ExtResource("15_sss")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
