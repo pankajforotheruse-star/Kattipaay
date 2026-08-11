@@ -110,6 +110,14 @@ offset_top = 660.0
 offset_right = 660.0
 offset_bottom = 740.0
 text = "▶  PLAY ONLINE"
+[node name="PlayVsCPUButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 60.0
+offset_top = 748.0
+offset_right = 660.0
+offset_bottom = 792.0
+text = "🤖  PLAY VS CPU"
 
 [node name="OfflinePlayButton" type="Button" parent="."]
 unique_name_in_owner = true

@@ -317,6 +317,19 @@ func _on_rpc_request_argument(payload: Dictionary) -> void:
 func _on_rpc_argument_started(payload: Dictionary) -> void:
 	var argument_id: int = payload.get("argument_id", -1)
 
+	# A decoded network message may arrive without a preceding local
+	# _process_argument_request (e.g. the in-process GhostBot mock peer emits
+	# the exact EV_NETWORK_RPC_ARGUMENT_STARTED payload a server broadcast
+	# would). Rebuild the pending entry from the payload so the 3s
+	# auto-resolution can run and the false-accusation penalty can apply.
+	if not _pending_arguments.has(argument_id):
+		_pending_arguments[argument_id] = {
+			"accuser_id": payload.get("accuser_id", -1),
+			"target_id": payload.get("target_id", -1),
+			"accusation_text": payload.get("accusation_text", ""),
+			"timestamp": payload.get("timestamp", Time.get_ticks_msec()),
+		}
+
 	# Pause timer
 	MatchTimer.pause()
 
