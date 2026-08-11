@@ -1,0 +1,33 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/tutorial/Tutorial.gd" id="1_tut"]
+[ext_resource type="Script" path="res://scripts/game/GridOverlay.gd" id="2_grid"]
+[ext_resource type="Script" path="res://scripts/systems/DrawSystem.gd" id="3_ds"]
+[ext_resource type="Script" path="res://scripts/systems/GhostDrawSystem.gd" id="4_ghs"]
+[ext_resource type="Script" path="res://scripts/systems/ArgumentSystem.gd" id="5_args"]
+[ext_resource type="Script" path="res://scripts/tutorial/GhostHand.gd" id="6_hand"]
+
+[node name="Tutorial" type="Node2D"]
+script = ExtResource("1_tut")
+
+[node name="GridOverlay" type="Node2D" parent="."]
+script = ExtResource("2_grid")
+z_index = -1
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(360, 640)
+
+[node name="Systems" type="Node" parent="."]
+
+[node name="DrawSystem" type="Node" parent="Systems"]
+script = ExtResource("3_ds")
+
+[node name="GhostDrawSystem" type="Node" parent="Systems"]
+script = ExtResource("4_ghs")
+
+[node name="ArgumentSystem" type="Node" parent="Systems"]
+script = ExtResource("5_args")
+
+[node name="GhostHand" type="Node2D" parent="."]
+script = ExtResource("6_hand")
+z_index = 5

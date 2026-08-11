@@ -17,6 +17,7 @@ const COLOR_BG := Color("1E1D2B")
 @onready var _xp_bar: ProgressBar = %XPBar
 @onready var _xp_label: Label = %XPLabel
 @onready var _nav_dots: HBoxContainer = %NavDots
+@onready var _tutorial_btn: Button = %TutorialButton
 @onready var _version_label: Label = %VersionLabel
 @onready var _sky_gradient: ColorRect = %SkyGradient
 @onready var _village_silhouette: Node2D = %VillageSilhouette
@@ -59,6 +60,8 @@ func _connect_signals() -> void:
 		_collection_btn.pressed.connect(_on_collection)
 	if _daily_reward_btn:
 		_daily_reward_btn.pressed.connect(_on_daily_reward)
+	if _tutorial_btn:
+		_tutorial_btn.pressed.connect(_on_tutorial)
 
 func _animate_title_entrance() -> void:
 	if not _title_panel:
@@ -92,6 +95,9 @@ func _on_daily_reward() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "daily_reward"})
 	EventBus.emit(EventBus.EV_GAME_DAILY_REWARD_CLAIMED, {})
 
+	func _on_tutorial() -> void:
+		EventBus.emit("ui.button_pressed", {"button": "tutorial"})
+		SceneManager.go_to("tutorial/tutorial.tscn")
 func _update_xp_display() -> void:
 	if _xp_bar and _xp_label:
 		var level := 14
