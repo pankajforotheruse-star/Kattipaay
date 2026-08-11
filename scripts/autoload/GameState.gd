@@ -40,7 +40,7 @@ enum MatchState {
 
 const VALID_TRANSITIONS: Dictionary = {
     State.SPLASH:    [State.MAIN_MENU, State.PLAYING],  # PLAYING allowed for prototype bootstrap
-    State.MAIN_MENU: [State.LOBBY, State.MAIN_MENU],
+    State.MAIN_MENU: [State.LOBBY, State.MAIN_MENU, State.PLAYING],  # PLAYING for solo "Play vs CPU" (SPLASH->PLAYING prototype precedent)
     State.LOBBY:     [State.PLAYING, State.MAIN_MENU],
     State.PLAYING:   [State.PAUSED, State.GAME_OVER, State.MAIN_MENU],
     State.PAUSED:    [State.PLAYING, State.MAIN_MENU],
@@ -79,6 +79,14 @@ var previous_match: int = MatchState.NONE
 
 ## Remembers which match state we were in before PAUSED.
 var pre_pause_match: int = MatchState.NONE
+
+## Solo "Play vs CPU" mode flag. Set by the home screen before entering
+## PLAYING; when true, GameWorld spawns the GhostBotController mock peer and
+## the SoloMatchDriver. Cleared when the solo match ends (driver _exit_tree).
+var solo_vs_cpu: bool = false
+
+## CPU difficulty for solo mode (GhostBotController.Difficulty enum value).
+var cpu_difficulty: int = GhostBotController.Difficulty.NORMAL
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 

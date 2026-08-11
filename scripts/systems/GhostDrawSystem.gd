@@ -350,7 +350,7 @@ func _check_discovery() -> void:
 
 	var now := Time.get_ticks_msec()
 	var discovered_ids: Array[int] = []
-	var within_penalty_window := (now - _placed_at_time) <= PENALTY_WINDOW_MS
+	var penalty_window_hit := false
 
 	# Check each ghost line against each vision circle
 	for line in _active_ghost_lines:
@@ -370,6 +370,12 @@ func _check_discovery() -> void:
 				var b := line.points[i + 1]
 				if _segment_intersects_circle(a, b, center, radius):
 					discovered_ids.append(line.id)
+					# Penalty window is per line (its own placement timestamp).
+					# Networked lines (incl. the solo GhostBot mock peer) carry gp
+					# in their network dict; the old single _placed_at_time only
+					# ever reflected the local activation path.
+					if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
+						penalty_window_hit = true
 					line.is_discovered = true
 					break  # One hit per line is enough
 			if line.is_discovered:
@@ -378,10 +384,10 @@ func _check_discovery() -> void:
 	if discovered_ids.is_empty():
 		return
 
-	# Discovery occurred — determine if penalty applies
-	var penalty_applied := false
-	if within_penalty_window:
-		penalty_applied = true
+	# Discovery occurred — determine if penalty applies (any line discovered
+	# inside its own 5s placement window).
+	var penalty_applied := penalty_window_hit
+	if penalty_applied:
 		# Emit penalty event
 		EventBus.emit(EventBus.EV_GAME_GHOST_DRAW_PENALTY, {
 			"amount": PENALTY_AMOUNT,

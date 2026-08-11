@@ -598,3 +598,8 @@ func set_world_bounds(min_bounds: Vector2, size: Vector2) -> void:
 	if _fog_material:
 		_fog_material.set_shader_parameter("world_bounds_min", _world_bounds_min)
 		_fog_material.set_shader_parameter("world_bounds_size", _world_bounds_size)
+
+## Get the world bounds as a Rect2 (min position + size). Public getter used
+## by the GhostBotController to clamp its placement anchors.
+func get_world_bounds() -> Rect2:
+	return Rect2(_world_bounds_min, _world_bounds_size)

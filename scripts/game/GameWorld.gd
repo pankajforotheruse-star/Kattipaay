@@ -26,6 +26,11 @@ func _ready() -> void:
 	# Emit that the world is ready
 	EventBus.emit(EventBus.EV_GAME_WORLD_READY, {"entity_count": entity_registry.size()})
 
+	# Solo "Play vs CPU": spawn the in-process ghost bot + match driver.
+	# The home screen sets the flag; normal/online play never does.
+	if GameState.solo_vs_cpu:
+		_spawn_solo_match()
+
 ## Scan the scene tree for Entity nodes and register them.
 func _register_existing_entities() -> void:
 	var entities_container := get_node_or_null("Entities")
@@ -63,3 +68,10 @@ func _on_entity_unregister(payload: Dictionary) -> void:
 	var entity: Entity = payload.get("entity")
 	if entity:
 		_unregister_entity(entity)
+
+## Spawn the solo-match stack: the driver owns the round flow and creates the
+## GhostBotController mock peer. Both free with the scene on exit.
+func _spawn_solo_match() -> void:
+	var driver := SoloMatchDriver.new()
+	driver.name = "SoloMatchDriver"
+	add_child(driver)
