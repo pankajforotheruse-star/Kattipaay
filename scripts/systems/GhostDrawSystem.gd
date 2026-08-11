@@ -56,6 +56,9 @@ const MAX_LINE_SEPARATION := 150.0
 ## Opacity for ghost lines on the ghost's own client (pre-discovery).
 const GHOST_OWN_CLIENT_ALPHA := 0.15
 
+## Pre-warmed Line2D nodes in the ghost visual pool (Prompt 16).
+const GHOST_LINE_POOL_PREWARM := 8
+
 ## Fade-in duration when ghost lines become visible on discovery (seconds).
 const REVEAL_FADE_DURATION := 0.5
 
@@ -102,6 +105,9 @@ var _ghost_chalk_container: Node2D = null
 ## Map from ChalkLine id → Line2D node for ghost lines.
 var _ghost_line_nodes: Dictionary = {}  # int → Line2D
 
+## Pooled ghost Line2D visuals — reuse nodes instead of new/free per line.
+var _ghost_line_pool: Pool = null
+
 ## Map from ChalkLine id → Tween for reveal fade-in animations.
 var _ghost_reveal_tweens: Dictionary = {}
 
@@ -145,6 +151,9 @@ func _ready() -> void:
 	_ghost_chalk_container.z_index = 10  # Same level as regular chalk lines
 	if _game_world:
 		_game_world.add_child(_ghost_chalk_container)
+
+	# Line2D pool for ghost visuals (Android optimization, Prompt 16).
+	_ghost_line_pool = Pool.new(func() -> Line2D: return Line2D.new(), GHOST_LINE_POOL_PREWARM)
 
 	# Load shader for ghost lines
 	var shader := load("res://assets/shaders/chalk_line.gdshader") as Shader
@@ -492,7 +501,7 @@ func _create_ghost_line_node(line: ChalkLine) -> void:
 	if _ghost_line_nodes.has(line.id):
 		return
 
-	var ln := Line2D.new()
+	var ln := _acquire_ghost_line_node()
 	ln.name = "GhostChalkLine_%d" % line.id
 	ln.z_index = 10
 
@@ -513,8 +522,7 @@ func _create_ghost_line_node(line: ChalkLine) -> void:
 	if not _is_local_ghost:
 		ln.visible = false
 
-	for pt in line.points:
-		ln.add_point(pt)
+	ln.points = PackedVector2Array(line.points)  # one packed copy, no per-point calls
 
 	# Apply shader material with appropriate alpha
 	if _ghost_material:
@@ -526,10 +534,21 @@ func _create_ghost_line_node(line: ChalkLine) -> void:
 		# Override default_color since shader handles color
 		ln.default_color = Color.WHITE
 
-	if _ghost_chalk_container:
-		_ghost_chalk_container.add_child(ln)
-
 	_ghost_line_nodes[line.id] = ln
+
+
+## Acquire a Line2D node from the ghost pool, parented under the container.
+func _acquire_ghost_line_node() -> Line2D:
+	var ln := _ghost_line_pool.acquire() as Line2D
+	if _ghost_chalk_container and ln.get_parent() != _ghost_chalk_container:
+		_ghost_chalk_container.add_child(ln)
+	return ln
+
+
+## Reset a Line2D node and return it to the ghost pool for reuse.
+func _release_ghost_line_node(node: Line2D) -> void:
+	Pool.reset_line2d(node)
+	_ghost_line_pool.release(node)
 
 
 ## Update existing ghost Line2D node visibility (called on discovery/reveal).
@@ -724,7 +743,7 @@ func _clear_all_ghost_lines() -> void:
 	# Remove all Line2D nodes
 	for node in _ghost_line_nodes.values():
 		if node is Line2D and is_instance_valid(node):
-			node.queue_free()
+			_release_ghost_line_node(node)
 	_ghost_line_nodes.clear()
 
 	_active_ghost_lines.clear()

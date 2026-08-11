@@ -8,11 +8,26 @@
 #
 # The tutorial drives it through small async methods that emit `move_finished`
 # when each motion completes, so sequences read top-to-bottom with `await`.
+#
+# Android optimization (Prompt 16): the ~11 static body primitives are baked
+# ONCE into a 128×128 texture (throwaway SubViewport) — the live hand renders
+# as a single textured quad plus 2 animated accents, redrawn at 30 fps instead
+# of 60. _draw_hand_body() doubles as the fallback if the bake isn't ready.
 class_name GhostHand
 extends Node2D
 
 ## Finger tip offset in local space — the point that "touches" the world.
 const TIP := Vector2(10, -46)
+
+## Min seconds between redraws (30 fps — plenty for the 2 Hz glow pulse).
+const REDRAW_INTERVAL := 1.0 / 30.0
+
+## Bake viewport size — 2x the ~64 px hand for crisp edges.
+const HAND_TEX_SIZE := 128
+
+## Where the baked texture is drawn so the hand's local origin (0,0) aligns
+## with the bake drawer placed at the viewport center.
+const HAND_TEX_TOP_LEFT := Vector2(-64, -64)
 
 const HAND_BODY := Color(0.82, 0.88, 1.0, 0.6)
 const HAND_EDGE := Color(0.93, 0.96, 1.0, 0.8)
@@ -34,6 +49,11 @@ var _bobbing: bool = false
 var _press: float = 0.0
 var _glow_t: float = 0.0
 
+## Baked static hand texture (null until the async bake completes).
+var _hand_texture: Texture2D = null
+
+var _redraw_accum: float = 0.0
+
 
 func _ready() -> void:
 	trail = Line2D.new()
@@ -49,12 +69,18 @@ func _ready() -> void:
 	trail.visible = false
 	modulate.a = 0.0
 	set_process(true)
+	_bake_hand_texture()
 
 
 func _process(delta: float) -> void:
 	_bob_time += delta
 	_glow_t += delta
-	queue_redraw()
+	# Redraw throttled to 30 fps — the glow pulse is a 2 Hz sine, so 30 fps is
+	# visually identical while halving vertex generation on low-end phones.
+	_redraw_accum += delta
+	if _redraw_accum >= REDRAW_INTERVAL:
+		_redraw_accum = 0.0
+		queue_redraw()
 	if _trailing:
 		_trail_world.append(get_finger_tip_world())
 		if _trail_world.size() > 1:
@@ -187,11 +213,27 @@ func clear_trail() -> void:
 
 func _draw() -> void:
 	var dim := 1.0 - _press * 0.22
+	if _hand_texture:
+		# Baked body: one textured quad; the modulate color's alpha applies the
+		# press dim to the whole baked hand in a single primitive.
+		draw_texture(_hand_texture, HAND_TEX_TOP_LEFT, Color(1.0, 1.0, 1.0, dim))
+	else:
+		# Fallback (bake not ready yet or failed): draw the body directly.
+		_draw_hand_body(dim)
+
+	# soft breathing glow (kept dynamic — it pulses at 2 Hz)
+	draw_circle(Vector2.ZERO, 34.0, Color(0.8, 0.9, 1.0, 0.09 + 0.02 * sin(_glow_t * 2.0)))
+
+	# tap ripple at the finger tip while pressed
+	if _press > 0.4:
+		draw_arc(TIP, 9.0 + _press * 7.0, 0.0, TAU, 24, Color(0.9, 0.95, 1.0, 0.5 * _press), 2.0)
+
+
+## Draw the static hand body primitives. Used by the one-time bake and as the
+## runtime fallback while the bake is pending.
+func _draw_hand_body(dim: float) -> void:
 	var body := Color(HAND_BODY.r * dim, HAND_BODY.g * dim, HAND_BODY.b * dim, HAND_BODY.a)
 	var edge := Color(HAND_EDGE.r * dim, HAND_EDGE.g * dim, HAND_EDGE.b * dim, HAND_EDGE.a)
-
-	# soft breathing glow
-	draw_circle(Vector2.ZERO, 34.0, Color(0.8, 0.9, 1.0, 0.09 + 0.02 * sin(_glow_t * 2.0)))
 
 	# wrist / palm
 	draw_circle(Vector2(0, 10), 13.0, body)
@@ -213,6 +255,47 @@ func _draw() -> void:
 	# edge highlight on the pointing finger
 	draw_line(knuckle, TIP, edge, 3.5)
 
-	# tap ripple at the finger tip while pressed
-	if _press > 0.4:
-		draw_arc(TIP, 9.0 + _press * 7.0, 0.0, TAU, 24, Color(0.9, 0.95, 1.0, 0.5 * _press), 2.0)
+
+## One-time bake: render the static hand body into a 128×128 texture via a
+## throwaway SubViewport, then upload it as an ImageTexture and free the
+## viewport. Async — _draw_hand_body() covers frames until it completes.
+func _bake_hand_texture() -> void:
+	var vp := SubViewport.new()
+	vp.name = "GhostHandBakeViewport"
+	vp.size = Vector2i(HAND_TEX_SIZE, HAND_TEX_SIZE)
+	vp.transparent_bg = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(vp)
+	var drawer := StaticHandDrawer.new()
+	drawer.position = Vector2(HAND_TEX_SIZE * 0.5, HAND_TEX_SIZE * 0.5)
+	vp.add_child(drawer)
+	await RenderingServer.frame_post_draw
+	if not is_inside_tree():
+		return  # scene already left — nothing to keep
+	var tex := vp.get_texture()
+	if tex == null:
+		vp.queue_free()
+		return  # bake failed — the _draw_hand_body() fallback stays active
+	var img := tex.get_image()
+	_hand_texture = ImageTexture.create_from_image(img)
+	vp.queue_free()
+
+
+## Renders the static hand body once into the bake viewport. Duplicates
+## _draw_hand_body() geometry because GDScript inner classes cannot reference
+## outer-class constants — keep the two bodies in sync when editing shapes.
+class StaticHandDrawer:
+	extends Node2D
+	var body := Color(0.82, 0.88, 1.0, 0.6)
+	var edge := Color(0.93, 0.96, 1.0, 0.8)
+	func _draw() -> void:
+		draw_circle(Vector2(0, 10), 13.0, body)
+		var knuckle := Vector2(2, -6)
+		draw_circle(knuckle, 6.6, body)
+		draw_circle(Vector2(10, -46), 6.6, body)
+		draw_line(knuckle, Vector2(10, -46), body, 11.0)
+		for i in range(3):
+			var base_ang := 2.2 + i * 0.35
+			draw_arc(Vector2(-8, 2), 9.0, base_ang, base_ang + 1.6, 6, body, 8.0)
+		draw_arc(Vector2(6, 6), 10.0, -0.5, 0.9, 6, body, 7.0)
+		draw_line(knuckle, Vector2(10, -46), edge, 3.5)
