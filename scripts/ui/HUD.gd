@@ -1,7 +1,8 @@
 # HUD.gd — Heads-up display overlay for CHALK GAON
 # CanvasLayer that sits on top of the game world (layer 1).
 # Shows: state label, info label, timer display, chalk meter, argument button,
-# hint counter, spectator reveal button, trap penalty flash, silent sneak button.
+# hint counter, spectator reveal button, trap penalty flash, silent sneak button,
+# score display (top-right: total score + round score flash via ScoringManager).
 #
 # ArgumentButton: visible only during SEARCHING, bottom-right corner (y≥850),
 # terracotta background (#CC6B49), pulse animation, 15s cooldown.
@@ -15,6 +16,7 @@
 #   - Hint counter: top of screen during SEARCHING, "Hints: N"
 #   - Spectator button: visible when local player is spectator, "👁 Reveal Available"
 #   - Penalty flash: "-20s" red center-screen on fake hint trap trigger
+#   - Score label: gold (#D4A216) top-right, shows "Score: N"; brief "Round: +N" flash
 
 class_name HUD
 extends CanvasLayer
@@ -43,6 +45,7 @@ var _hint_counter_label: Label = null
 var _spectator_button: Button = null
 var _spectator_notification_label: Label = null
 var _sloppy_count_banner: Label = null
+var _score_label: Label = null
 var _spectator_reveal_used: bool = false
 var _is_spectator: bool = false
 
@@ -95,6 +98,10 @@ func _ready() -> void:
     EventBus.on("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
     EventBus.on("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
 
+    # --- Scoring events ---
+    EventBus.on("game.total_score_updated", _on_total_score_updated)
+    EventBus.on("game.round_score_calculated", _on_round_score_calculated)
+
     # --- Create UI elements ---
     _create_timer_label()
     _create_chalk_label()
@@ -104,6 +111,7 @@ func _ready() -> void:
     _create_spectator_button()
     _create_spectator_notification()
     _create_sloppy_count_banner()
+    _create_score_label()
 
     _update_info("Tap anywhere to move the RED player.\nBLUE player patrols automatically.\nGreen grid = 100px squares.")
 
@@ -160,6 +168,8 @@ func _exit_tree() -> void:
     EventBus.off("game.silent_sneak_activated", _on_silent_sneak_activated)
     EventBus.off("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
     EventBus.off("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
+    EventBus.off("game.total_score_updated", _on_total_score_updated)
+    EventBus.off("game.round_score_calculated", _on_round_score_calculated)
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
 
@@ -804,4 +814,38 @@ func _on_sloppy_count_finished(payload: Dictionary) -> void:
         tween.tween_callback(func():
             if _sloppy_count_banner:
                 _sloppy_count_banner.hide()
+        )
+
+# ── Score Display ──────────────────────────────────────────────────────────
+
+func _create_score_label() -> void:
+    _score_label = Label.new()
+    _score_label.name = "ScoreLabel"
+    _score_label.text = "Score: 0"
+    _score_label.add_theme_font_size_override("font_size", 22)
+    _score_label.add_theme_color_override("font_color", Color(0.83, 0.63, 0.09, 1.0))
+    _score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    _score_label.anchors_preset = Control.PRESET_TOP_RIGHT
+    _score_label.offset_left = -180
+    _score_label.offset_top = 80
+    _score_label.offset_right = -16
+    _score_label.offset_bottom = 110
+    add_child(_score_label)
+
+func _on_total_score_updated(payload: Dictionary) -> void:
+    var score: int = payload.get("total_score", 0)
+    if _score_label:
+        _score_label.text = "Score: %d" % score
+
+func _on_round_score_calculated(payload: Dictionary) -> void:
+    var score: int = payload.get("score", 0)
+    # Brief flash of round score
+    if _score_label:
+        _score_label.text = "Round: +%d" % score
+        var tween := create_tween()
+        tween.tween_interval(3.0)
+        tween.tween_callback(func():
+            if _score_label:
+                var total := ScoringManager.get_total_score()
+                _score_label.text = "Score: %d" % total
         )
