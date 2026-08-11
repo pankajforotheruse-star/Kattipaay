@@ -120,6 +120,15 @@ offset_right = 660.0
 offset_bottom = 864.0
 text = "📶  OFFLINE PLAY"
 
+[node name="TutorialButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 60.0
+offset_top = 872.0
+offset_right = 660.0
+offset_bottom = 912.0
+text = "👻  TUTORIAL"
+
 [node name="XPBar" type="ProgressBar" parent="."]
 unique_name_in_owner = true
 layout_mode = 0
