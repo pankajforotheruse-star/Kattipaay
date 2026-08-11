@@ -61,24 +61,39 @@ var _pending_arguments: Dictionary = {}
 ## Auto-incrementing argument ID counter.
 var _next_argument_id: int = 0
 
+## Pending resolution timers: { argument_id: SceneTreeTimer }
+## Tracked so stale callbacks can be cancelled on round reset / scene exit
+## (otherwise a timeout could fire on dead state and resolve an old argument).
+var _argument_timers: Dictionary = {}
+
+## Dramatic pause duration before an argument auto-resolves (seconds).
+const ARGUMENT_RESOLUTION_SECONDS := 3.0
+
+## Timer penalty for a FALSE accusation (seconds removed from the match clock).
+## architecture.md §7.7 documents -30s; gdd.md does not specify a value for this
+## penalty — 30s kept to match the architecture doc. Adjust here if the GDD is updated.
+const FALSE_ACCUSATION_TIME_PENALTY_SECONDS := 30.0
+
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
-	EventBus.on("match.state_changed", _on_match_state_changed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 
 	# Listen for network RPC simulation events
-	EventBus.on("network.rpc.request_argument", _on_rpc_request_argument)
-	EventBus.on("network.rpc.argument_started", _on_rpc_argument_started)
-	EventBus.on("network.rpc.argument_resolved", _on_rpc_argument_resolved)
+	EventBus.on(EventBus.EV_NETWORK_RPC_REQUEST_ARGUMENT, _on_rpc_request_argument)
+	EventBus.on(EventBus.EV_NETWORK_RPC_ARGUMENT_STARTED, _on_rpc_argument_started)
+	EventBus.on(EventBus.EV_NETWORK_RPC_ARGUMENT_RESOLVED, _on_rpc_argument_resolved)
 
 	print("ArgumentSystem: ready — %d accusations in pool" % ACCUSATIONS.size())
 
 
 func _exit_tree() -> void:
-	EventBus.off("match.state_changed", _on_match_state_changed)
-	EventBus.off("network.rpc.request_argument", _on_rpc_request_argument)
-	EventBus.off("network.rpc.argument_started", _on_rpc_argument_started)
-	EventBus.off("network.rpc.argument_resolved", _on_rpc_argument_resolved)
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.off(EventBus.EV_NETWORK_RPC_REQUEST_ARGUMENT, _on_rpc_request_argument)
+	EventBus.off(EventBus.EV_NETWORK_RPC_ARGUMENT_STARTED, _on_rpc_argument_started)
+	EventBus.off(EventBus.EV_NETWORK_RPC_ARGUMENT_RESOLVED, _on_rpc_argument_resolved)
+	# Kill pending resolution timers so no callback fires after teardown.
+	_cancel_all_argument_timers()
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -155,7 +170,7 @@ func _process_argument_request(accuser_id: int, target_id: int) -> void:
 	}
 
 	# Broadcast start
-	EventBus.emit("network.rpc.argument_started", {
+	EventBus.emit(EventBus.EV_NETWORK_RPC_ARGUMENT_STARTED, {
 		"accuser_id": accuser_id,
 		"target_id": target_id,
 		"accusation_text": text,
@@ -190,7 +205,7 @@ func _simulate_local_argument(accuser_id: int, target_id: int) -> void:
 	}
 
 	# Simulate broadcast from server
-	EventBus.emit("network.rpc.argument_started", {
+	EventBus.emit(EventBus.EV_NETWORK_RPC_ARGUMENT_STARTED, {
 		"accuser_id": accuser_id,
 		"target_id": target_id,
 		"accusation_text": text,
@@ -212,7 +227,7 @@ func _resolve_argument(argument_id: int) -> void:
 	var is_true_ghost: bool = _is_target_ghost(target_id)
 
 	# Broadcast resolution
-	EventBus.emit("network.rpc.argument_resolved", {
+	EventBus.emit(EventBus.EV_NETWORK_RPC_ARGUMENT_RESOLVED, {
 		"argument_id": argument_id,
 		"is_true_ghost": is_true_ghost,
 	})
@@ -224,6 +239,44 @@ func _resolve_argument(argument_id: int) -> void:
 		})
 
 	_pending_arguments.erase(argument_id)
+
+
+# ── Resolution Timer Management ──────────────────────────────────────────────
+
+## Schedule auto-resolution of an argument after the dramatic pause.
+## The SceneTreeTimer is stored per argument_id so it can be cancelled on
+## round reset / scene exit — prevents stale timeouts firing on dead state.
+func _schedule_argument_resolution(argument_id: int) -> void:
+	_cancel_argument_timer(argument_id)  # never double-schedule the same argument
+	var tree := get_tree()
+	if not tree:
+		return
+	var timer := tree.create_timer(ARGUMENT_RESOLUTION_SECONDS)
+	_argument_timers[argument_id] = timer
+	timer.timeout.connect(_on_argument_timer_timeout.bind(argument_id), CONNECT_ONE_SHOT)
+
+
+## Timeout fired: resolve the argument (if it is still pending).
+func _on_argument_timer_timeout(argument_id: int) -> void:
+	_argument_timers.erase(argument_id)
+	_resolve_argument(argument_id)
+
+
+## Cancel a single pending resolution timer (disconnect = callback never fires).
+func _cancel_argument_timer(argument_id: int) -> void:
+	if not _argument_timers.has(argument_id):
+		return
+	var timer: SceneTreeTimer = _argument_timers[argument_id]
+	if timer and timer.timeout.is_connected(_on_argument_timer_timeout.bind(argument_id)):
+		timer.timeout.disconnect(_on_argument_timer_timeout.bind(argument_id))
+	_argument_timers.erase(argument_id)
+
+
+## Cancel every pending resolution timer (round reset, scene exit, teardown).
+func _cancel_all_argument_timers() -> void:
+	for argument_id in _argument_timers.keys():
+		_cancel_argument_timer(argument_id)
+	_argument_timers.clear()
 
 
 ## Stub: check if target is a ghost.
@@ -243,6 +296,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	if from_state == GameState.MatchState.DRAWING and to_state == GameState.MatchState.SEARCHING:
 		_argued_this_round.clear()
 		_recent_accusations.clear()
+		# Drop any stale pending arguments/timers from a previous round so no
+		# resolution callback can fire into the new round.
+		_pending_arguments.clear()
+		_cancel_all_argument_timers()
 		print("ArgumentSystem: reset for new round")
 
 
@@ -267,18 +324,13 @@ func _on_rpc_argument_started(payload: Dictionary) -> void:
 		GameState.enter_match_state(GameState.MatchState.PAUSED)
 
 	# Emit game event
-	EventBus.emit("game.argument_started", payload)
+	EventBus.emit(EventBus.EV_GAME_ARGUMENT_STARTED, payload)
 
 	# Play sound
 	AudioManager.play_argument_start()
 
-	# Auto-resolve after 3 seconds
-	var tree := get_tree()
-	if tree:
-		tree.create_timer(3.0).timeout.connect(
-			func(): _resolve_argument(argument_id),
-			CONNECT_ONE_SHOT
-		)
+	# Auto-resolve after the dramatic pause (tracked so it can be cancelled).
+	_schedule_argument_resolution(argument_id)
 
 
 ## Received RPC: argument resolved (all clients).
@@ -288,15 +340,15 @@ func _on_rpc_argument_resolved(payload: Dictionary) -> void:
 	var penalty_applied: bool = false
 
 	if not is_true:
-		# False accusation: remove 30 seconds
-		MatchTimer.remove_time(30)
+		# False accusation: remove time penalty (see FALSE_ACCUSATION_TIME_PENALTY_SECONDS)
+		MatchTimer.remove_time(FALSE_ACCUSATION_TIME_PENALTY_SECONDS)
 		penalty_applied = true
 
 	# Play result sound
 	AudioManager.play_argument_result(is_true)
 
 	# Emit resolved event
-	EventBus.emit("game.argument_resolved", {
+	EventBus.emit(EventBus.EV_GAME_ARGUMENT_RESOLVED, {
 		"argument_id": argument_id,
 		"is_true": is_true,
 		"penalty_applied": penalty_applied,

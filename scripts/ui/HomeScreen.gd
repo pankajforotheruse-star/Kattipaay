@@ -35,7 +35,7 @@ func _ready() -> void:
 	# Animate title entrance
 	_animate_title_entrance()
 
-	EventBus.on("game.state_changed", _on_game_state_changed)
+	EventBus.on(EventBus.EV_GAME_STATE_CHANGED, _on_game_state_changed)
 	EventBus.on("ui.button_pressed", _on_button_event)
 
 func _setup_background() -> void:
@@ -90,7 +90,7 @@ func _on_collection() -> void:
 
 func _on_daily_reward() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "daily_reward"})
-	EventBus.emit("game.daily_reward_claimed", {})
+	EventBus.emit(EventBus.EV_GAME_DAILY_REWARD_CLAIMED, {})
 
 func _update_xp_display() -> void:
 	if _xp_bar and _xp_label:

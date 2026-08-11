@@ -3,11 +3,11 @@
 # on the EventBus. Game systems never read Input.* directly.
 #
 # Two-finger drawing gesture (GDD §4):
-#   1. Finger 0 down → "input.move_start" (anchor/movement finger)
-#   2. Finger 1 down while Finger 0 is held → "input.draw_start" (drawing finger)
-#   3. Finger 1 moves → "input.draw_update"
-#   4. Finger 1 up → "input.draw_end"
-#   5. Finger 0 up → "input.move_end"
+#   1. Finger 0 down → EventBus.EV_INPUT_MOVE_START (anchor/movement finger)
+#   2. Finger 1 down while Finger 0 is held → EventBus.EV_INPUT_DRAW_START (drawing finger)
+#   3. Finger 1 moves → EventBus.EV_INPUT_DRAW_UPDATE
+#   4. Finger 1 up → EventBus.EV_INPUT_DRAW_END
+#   5. Finger 0 up → EventBus.EV_INPUT_MOVE_END
 #
 # Undo gesture:
 #   - Shake-to-undo: accelerometer-based shake detection
@@ -87,7 +87,7 @@ func _input(event: InputEvent) -> void:
 	# --- Keyboard: Undo shortcut (desktop testing) ---
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_U:
-			EventBus.emit("input.undo_draw", {})
+			EventBus.emit(EventBus.EV_INPUT_UNDO_DRAW, {})
 			return
 
 	# --- Touch handling ---
@@ -142,7 +142,7 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 	if _anchor_touch_index == -1:
 		# First finger → anchor (movement)
 		_anchor_touch_index = index
-		EventBus.emit("input.move_start", {
+		EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
 			"entity_id": local_entity_id,
 			"screen_position": screen_pos,
 		})
@@ -151,7 +151,7 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 		# Second finger → drawing
 		_draw_touch_index = index
 		var world_pos := screen_to_world(screen_pos)
-		EventBus.emit("input.draw_start", {
+		EventBus.emit(EventBus.EV_INPUT_DRAW_START, {
 			"entity_id": local_entity_id,
 			"position": world_pos,
 			"chalk_type": current_chalk_type,
@@ -165,19 +165,19 @@ func _handle_touch_up(index: int) -> void:
 	if index == _draw_touch_index:
 		# Drawing finger released
 		_draw_touch_index = -1
-		EventBus.emit("input.draw_end", {
+		EventBus.emit(EventBus.EV_INPUT_DRAW_END, {
 			"entity_id": local_entity_id,
 		})
 
 	elif index == _anchor_touch_index:
 		# Anchor finger released → end movement
 		_anchor_touch_index = -1
-		EventBus.emit("input.move_end", {})
+		EventBus.emit(EventBus.EV_INPUT_MOVE_END, {})
 
 		# If drawing finger is still active, cancel drawing too
 		# (drawing requires anchor to be held — GDD §4)
 		if _draw_touch_index != -1:
-			EventBus.emit("input.draw_end", {
+			EventBus.emit(EventBus.EV_INPUT_DRAW_END, {
 				"entity_id": local_entity_id,
 			})
 			_draw_touch_index = -1
@@ -190,7 +190,7 @@ func _handle_touch_drag(index: int, screen_pos: Vector2) -> void:
 	if index == _draw_touch_index:
 		# Drawing finger moved
 		var world_pos := screen_to_world(screen_pos)
-		EventBus.emit("input.draw_update", {
+		EventBus.emit(EventBus.EV_INPUT_DRAW_UPDATE, {
 			"entity_id": local_entity_id,
 			"position": world_pos,
 		})
@@ -199,7 +199,7 @@ func _handle_touch_drag(index: int, screen_pos: Vector2) -> void:
 	# follows the anchor position continuously via _process or repeated events.
 	# For now, we re-emit move_start on anchor drag to update target.
 	elif index == _anchor_touch_index:
-		EventBus.emit("input.move_start", {
+		EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
 			"entity_id": local_entity_id,
 			"screen_position": screen_pos,
 		})
@@ -213,7 +213,7 @@ func _handle_mouse_anchor_start(screen_pos: Vector2) -> void:
 	_mouse_is_anchor = true
 	if _draw_touch_index != -1:
 		return  # Already drawing via right-click
-	EventBus.emit("input.move_start", {
+	EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
 		"entity_id": local_entity_id,
 		"screen_position": screen_pos,
 	})
@@ -221,10 +221,10 @@ func _handle_mouse_anchor_start(screen_pos: Vector2) -> void:
 
 func _handle_mouse_anchor_end(_screen_pos: Vector2) -> void:
 	_mouse_is_anchor = false
-	EventBus.emit("input.move_end", {})
+	EventBus.emit(EventBus.EV_INPUT_MOVE_END, {})
 	if _mouse_is_drawing:
 		_mouse_is_drawing = false
-		EventBus.emit("input.draw_end", {
+		EventBus.emit(EventBus.EV_INPUT_DRAW_END, {
 			"entity_id": local_entity_id,
 		})
 
@@ -233,13 +233,13 @@ func _handle_mouse_draw_start(screen_pos: Vector2) -> void:
 	if not _mouse_is_anchor:
 		# Auto-start anchor if drawing without anchor (convenience for desktop)
 		_mouse_is_anchor = true
-		EventBus.emit("input.move_start", {
+		EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
 			"entity_id": local_entity_id,
 			"screen_position": screen_pos,
 		})
 	_mouse_is_drawing = true
 	var world_pos := screen_to_world(screen_pos)
-	EventBus.emit("input.draw_start", {
+	EventBus.emit(EventBus.EV_INPUT_DRAW_START, {
 		"entity_id": local_entity_id,
 		"position": world_pos,
 		"chalk_type": current_chalk_type,
@@ -248,14 +248,14 @@ func _handle_mouse_draw_start(screen_pos: Vector2) -> void:
 
 func _handle_mouse_draw_end(_screen_pos: Vector2) -> void:
 	_mouse_is_drawing = false
-	EventBus.emit("input.draw_end", {
+	EventBus.emit(EventBus.EV_INPUT_DRAW_END, {
 		"entity_id": local_entity_id,
 	})
 
 
 func _handle_mouse_draw_move(screen_pos: Vector2) -> void:
 	var world_pos := screen_to_world(screen_pos)
-	EventBus.emit("input.draw_update", {
+	EventBus.emit(EventBus.EV_INPUT_DRAW_UPDATE, {
 		"entity_id": local_entity_id,
 		"position": world_pos,
 	})
@@ -309,7 +309,7 @@ func _detect_shake() -> void:
 		var now := Time.get_ticks_msec() / 1000.0
 		if now - _last_shake_time >= SHAKE_COOLDOWN:
 			_last_shake_time = now
-			EventBus.emit("input.undo_draw", {})
+			EventBus.emit(EventBus.EV_INPUT_UNDO_DRAW, {})
 			print("InputManager: shake detected — undo triggered")
 
 

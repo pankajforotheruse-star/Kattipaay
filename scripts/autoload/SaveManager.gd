@@ -11,7 +11,7 @@ func save_local(key: String, data: Dictionary) -> void:
 		return
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
-	EventBus.emit("save.local_complete", {"key": key})
+	EventBus.emit(EventBus.EV_SAVE_LOCAL_COMPLETE, {"key": key})
 
 ## Load a dictionary from local storage. Returns default if file missing or corrupt.
 func load_local(key: String, default: Dictionary) -> Dictionary:

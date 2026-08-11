@@ -35,7 +35,7 @@ var _tip_timer: float = 0.0
 func _ready() -> void:
 	_connect_signals()
 	_setup_initial_state()
-	EventBus.on("network.match_found", _on_match_found)
+	EventBus.on(EventBus.EV_NETWORK_MATCH_FOUND, _on_match_found)
 
 func _connect_signals() -> void:
 	if _cancel_btn: _cancel_btn.pressed.connect(_on_cancel)
@@ -114,7 +114,7 @@ func _on_cancel() -> void:
 
 func _on_start_with_bots() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "start_with_bots"})
-	EventBus.emit("network.match_found", {"match_id": "bots", "players": 1})
+	EventBus.emit(EventBus.EV_NETWORK_MATCH_FOUND, {"match_id": "bots", "players": 1})
 	GameState.transition(GameState.State.PLAYING)
 
 func _on_match_found(_payload: Dictionary) -> void:

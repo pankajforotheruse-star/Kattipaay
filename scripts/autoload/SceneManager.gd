@@ -10,9 +10,9 @@ var _current_match_overlay: String = ""
 
 func _ready() -> void:
 	# Listen for state changes to auto-switch scenes
-	EventBus.on("game.state_changed", _on_state_changed)
+	EventBus.on(EventBus.EV_GAME_STATE_CHANGED, _on_state_changed)
 	# Listen for match sub-state changes for overlay routing
-	EventBus.on("match.state_changed", _on_match_state_changed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 
 ## Switch to a new scene (relative to res://scenes/).
 func go_to(scene_path: String) -> void:
@@ -29,7 +29,7 @@ func go_to(scene_path: String) -> void:
 
 	_current_scene_path = full_path
 	_current_match_overlay = ""
-	EventBus.emit("game.scene_loaded", {"path": scene_path})
+	EventBus.emit(EventBus.EV_GAME_SCENE_LOADED, {"path": scene_path})
 
 ## Reload the current scene.
 func reload_current() -> void:

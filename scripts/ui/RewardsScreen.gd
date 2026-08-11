@@ -71,7 +71,7 @@ func _animate_enter() -> void:
 
 func _on_claim() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "claim_rewards"})
-	EventBus.emit("game.rewards_claimed", {})
+	EventBus.emit(EventBus.EV_GAME_REWARDS_CLAIMED, {})
 
 func _on_share() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "share_result"})

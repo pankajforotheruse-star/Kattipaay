@@ -35,8 +35,8 @@ func _ready() -> void:
 
 	# Listen for move commands via EventBus (if this is the local player)
 	if is_local:
-		EventBus.on("input.move_start", _on_move_command)
-		EventBus.on("input.move_end", _on_move_stop)
+		EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_move_command)
+		EventBus.on(EventBus.EV_INPUT_MOVE_END, _on_move_stop)
 
 	# Initialize meta for movement
 	set_meta("target_position", position)
@@ -72,7 +72,7 @@ func _on_move_command(payload: Dictionary) -> void:
 	set_meta("has_target", true)
 
 	# Also emit a game-level event so systems can react
-	EventBus.emit("input.move_command_world", {
+	EventBus.emit(EventBus.EV_INPUT_MOVE_COMMAND_WORLD, {
 		"entity_id": entity_id,
 		"target": world_pos,
 	})
@@ -94,5 +94,5 @@ func _physics_process(delta: float) -> void:
 func _exit_tree() -> void:
 	# Clean up event listeners
 	if is_local:
-		EventBus.off("input.move_start", _on_move_command)
-		EventBus.off("input.move_end", _on_move_stop)
+		EventBus.off(EventBus.EV_INPUT_MOVE_START, _on_move_command)
+		EventBus.off(EventBus.EV_INPUT_MOVE_END, _on_move_stop)

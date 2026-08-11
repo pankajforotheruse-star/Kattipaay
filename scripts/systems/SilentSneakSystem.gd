@@ -50,9 +50,9 @@ var _fog_system: FogSystem = null
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
-	EventBus.on("match.state_changed", _on_match_state_changed)
-	EventBus.on("network.rpc.silent_sneak_activated", _on_network_activated)
-	EventBus.on("network.rpc.silent_sneak_deactivated", _on_network_deactivated)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.on(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_ACTIVATED, _on_network_activated)
+	EventBus.on(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_DEACTIVATED, _on_network_deactivated)
 
 	# Find references
 	_game_world = get_tree().current_scene as Node2D
@@ -71,7 +71,7 @@ func _process(delta: float) -> void:
 		_cooldown_remaining -= delta
 		if _cooldown_remaining <= 0.0:
 			_cooldown_remaining = 0.0
-			EventBus.emit("game.silent_sneak_cooldown_ended", {})
+			EventBus.emit(EventBus.EV_GAME_SILENT_SNEAK_COOLDOWN_ENDED, {})
 		return
 
 	# Active state: tick the distraction timer and check line crossings
@@ -88,9 +88,9 @@ func _process(delta: float) -> void:
 
 
 func _exit_tree() -> void:
-	EventBus.off("match.state_changed", _on_match_state_changed)
-	EventBus.off("network.rpc.silent_sneak_activated", _on_network_activated)
-	EventBus.off("network.rpc.silent_sneak_deactivated", _on_network_deactivated)
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.off(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_ACTIVATED, _on_network_activated)
+	EventBus.off(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_DEACTIVATED, _on_network_deactivated)
 
 
 # ── Event Handlers ─────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ func _on_network_deactivated(payload: Dictionary) -> void:
 	# Start cooldown on all clients
 	_cooldown_remaining = COOLDOWN_SECONDS
 
-	EventBus.emit("game.silent_sneak_deactivated", {
+	EventBus.emit(EventBus.EV_GAME_SILENT_SNEAK_DEACTIVATED, {
 		"searcher_id": searcher_id,
 	})
 
@@ -193,7 +193,7 @@ func activate_silent_sneak(searcher_id: int) -> bool:
 			"cow_position": {"x": cow_pos.x, "y": cow_pos.y},
 		})
 		# Also emit as network event for local subscribers
-		EventBus.emit("network.rpc.silent_sneak_activated", {
+		EventBus.emit(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_ACTIVATED, {
 			"searcher_id": searcher_id,
 			"cow_position": cow_pos,
 		})
@@ -241,7 +241,7 @@ func _execute_activation(searcher_id: int) -> void:
 	# Spawn the cow
 	_spawn_cow(searcher_id, cow_pos)
 
-	EventBus.emit("game.silent_sneak_activated", {
+	EventBus.emit(EventBus.EV_GAME_SILENT_SNEAK_ACTIVATED, {
 		"searcher_id": searcher_id,
 		"cow_position": cow_pos,
 		"uses_remaining": MAX_USES_PER_SEARCHING - _uses_this_phase,
@@ -267,14 +267,14 @@ func _deactivate() -> void:
 	_line_crossings_ignored = 0
 	_cooldown_remaining = COOLDOWN_SECONDS
 
-	EventBus.emit("game.silent_sneak_deactivated", {
+	EventBus.emit(EventBus.EV_GAME_SILENT_SNEAK_DEACTIVATED, {
 		"searcher_id": searcher_id,
 	})
 
 	# Broadcast deactivation to all clients if host
 	if NetworkManager.is_connected and NetworkManager.has_authority():
 		NetworkManager.send_rpc("silent_sneak_deactivated", {"searcher_id": searcher_id})
-		EventBus.emit("network.rpc.silent_sneak_deactivated", {"searcher_id": searcher_id})
+		EventBus.emit(EventBus.EV_NETWORK_RPC_SILENT_SNEAK_DEACTIVATED, {"searcher_id": searcher_id})
 
 	print("SilentSneakSystem: deactivated for searcher %d — cooldown %.1fs" % [searcher_id, COOLDOWN_SECONDS])
 
@@ -355,7 +355,7 @@ func _check_line_crossings() -> void:
 			if _point_to_segment_distance(searcher_pos, a, b) <= LINE_CROSSING_THRESHOLD:
 				_line_crossings_ignored += 1
 
-				EventBus.emit("game.silent_sneak_line_crossed", {
+				EventBus.emit(EventBus.EV_GAME_SILENT_SNEAK_LINE_CROSSED, {
 					"searcher_id": _activating_searcher_id,
 					"line_id": line.id,
 					"position": searcher_pos,

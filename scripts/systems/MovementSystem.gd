@@ -1,5 +1,5 @@
 # MovementSystem.gd — Reactive system that translates input events into entity movement
-# Subscribes to EventBus for "input.move_command_world" and applies targets to entities.
+# Subscribes to EventBus for EventBus.EV_INPUT_MOVE_COMMAND_WORLD and applies targets to entities.
 # In the full game, this also handles network forwarding and validation.
 
 class_name MovementSystem
@@ -9,7 +9,7 @@ extends Node
 var _game_world: GameWorld = null
 
 func _ready() -> void:
-	EventBus.on("input.move_command_world", _on_move_command)
+	EventBus.on(EventBus.EV_INPUT_MOVE_COMMAND_WORLD, _on_move_command)
 	# Find GameWorld directly from the scene tree (reliable, no race condition)
 	_game_world = get_tree().current_scene as GameWorld
 	if not _game_world:
