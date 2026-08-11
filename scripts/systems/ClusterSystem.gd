@@ -79,21 +79,21 @@ func _ready() -> void:
 		_draw_system = _systems_node.get_node_or_null("DrawSystem")
 
 	# --- Subscribe to line lifecycle events ---
-	EventBus.on("game.line_drawn", _on_line_drawn)
-	EventBus.on("game.line_removed", _on_line_removed)
-	EventBus.on("game.line_expired", _on_line_expired)
+	EventBus.on(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
+	EventBus.on(EventBus.EV_GAME_LINE_REMOVED, _on_line_removed)
+	EventBus.on(EventBus.EV_GAME_LINE_EXPIRED, _on_line_expired)
 
 	# --- Subscribe to match scoring ---
-	EventBus.on("match.scoring_started", _on_scoring_started)
+	EventBus.on(EventBus.EV_MATCH_SCORING_STARTED, _on_scoring_started)
 
 	print("ClusterSystem: ready")
 
 
 func _exit_tree() -> void:
-	EventBus.off("game.line_drawn", _on_line_drawn)
-	EventBus.off("game.line_removed", _on_line_removed)
-	EventBus.off("game.line_expired", _on_line_expired)
-	EventBus.off("match.scoring_started", _on_scoring_started)
+	EventBus.off(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
+	EventBus.off(EventBus.EV_GAME_LINE_REMOVED, _on_line_removed)
+	EventBus.off(EventBus.EV_GAME_LINE_EXPIRED, _on_line_expired)
+	EventBus.off(EventBus.EV_MATCH_SCORING_STARTED, _on_scoring_started)
 
 
 # =============================================================================
@@ -166,14 +166,14 @@ func _on_line_expired(payload: Dictionary) -> void:
 func _on_scoring_started(_payload = null) -> void:
 	for cluster in _clusters:
 		if cluster.is_surviving:
-			EventBus.emit("game.cluster_survived", {
+			EventBus.emit(EventBus.EV_GAME_CLUSTER_SURVIVED, {
 				"cluster_id": cluster.cluster_id,
 				"line_count": cluster.size(),
 				"multiplier": cluster.multiplier,
 				"bounds": cluster.get_bounds(),
 			})
 		else:
-			EventBus.emit("game.cluster_failed", {
+			EventBus.emit(EventBus.EV_GAME_CLUSTER_FAILED, {
 				"cluster_id": cluster.cluster_id,
 				"line_count": cluster.size(),
 			})
@@ -220,7 +220,7 @@ func _handle_line_removal(line_id: int, reason: String) -> void:
 		if idx != -1:
 			cluster.line_ids.remove_at(idx)
 
-		EventBus.emit("game.cluster_broken", {
+		EventBus.emit(EventBus.EV_GAME_CLUSTER_BROKEN, {
 			"cluster_id": cluster.cluster_id,
 			"reason": reason,
 			"removed_line_id": line_id,
@@ -248,7 +248,7 @@ func _detect_and_update_clusters(new_line_id: int) -> void:
 	if overlapping.is_empty():
 		# Brand new cluster
 		var cluster := _create_cluster(component)
-		EventBus.emit("game.cluster_formed", {
+		EventBus.emit(EventBus.EV_GAME_CLUSTER_FORMED, {
 			"cluster_id": cluster.cluster_id,
 			"line_count": cluster.size(),
 			"bounds": cluster.get_bounds(),
@@ -296,7 +296,7 @@ func _rebuild_cluster_after_removal(old_cluster: Cluster) -> void:
 	# Create replacement clusters for qualifying sub-components
 	for comp in new_components:
 		var new_cluster := _create_cluster(comp)
-		EventBus.emit("game.cluster_formed", {
+		EventBus.emit(EventBus.EV_GAME_CLUSTER_FORMED, {
 			"cluster_id": new_cluster.cluster_id,
 			"line_count": new_cluster.size(),
 			"bounds": new_cluster.get_bounds(),

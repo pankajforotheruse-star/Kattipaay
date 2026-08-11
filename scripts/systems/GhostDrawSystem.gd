@@ -65,6 +65,16 @@ const PENALTY_FLASH_DURATION := 0.3
 ## Maximum ghost lines stored (2 per activation, so tracking is capped).
 const MAX_GHOST_LINES := 4
 
+## Base of the ghost-line ID namespace. Ghost line IDs are handed out by a
+## monotonic counter starting here so they are (a) never negative — the -1
+## value is the "unconfirmed ID" sentinel used in ChalkLine/network code — and
+## (b) can never collide with DrawSystem's small sequential IDs (0,1,2,…),
+## which share the same match.
+const GHOST_LINE_ID_BASE := 100_000_000
+
+## Upper bound (inclusive) of the ghost-line ID namespace.
+const GHOST_LINE_ID_MAX := 999_999_999
+
 # ── Instance State ─────────────────────────────────────────────────────────────
 
 ## Whether ghost draw is available this round. Reset on new DRAWING state.
@@ -104,19 +114,23 @@ var _is_local_ghost: bool = false
 ## Local ghost owner entity ID (set externally when activated by this client).
 var _local_ghost_owner_id: int = -1
 
+## Monotonic counter for the ghost-line ID namespace. Never reset — IDs stay
+## unique for the whole session (see GHOST_LINE_ID_BASE).
+var _next_ghost_line_id: int = GHOST_LINE_ID_BASE
+
 
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
 	# Subscribe to match state changes — reset on new DRAWING
-	EventBus.on("match.state_changed", _on_match_state_changed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 
 	# Subscribe to fog/vision updates for discovery checks
-	EventBus.on("game.fog_revealed", _on_fog_revealed)
+	EventBus.on(EventBus.EV_GAME_FOG_REVEALED, _on_fog_revealed)
 
 	# Subscribe to network events for ghost lines
-	EventBus.on("network.ghost.lines_placed", _on_network_ghost_lines_placed)
-	EventBus.on("network.ghost.lines_revealed", _on_network_ghost_lines_revealed)
+	EventBus.on(EventBus.EV_NETWORK_GHOST_LINES_PLACED, _on_network_ghost_lines_placed)
+	EventBus.on(EventBus.EV_NETWORK_GHOST_LINES_REVEALED, _on_network_ghost_lines_revealed)
 
 	# Find sibling systems
 	var systems_node := get_parent()
@@ -156,10 +170,10 @@ func _process(_delta: float) -> void:
 
 
 func _exit_tree() -> void:
-	EventBus.off("match.state_changed", _on_match_state_changed)
-	EventBus.off("game.fog_revealed", _on_fog_revealed)
-	EventBus.off("network.ghost.lines_placed", _on_network_ghost_lines_placed)
-	EventBus.off("network.ghost.lines_revealed", _on_network_ghost_lines_revealed)
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.off(EventBus.EV_GAME_FOG_REVEALED, _on_fog_revealed)
+	EventBus.off(EventBus.EV_NETWORK_GHOST_LINES_PLACED, _on_network_ghost_lines_placed)
+	EventBus.off(EventBus.EV_NETWORK_GHOST_LINES_REVEALED, _on_network_ghost_lines_revealed)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -191,7 +205,7 @@ func activate_ghost_draw(anchor_position: Vector2, owner_id: int) -> bool:
 			_create_ghost_line_node(line)
 
 	# Emit internal event (NOT to UI systems)
-	EventBus.emit("game.ghost_draw_activated", {
+	EventBus.emit(EventBus.EV_GAME_GHOST_DRAW_ACTIVATED, {
 		"owner_id": owner_id,
 		"line_count": lines.size(),
 		"line_ids": _get_line_ids(lines),
@@ -360,14 +374,14 @@ func _check_discovery() -> void:
 	if within_penalty_window:
 		penalty_applied = true
 		# Emit penalty event
-		EventBus.emit("game.ghost_draw_penalty", {
+		EventBus.emit(EventBus.EV_GAME_GHOST_DRAW_PENALTY, {
 			"amount": PENALTY_AMOUNT,
 			"ghost_player_id": _get_ghost_owner_id(),
 			"discoverer_id": _get_discoverer_id(discovered_ids),
 		})
 
 	# Emit discovery event
-	EventBus.emit("game.ghost_line_discovered", {
+	EventBus.emit(EventBus.EV_GAME_GHOST_LINE_DISCOVERED, {
 		"line_ids": discovered_ids,
 		"penalty_applied": penalty_applied,
 	})
@@ -670,8 +684,17 @@ func _get_line_ids(lines: Array[ChalkLine]) -> Array[int]:
 	return ids
 
 
+## Generate the next ghost line ID from the dedicated high namespace.
+## Replaces the old `hash(...)` scheme, which could return negative values
+## (colliding with the -1 "unconfirmed" sentinel) and could collide with
+## DrawSystem's small sequential IDs.
 func _generate_line_id() -> int:
-	return hash(Time.get_ticks_msec() + randi() + _active_ghost_lines.size())
+	var id := _next_ghost_line_id
+	_next_ghost_line_id += 1
+	# Defensive wrap — the namespace (900M IDs) can never be exhausted in practice.
+	if _next_ghost_line_id > GHOST_LINE_ID_MAX:
+		_next_ghost_line_id = GHOST_LINE_ID_BASE
+	return id
 
 
 func _get_ghost_owner_id() -> int:

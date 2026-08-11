@@ -69,38 +69,38 @@ func _ready() -> void:
 
     # --- Existing subscriptions ---
     EventBus.on("entity.state_changed", _on_entity_state_changed)
-    EventBus.on("game.state_changed", _on_game_state_changed)
+    EventBus.on(EventBus.EV_GAME_STATE_CHANGED, _on_game_state_changed)
 
     # --- Match & timer subscriptions ---
-    EventBus.on("match.state_changed", _on_match_state_changed)
-    EventBus.on("game.timer_tick", _on_timer_tick)
-    EventBus.on("game.timer_expired", _on_timer_expired)
-    EventBus.on("game.chalk_meter_changed", _on_chalk_meter_changed)
+    EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+    EventBus.on(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
+    EventBus.on(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
+    EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
 
     # --- Argument events ---
-    EventBus.on("game.argument_started", _on_argument_started)
-    EventBus.on("game.argument_resolved", _on_argument_resolved)
+    EventBus.on(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
+    EventBus.on(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
 
     # --- Hint Trap events ---
-    EventBus.on("game.hint_revealed", _on_hint_revealed)
-    EventBus.on("game.hint_placed", _on_hint_placed)
-    EventBus.on("game.hint_investigated", _on_hint_investigated)
-    EventBus.on("game.hint_trap_triggered", _on_hint_trap_triggered)
-    EventBus.on("game.spectator_registered", _on_spectator_registered)
-    EventBus.on("game.spectator_reveal_used", _on_spectator_reveal_used_local)
+    EventBus.on(EventBus.EV_GAME_HINT_REVEALED, _on_hint_revealed)
+    EventBus.on(EventBus.EV_GAME_HINT_PLACED, _on_hint_placed)
+    EventBus.on(EventBus.EV_GAME_HINT_INVESTIGATED, _on_hint_investigated)
+    EventBus.on(EventBus.EV_GAME_HINT_TRAP_TRIGGERED, _on_hint_trap_triggered)
+    EventBus.on(EventBus.EV_GAME_SPECTATOR_REGISTERED, _on_spectator_registered)
+    EventBus.on(EventBus.EV_GAME_SPECTATOR_REVEAL_USED, _on_spectator_reveal_used_local)
 
     # --- Sloppy Count events ---
-    EventBus.on("game.sloppy_count_started", _on_sloppy_count_started)
-    EventBus.on("game.sloppy_count_finished", _on_sloppy_count_finished)
+    EventBus.on(EventBus.EV_GAME_SLOPPY_COUNT_STARTED, _on_sloppy_count_started)
+    EventBus.on(EventBus.EV_GAME_SLOPPY_COUNT_FINISHED, _on_sloppy_count_finished)
 
     # --- Silent Sneak events ---
-    EventBus.on("game.silent_sneak_activated", _on_silent_sneak_activated)
-    EventBus.on("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
-    EventBus.on("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
+    EventBus.on(EventBus.EV_GAME_SILENT_SNEAK_ACTIVATED, _on_silent_sneak_activated)
+    EventBus.on(EventBus.EV_GAME_SILENT_SNEAK_DEACTIVATED, _on_silent_sneak_deactivated)
+    EventBus.on(EventBus.EV_GAME_SILENT_SNEAK_COOLDOWN_ENDED, _on_silent_sneak_cooldown_ended)
 
     # --- Scoring events ---
-    EventBus.on("game.total_score_updated", _on_total_score_updated)
-    EventBus.on("game.round_score_calculated", _on_round_score_calculated)
+    EventBus.on(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, _on_total_score_updated)
+    EventBus.on(EventBus.EV_GAME_ROUND_SCORE_CALCULATED, _on_round_score_calculated)
 
     # --- Create UI elements ---
     _create_timer_label()
@@ -150,26 +150,26 @@ func _process(delta: float) -> void:
 
 func _exit_tree() -> void:
     EventBus.off("entity.state_changed", _on_entity_state_changed)
-    EventBus.off("game.state_changed", _on_game_state_changed)
-    EventBus.off("match.state_changed", _on_match_state_changed)
-    EventBus.off("game.timer_tick", _on_timer_tick)
-    EventBus.off("game.timer_expired", _on_timer_expired)
-    EventBus.off("game.chalk_meter_changed", _on_chalk_meter_changed)
-    EventBus.off("game.argument_started", _on_argument_started)
-    EventBus.off("game.argument_resolved", _on_argument_resolved)
-    EventBus.off("game.hint_revealed", _on_hint_revealed)
-    EventBus.off("game.hint_placed", _on_hint_placed)
-    EventBus.off("game.hint_investigated", _on_hint_investigated)
-    EventBus.off("game.hint_trap_triggered", _on_hint_trap_triggered)
-    EventBus.off("game.spectator_registered", _on_spectator_registered)
-    EventBus.off("game.spectator_reveal_used", _on_spectator_reveal_used_local)
-    EventBus.off("game.sloppy_count_started", _on_sloppy_count_started)
-    EventBus.off("game.sloppy_count_finished", _on_sloppy_count_finished)
-    EventBus.off("game.silent_sneak_activated", _on_silent_sneak_activated)
-    EventBus.off("game.silent_sneak_deactivated", _on_silent_sneak_deactivated)
-    EventBus.off("game.silent_sneak_cooldown_ended", _on_silent_sneak_cooldown_ended)
-    EventBus.off("game.total_score_updated", _on_total_score_updated)
-    EventBus.off("game.round_score_calculated", _on_round_score_calculated)
+    EventBus.off(EventBus.EV_GAME_STATE_CHANGED, _on_game_state_changed)
+    EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+    EventBus.off(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
+    EventBus.off(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
+    EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
+    EventBus.off(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
+    EventBus.off(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
+    EventBus.off(EventBus.EV_GAME_HINT_REVEALED, _on_hint_revealed)
+    EventBus.off(EventBus.EV_GAME_HINT_PLACED, _on_hint_placed)
+    EventBus.off(EventBus.EV_GAME_HINT_INVESTIGATED, _on_hint_investigated)
+    EventBus.off(EventBus.EV_GAME_HINT_TRAP_TRIGGERED, _on_hint_trap_triggered)
+    EventBus.off(EventBus.EV_GAME_SPECTATOR_REGISTERED, _on_spectator_registered)
+    EventBus.off(EventBus.EV_GAME_SPECTATOR_REVEAL_USED, _on_spectator_reveal_used_local)
+    EventBus.off(EventBus.EV_GAME_SLOPPY_COUNT_STARTED, _on_sloppy_count_started)
+    EventBus.off(EventBus.EV_GAME_SLOPPY_COUNT_FINISHED, _on_sloppy_count_finished)
+    EventBus.off(EventBus.EV_GAME_SILENT_SNEAK_ACTIVATED, _on_silent_sneak_activated)
+    EventBus.off(EventBus.EV_GAME_SILENT_SNEAK_DEACTIVATED, _on_silent_sneak_deactivated)
+    EventBus.off(EventBus.EV_GAME_SILENT_SNEAK_COOLDOWN_ENDED, _on_silent_sneak_cooldown_ended)
+    EventBus.off(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, _on_total_score_updated)
+    EventBus.off(EventBus.EV_GAME_ROUND_SCORE_CALCULATED, _on_round_score_calculated)
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
 

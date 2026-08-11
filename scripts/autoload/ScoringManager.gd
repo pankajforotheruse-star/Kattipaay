@@ -46,15 +46,15 @@ func _ready() -> void:
 	_load_statistics()
 
 func _subscribe_events() -> void:
-	EventBus.on("match.state_changed", _on_match_state_changed)
-	EventBus.on("game.sloppy_count_result", _on_sloppy_count_result)
-	EventBus.on("game.argument_resolved", _on_argument_resolved)
-	EventBus.on("game.hint_trap_triggered", _on_hint_trap_triggered)
-	EventBus.on("game.hint_investigated", _on_hint_investigated)
-	EventBus.on("game.ghost_draw_penalty", _on_ghost_draw_penalty)
-	EventBus.on("game.cluster_survived", _on_cluster_survived)
-	EventBus.on("game.cluster_failed", _on_cluster_failed)
-	EventBus.on("game.silent_sneak_line_crossed", _on_silent_sneak_crossed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.on(EventBus.EV_GAME_SLOPPY_COUNT_RESULT, _on_sloppy_count_result)
+	EventBus.on(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
+	EventBus.on(EventBus.EV_GAME_HINT_TRAP_TRIGGERED, _on_hint_trap_triggered)
+	EventBus.on(EventBus.EV_GAME_HINT_INVESTIGATED, _on_hint_investigated)
+	EventBus.on(EventBus.EV_GAME_GHOST_DRAW_PENALTY, _on_ghost_draw_penalty)
+	EventBus.on(EventBus.EV_GAME_CLUSTER_SURVIVED, _on_cluster_survived)
+	EventBus.on(EventBus.EV_GAME_CLUSTER_FAILED, _on_cluster_failed)
+	EventBus.on(EventBus.EV_GAME_SILENT_SNEAK_LINE_CROSSED, _on_silent_sneak_crossed)
 
 # ── Event Handlers ────────────────────────────────────────────────────────
 
@@ -156,12 +156,12 @@ func _calculate_round_score() -> void:
 	_stats.total_score_accumulated += score
 	
 	# Emit events
-	EventBus.emit("game.round_score_calculated", {
+	EventBus.emit(EventBus.EV_GAME_ROUND_SCORE_CALCULATED, {
 		"round_number": current_round,
 		"score": score,
 		"breakdown": breakdown
 	})
-	EventBus.emit("game.total_score_updated", {
+	EventBus.emit(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, {
 		"total_score": total_score,
 		"round_number": current_round
 	})
@@ -190,7 +190,7 @@ func _determine_winner() -> void:
 		if winner_id == 1:  # local player won
 			_stats.wins += 1
 	
-	EventBus.emit("game.winner_determined", {
+	EventBus.emit(EventBus.EV_GAME_WINNER_DETERMINED, {
 		"winner_id": winner_id,
 		"final_score": best_score if best_score >= 0 else total_score,
 		"all_scores": _all_player_scores,
@@ -236,4 +236,4 @@ func reset_match() -> void:
 	winner_id = -1
 	_all_player_scores.clear()
 	_reset_round_accumulators()
-	EventBus.emit("game.total_score_updated", {"total_score": 0, "round_number": 0})
+	EventBus.emit(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, {"total_score": 0, "round_number": 0})

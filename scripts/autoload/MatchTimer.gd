@@ -34,7 +34,7 @@ var _is_endless: bool = false
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
-	EventBus.on("match.state_changed", _on_match_state_changed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 	print("MatchTimer: ready")
 
 func _process(delta: float) -> void:
@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
 	if _remaining_seconds <= 0.0:
 		_remaining_seconds = 0.0
 		_is_running = false
-		EventBus.emit("game.timer_expired", {
+		EventBus.emit(EventBus.EV_GAME_TIMER_EXPIRED, {
 			"total_seconds": _total_seconds,
 		})
 		return
@@ -56,7 +56,7 @@ func _process(delta: float) -> void:
 	var current_second := int(ceil(_remaining_seconds))
 	if current_second != _last_emitted_second:
 		_last_emitted_second = current_second
-		EventBus.emit("game.timer_tick", {
+		EventBus.emit(EventBus.EV_GAME_TIMER_TICK, {
 			"remaining_seconds": current_second,
 			"total_seconds": int(_total_seconds),
 		})
@@ -84,7 +84,7 @@ func start(duration_key: String = "standard") -> void:
 	_is_paused = false
 	_tick_accumulator = 0.0
 
-	EventBus.emit("game.timer_tick", {
+	EventBus.emit(EventBus.EV_GAME_TIMER_TICK, {
 		"remaining_seconds": duration,
 		"total_seconds": duration,
 	})
@@ -95,7 +95,7 @@ func pause() -> void:
 	if not _is_running or _is_paused:
 		return
 	_is_paused = true
-	EventBus.emit("game.timer_paused", {
+	EventBus.emit(EventBus.EV_GAME_TIMER_PAUSED, {
 		"remaining_seconds": int(ceil(_remaining_seconds)),
 	})
 	print("MatchTimer: paused at %ds" % int(ceil(_remaining_seconds)))
@@ -106,7 +106,7 @@ func resume() -> void:
 		return
 	_is_paused = false
 	_last_emitted_second = int(ceil(_remaining_seconds))
-	EventBus.emit("game.timer_resumed", {
+	EventBus.emit(EventBus.EV_GAME_TIMER_RESUMED, {
 		"remaining_seconds": _last_emitted_second,
 	})
 	print("MatchTimer: resumed at %ds" % _last_emitted_second)
@@ -117,7 +117,7 @@ func add_time(seconds: float) -> void:
 		return
 	_remaining_seconds = min(_remaining_seconds + seconds, _total_seconds)
 	_last_emitted_second = int(ceil(_remaining_seconds))
-	EventBus.emit("game.timer_tick", {
+	EventBus.emit(EventBus.EV_GAME_TIMER_TICK, {
 		"remaining_seconds": _last_emitted_second,
 		"total_seconds": int(_total_seconds),
 	})
@@ -129,14 +129,14 @@ func remove_time(seconds: float) -> void:
 		return
 	_remaining_seconds = max(_remaining_seconds - seconds, 0.0)
 	_last_emitted_second = int(ceil(_remaining_seconds))
-	EventBus.emit("game.timer_penalty", {
+	EventBus.emit(EventBus.EV_GAME_TIMER_PENALTY, {
 		"amount": int(seconds),
 		"remaining_seconds": _last_emitted_second,
 		"total_seconds": int(_total_seconds),
 	})
 	if _remaining_seconds <= 0.0:
 		_is_running = false
-		EventBus.emit("game.timer_expired", {
+		EventBus.emit(EventBus.EV_GAME_TIMER_EXPIRED, {
 			"total_seconds": int(_total_seconds),
 		})
 	print("MatchTimer: -%ds penalty → %ds remaining" % [int(seconds), _last_emitted_second])
@@ -181,9 +181,19 @@ func is_endless() -> bool:
 # ── Event Handlers ────────────────────────────────────────────────────────────
 
 func _on_match_state_changed(payload: Dictionary) -> void:
+	var from_state: int = payload.get("from", -1)
 	var to_state: int = payload.get("to", -1)
 
-	# Start timer on DRAWING or SEARCHING
+	# Exiting PAUSED (argument resolution / unpause): resume ONLY.
+	# We return before the start() branch so the two paths can never both run —
+	# start() re-initializes the countdown to full duration, which would wipe the
+	# time remaining before the pause. resume() is a no-op if the timer was never
+	# running (e.g. endless mode or already expired), so the stopped state is kept.
+	if from_state == GameState.MatchState.PAUSED:
+		resume()
+		return
+
+	# Start timer on DRAWING or SEARCHING entry (fresh match / new wave).
 	if to_state == GameState.MatchState.DRAWING or to_state == GameState.MatchState.SEARCHING:
 		if not _is_running:
 			start(_current_duration_key)
@@ -191,8 +201,3 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	# Pause on match-level PAUSED
 	elif to_state == GameState.MatchState.PAUSED:
 		pause()
-
-	# Resume when exiting PAUSED
-	var from_state: int = payload.get("from", -1)
-	if from_state == GameState.MatchState.PAUSED:
-		resume()

@@ -41,9 +41,9 @@ func _ready() -> void:
 	if _mode_label:
 		_mode_label.text = "Mode: Co-op"
 
-	EventBus.on("network.player_joined", _on_player_joined)
-	EventBus.on("network.player_left", _on_player_left)
-	EventBus.on("network.player_ready_changed", _on_player_ready_changed)
+	EventBus.on(EventBus.EV_NETWORK_PLAYER_JOINED, _on_player_joined)
+	EventBus.on(EventBus.EV_NETWORK_PLAYER_LEFT, _on_player_left)
+	EventBus.on(EventBus.EV_NETWORK_PLAYER_READY_CHANGED, _on_player_ready_changed)
 
 func _connect_signals() -> void:
 	if _back_btn: _back_btn.pressed.connect(_on_back)
@@ -95,7 +95,7 @@ func _on_toggle_ready() -> void:
 		_ready_toggle_btn.text = "✅ READY" if _is_ready else "✕ UNREADY"
 		var color := Color("7A9A6E") if _is_ready else Color("E53935")
 		_ready_toggle_btn.add_theme_color_override("font_color", color)
-	EventBus.emit("network.player_ready", {"ready": _is_ready})
+	EventBus.emit(EventBus.EV_NETWORK_PLAYER_READY, {"ready": _is_ready})
 
 func _on_start_game() -> void:
 	if not _all_ready():
@@ -118,7 +118,7 @@ func _on_send_chat() -> void:
 		var msg := _chat_input.text.strip_edges()
 		_add_chat_message("You", msg)
 		_chat_input.text = ""
-		EventBus.emit("network.chat_send", {"message": msg})
+		EventBus.emit(EventBus.EV_NETWORK_CHAT_SEND, {"message": msg})
 
 func _add_chat_message(sender: String, message: String) -> void:
 	if not _chat_messages:

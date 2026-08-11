@@ -145,19 +145,19 @@ var _current_stroke_duration: float = 0.0
 
 func _ready() -> void:
     # --- Subscribe to input events ---
-    EventBus.on("input.draw_start", _on_draw_start)
-    EventBus.on("input.draw_update", _on_draw_update)
-    EventBus.on("input.draw_end", _on_draw_end)
-    EventBus.on("input.undo_draw", _on_undo_draw)
+    EventBus.on(EventBus.EV_INPUT_DRAW_START, _on_draw_start)
+    EventBus.on(EventBus.EV_INPUT_DRAW_UPDATE, _on_draw_update)
+    EventBus.on(EventBus.EV_INPUT_DRAW_END, _on_draw_end)
+    EventBus.on(EventBus.EV_INPUT_UNDO_DRAW, _on_undo_draw)
 
     # --- Subscribe to network events ---
-    EventBus.on("network.chalk.line_drawn", _on_network_line_drawn)
-    EventBus.on("network.chalk.line_rejected", _on_network_line_rejected)
-    EventBus.on("network.chalk.line_sync_batch", _on_network_line_sync_batch)
+    EventBus.on(EventBus.EV_NETWORK_CHALK_LINE_DRAWN, _on_network_line_drawn)
+    EventBus.on(EventBus.EV_NETWORK_CHALK_LINE_REJECTED, _on_network_line_rejected)
+    EventBus.on(EventBus.EV_NETWORK_CHALK_LINE_SYNC_BATCH, _on_network_line_sync_batch)
 
     # --- Subscribe to match state ---
-    EventBus.on("match.drawing_started", _on_match_drawing_started)
-    EventBus.on("game.chalk_exhausted", _on_chalk_exhausted)
+    EventBus.on(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
+    EventBus.on(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
 
     # --- Find GameWorld ---
     _game_world = get_tree().current_scene as Node2D
@@ -196,7 +196,7 @@ func _process(delta: float) -> void:
         if _chalk_remaining <= 0.0:
             _chalk_remaining = 0.0
             _chalk_exhausted = true
-            EventBus.emit("game.chalk_exhausted", {})
+            EventBus.emit(EventBus.EV_GAME_CHALK_EXHAUSTED, {})
             # Force-end current stroke
             if _is_drawing:
                 _finish_drawing()
@@ -307,7 +307,7 @@ func _on_undo_draw(_payload = null) -> void:
     var chalk_cost := _current_stroke_duration * CHALK_COST_PER_SECOND
     _chalk_remaining = min(CHALK_MAX, _chalk_remaining + chalk_cost * UNDO_REFUND_PCT)
     _chalk_exhausted = false
-    EventBus.emit("game.chalk_meter_changed", {
+    EventBus.emit(EventBus.EV_GAME_CHALK_METER_CHANGED, {
         "remaining_percent": _chalk_remaining / CHALK_MAX,
         "remaining_chalk": _chalk_remaining,
     })
@@ -395,7 +395,7 @@ func _finish_drawing() -> void:
 
     # --- Emit event ---
     var compressed_size := line.estimate_network_size()
-    EventBus.emit("game.line_drawn", {
+    EventBus.emit(EventBus.EV_GAME_LINE_DRAWN, {
         "line_id": line.id,
         "player_id": line.player_id,
         "chalk_type": line.chalk_type,
@@ -441,7 +441,7 @@ func _remove_line(line: ChalkLine, reason: String) -> void:
     if idx != -1:
         _active_lines.remove_at(idx)
 
-    EventBus.emit("game.line_removed", {
+    EventBus.emit(EventBus.EV_GAME_LINE_REMOVED, {
         "line_id": line.id,
         "reason": reason,
     })
@@ -565,7 +565,7 @@ func _tick_decay(delta: float) -> void:
     if expired.size() > 0:
         for line in expired:
             _remove_line(line, "expired")
-            EventBus.emit("game.line_expired", {"line_id": line.id})
+            EventBus.emit(EventBus.EV_GAME_LINE_EXPIRED, {"line_id": line.id})
 
 
 ## Start fade-out animation for a line about to expire.
@@ -713,7 +713,7 @@ func check_ghost_collision(ghost_position: Vector2, ghost_radius: float) -> Arra
             var b := line.points[i + 1]
             if _segment_intersects_circle(a, b, ghost_position, ghost_radius):
                 hit_lines.append(line.id)
-                EventBus.emit("game.ghost_touches_line", {
+                EventBus.emit(EventBus.EV_GAME_GHOST_TOUCHES_LINE, {
                     "ghost_id": -1,  # Filled by caller
                     "line_id": line.id,
                     "chalk_type": line.chalk_type,
@@ -759,7 +759,7 @@ func _check_sealed_circle(line: ChalkLine) -> void:
 
         # Find ghosts inside (delegated to GhostSystem in production; emit event here)
         # In prototype, we just emit with empty ghosts_inside — GhostSystem will populate
-        EventBus.emit("game.circle_sealed", {
+        EventBus.emit(EventBus.EV_GAME_CIRCLE_SEALED, {
             "center": center,
             "radius": radius,
             "ghosts_inside": [],  # GhostSystem fills this in
@@ -795,19 +795,19 @@ func _check_line_connections(line: ChalkLine) -> void:
         if start.distance_to(other.points[0]) <= CONNECTION_THRESHOLD:
             line.connected_to.append(other.id)
             other.connected_to.append(line.id)
-            EventBus.emit("game.lines_connected", {"line_id_a": line.id, "line_id_b": other.id})
+            EventBus.emit(EventBus.EV_GAME_LINES_CONNECTED, {"line_id_a": line.id, "line_id_b": other.id})
         elif start.distance_to(other.points[-1]) <= CONNECTION_THRESHOLD:
             line.connected_to.append(other.id)
             other.connected_to.append(line.id)
-            EventBus.emit("game.lines_connected", {"line_id_a": line.id, "line_id_b": other.id})
+            EventBus.emit(EventBus.EV_GAME_LINES_CONNECTED, {"line_id_a": line.id, "line_id_b": other.id})
         elif end.distance_to(other.points[0]) <= CONNECTION_THRESHOLD:
             line.connected_to.append(other.id)
             other.connected_to.append(line.id)
-            EventBus.emit("game.lines_connected", {"line_id_a": line.id, "line_id_b": other.id})
+            EventBus.emit(EventBus.EV_GAME_LINES_CONNECTED, {"line_id_a": line.id, "line_id_b": other.id})
         elif end.distance_to(other.points[-1]) <= CONNECTION_THRESHOLD:
             line.connected_to.append(other.id)
             other.connected_to.append(line.id)
-            EventBus.emit("game.lines_connected", {"line_id_a": line.id, "line_id_b": other.id})
+            EventBus.emit(EventBus.EV_GAME_LINES_CONNECTED, {"line_id_a": line.id, "line_id_b": other.id})
 
 
 ## Compute approximate center of a polygon from its vertices.
@@ -893,7 +893,7 @@ func _on_match_drawing_started(_payload) -> void:
     _chalk_exhausted = false
     _match_time_exceeded = false
     clear_all_lines()
-    EventBus.emit("game.chalk_meter_changed", {
+    EventBus.emit(EventBus.EV_GAME_CHALK_METER_CHANGED, {
         "remaining_percent": _chalk_remaining / CHALK_MAX,
         "remaining_chalk": _chalk_remaining,
     })
@@ -915,7 +915,7 @@ func _emit_chalk_meter_if_changed() -> void:
     var pct := _chalk_remaining / CHALK_MAX
     if abs(pct - _last_emitted_chalk_pct) > 0.02:  # 2% threshold
         _last_emitted_chalk_pct = pct
-        EventBus.emit("game.chalk_meter_changed", {
+        EventBus.emit(EventBus.EV_GAME_CHALK_METER_CHANGED, {
             "remaining_percent": pct,
             "remaining_chalk": _chalk_remaining,
         })

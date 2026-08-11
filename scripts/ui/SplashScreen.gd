@@ -54,5 +54,5 @@ func _play_intro() -> void:
 
 func _transition_to_home() -> void:
 	# Fade out and transition
-	EventBus.emit("game.splash_complete", {})
+	EventBus.emit(EventBus.EV_GAME_SPLASH_COMPLETE, {})
 	GameState.transition(GameState.State.MAIN_MENU)

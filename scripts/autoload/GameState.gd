@@ -1,6 +1,6 @@
 # GameState.gd — Top-level game state machine singleton
 # Tracks the current game state and validates transitions.
-# All state changes flow through EventBus as "game.state_changed".
+# All state changes flow through EventBus as EventBus.EV_GAME_STATE_CHANGED.
 #
 # Match sub-states (§MatchState) are active only when the top-level state is PLAYING.
 # They are managed by MatchStateMachine, but the enum and validation table live here
@@ -102,7 +102,7 @@ func transition(to: int) -> bool:
     if to == State.MAIN_MENU or to == State.GAME_OVER:
         _reset_match_state()
 
-    EventBus.emit("game.state_changed", {
+    EventBus.emit(EventBus.EV_GAME_STATE_CHANGED, {
         "from": from,
         "to": to,
     })
@@ -116,7 +116,7 @@ func force_state(to: int) -> void:
     current = to
     if to != State.PLAYING and to != State.PAUSED:
         _reset_match_state()
-    EventBus.emit("game.state_changed", {"from": previous, "to": to})
+    EventBus.emit(EventBus.EV_GAME_STATE_CHANGED, {"from": previous, "to": to})
 
 # ── Match Sub-State Transitions ──────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ func enter_match_state(to: int) -> bool:
 
     current_match = to
 
-    EventBus.emit("match.state_changed", {
+    EventBus.emit(EventBus.EV_MATCH_STATE_CHANGED, {
         "from": from,
         "to": to,
         "from_name": _match_state_name(from),

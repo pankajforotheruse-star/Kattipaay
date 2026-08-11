@@ -74,20 +74,20 @@ var _is_local_drawer: bool = false
 
 func _ready() -> void:
     # Subscribe to match state changes
-    EventBus.on("match.state_changed", _on_match_state_changed)
+    EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 
     # Subscribe to network RPC stubs for hint events
-    EventBus.on("network.rpc.spectator_reveal", _on_rpc_spectator_reveal)
-    EventBus.on("network.rpc.place_fake_hint", _on_rpc_place_fake_hint)
-    EventBus.on("network.rpc.hint_revealed", _on_rpc_hint_revealed)
-    EventBus.on("network.rpc.hint_placed", _on_rpc_hint_placed)
-    EventBus.on("network.rpc.hint_resolved", _on_rpc_hint_resolved)
+    EventBus.on(EventBus.EV_NETWORK_RPC_SPECTATOR_REVEAL, _on_rpc_spectator_reveal)
+    EventBus.on(EventBus.EV_NETWORK_RPC_PLACE_FAKE_HINT, _on_rpc_place_fake_hint)
+    EventBus.on(EventBus.EV_NETWORK_RPC_HINT_REVEALED, _on_rpc_hint_revealed)
+    EventBus.on(EventBus.EV_NETWORK_RPC_HINT_PLACED, _on_rpc_hint_placed)
+    EventBus.on(EventBus.EV_NETWORK_RPC_HINT_RESOLVED, _on_rpc_hint_resolved)
 
     # Subscribe to chalk events (for deducting fake hint cost)
-    EventBus.on("game.chalk_used", _on_chalk_used)
+    EventBus.on(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)
 
     # Listen for player role changes
-    EventBus.on("game.player_eliminated", _on_player_eliminated)
+    EventBus.on(EventBus.EV_GAME_PLAYER_ELIMINATED, _on_player_eliminated)
 
     # Find GameWorld
     _game_world = get_tree().current_scene as Node2D
@@ -103,14 +103,14 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-    EventBus.off("match.state_changed", _on_match_state_changed)
-    EventBus.off("network.rpc.spectator_reveal", _on_rpc_spectator_reveal)
-    EventBus.off("network.rpc.place_fake_hint", _on_rpc_place_fake_hint)
-    EventBus.off("network.rpc.hint_revealed", _on_rpc_hint_revealed)
-    EventBus.off("network.rpc.hint_placed", _on_rpc_hint_placed)
-    EventBus.off("network.rpc.hint_resolved", _on_rpc_hint_resolved)
-    EventBus.off("game.chalk_used", _on_chalk_used)
-    EventBus.off("game.player_eliminated", _on_player_eliminated)
+    EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+    EventBus.off(EventBus.EV_NETWORK_RPC_SPECTATOR_REVEAL, _on_rpc_spectator_reveal)
+    EventBus.off(EventBus.EV_NETWORK_RPC_PLACE_FAKE_HINT, _on_rpc_place_fake_hint)
+    EventBus.off(EventBus.EV_NETWORK_RPC_HINT_REVEALED, _on_rpc_hint_revealed)
+    EventBus.off(EventBus.EV_NETWORK_RPC_HINT_PLACED, _on_rpc_hint_placed)
+    EventBus.off(EventBus.EV_NETWORK_RPC_HINT_RESOLVED, _on_rpc_hint_resolved)
+    EventBus.off(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)
+    EventBus.off(EventBus.EV_GAME_PLAYER_ELIMINATED, _on_player_eliminated)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -166,14 +166,14 @@ func spectator_reveal_line(spectator_peer_id: int, line_id: int) -> bool:
         _hint_container.add_child(marker)
 
     # Emit event
-    EventBus.emit("game.hint_revealed", {
+    EventBus.emit(EventBus.EV_GAME_HINT_REVEALED, {
         "hint_id": marker.hint_id,
         "type": "real",
         "line_id": line_id,
         "spectator_id": spectator_peer_id,
     })
 
-    EventBus.emit("game.spectator_reveal_used", {
+    EventBus.emit(EventBus.EV_GAME_SPECTATOR_REVEAL_USED, {
         "spectator_id": spectator_peer_id,
         "line_id": line_id,
     })
@@ -223,7 +223,7 @@ func place_fake_hint(drawer_peer_id: int, world_position: Vector2) -> bool:
                     return false
 
     # Validate chalk cost (15 chalk) — emit chalk_used for DrawSystem to deduct
-    EventBus.emit("game.chalk_used", {
+    EventBus.emit(EventBus.EV_GAME_CHALK_USED, {
         "amount": FAKE_HINT_CHALK_COST,
         "player_id": drawer_peer_id,
         "reason": "fake_hint",
@@ -261,7 +261,7 @@ func place_fake_hint(drawer_peer_id: int, world_position: Vector2) -> bool:
         _hint_container.add_child(marker)
 
     # Emit event
-    EventBus.emit("game.hint_placed", {
+    EventBus.emit(EventBus.EV_GAME_HINT_PLACED, {
         "hint_id": marker.hint_id,
         "type": "fake",
         "position": {"x": final_pos.x, "y": final_pos.y},
@@ -346,7 +346,7 @@ func register_spectator(peer_id: int) -> void:
     if peer_id == _local_entity_id:
         _is_local_spectator = true
 
-    EventBus.emit("game.spectator_registered", {"spectator_id": peer_id})
+    EventBus.emit(EventBus.EV_GAME_SPECTATOR_REGISTERED, {"spectator_id": peer_id})
 
 
 ## Get the number of active hints for HUD display.
@@ -380,7 +380,7 @@ func _resolve_hint(searcher_peer_id: int, marker: HintMarker) -> void:
             , CONNECT_ONE_SHOT)
             _reveal_timers[marker.hint_id] = timer
 
-        EventBus.emit("game.hint_investigated", {
+        EventBus.emit(EventBus.EV_GAME_HINT_INVESTIGATED, {
             "hint_id": marker.hint_id,
             "is_trap": false,
             "searcher_id": searcher_peer_id,
@@ -393,7 +393,7 @@ func _resolve_hint(searcher_peer_id: int, marker: HintMarker) -> void:
         # Apply 20s penalty to match timer
         MatchTimer.remove_time(FAKE_HINT_PENALTY)
 
-        EventBus.emit("game.hint_trap_triggered", {
+        EventBus.emit(EventBus.EV_GAME_HINT_TRAP_TRIGGERED, {
             "hint_id": marker.hint_id,
             "is_trap": true,
             "penalty": FAKE_HINT_PENALTY,
@@ -422,7 +422,7 @@ func _reveal_ghost_line(line_id: int, searcher_id: int) -> void:
         "reveal_duration": REAL_HINT_REVEAL_DURATION,
     }
     # Re-use GhostDrawSystem's existing reveal mechanism
-    EventBus.emit("network.ghost.lines_revealed", payload)
+    EventBus.emit(EventBus.EV_NETWORK_GHOST_LINES_REVEALED, payload)
 
 
 func _hide_ghost_line(line_id: int, _searcher_id: int) -> void:
@@ -545,7 +545,7 @@ func _on_rpc_hint_resolved(payload: Dictionary) -> void:
         return
 
     if is_trap:
-        EventBus.emit("game.hint_trap_triggered", {
+        EventBus.emit(EventBus.EV_GAME_HINT_TRAP_TRIGGERED, {
             "hint_id": hint_id,
             "is_trap": true,
             "penalty": FAKE_HINT_PENALTY,
@@ -553,7 +553,7 @@ func _on_rpc_hint_resolved(payload: Dictionary) -> void:
         })
         marker.play_fake_result()
     else:
-        EventBus.emit("game.hint_investigated", {
+        EventBus.emit(EventBus.EV_GAME_HINT_INVESTIGATED, {
             "hint_id": hint_id,
             "is_trap": false,
             "searcher_id": searcher_id,

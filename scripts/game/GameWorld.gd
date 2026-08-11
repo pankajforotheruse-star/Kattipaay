@@ -20,11 +20,11 @@ func _ready() -> void:
 	_register_existing_entities()
 
 	# Listen for future entity spawn/despawn events
-	EventBus.on("game.entity_register", _on_entity_register)
-	EventBus.on("game.entity_unregister", _on_entity_unregister)
+	EventBus.on(EventBus.EV_GAME_ENTITY_REGISTER, _on_entity_register)
+	EventBus.on(EventBus.EV_GAME_ENTITY_UNREGISTER, _on_entity_unregister)
 
 	# Emit that the world is ready
-	EventBus.emit("game.world_ready", {"entity_count": entity_registry.size()})
+	EventBus.emit(EventBus.EV_GAME_WORLD_READY, {"entity_count": entity_registry.size()})
 
 ## Scan the scene tree for Entity nodes and register them.
 func _register_existing_entities() -> void:

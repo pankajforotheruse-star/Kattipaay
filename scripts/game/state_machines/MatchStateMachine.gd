@@ -31,13 +31,13 @@ var current_state: int = GameState.MatchState.NONE
 
 func _ready() -> void:
 	# Listen for disconnection — route to RETURN_TO_LOBBY
-	EventBus.on("network.disconnected", _on_disconnected)
+	EventBus.on(EventBus.EV_NETWORK_DISCONNECTED, _on_disconnected)
 	# Listen for match state changes (from ourselves or external sources)
-	EventBus.on("match.state_changed", _on_match_state_changed_internal)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed_internal)
 
 func _exit_tree() -> void:
-	EventBus.off("network.disconnected", _on_disconnected)
-	EventBus.off("match.state_changed", _on_match_state_changed_internal)
+	EventBus.off(EventBus.EV_NETWORK_DISCONNECTED, _on_disconnected)
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed_internal)
 
 # ── Public API ───────────────────────────────────────────────────────────────
 

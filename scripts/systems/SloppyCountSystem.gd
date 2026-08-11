@@ -91,13 +91,13 @@ func _ready() -> void:
 		print("SloppyCountSystem: created Camera2D")
 
 	# Subscribe to match state changes
-	EventBus.on("match.state_changed", _on_match_state_changed)
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 	
 	print("SloppyCountSystem: ready")
 
 
 func _exit_tree() -> void:
-	EventBus.off("match.state_changed", _on_match_state_changed)
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 
 
 # ── Event Handlers ─────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ func run_challenge() -> void:
 		return
 	
 	# Emit started event
-	EventBus.emit("game.sloppy_count_started", {
+	EventBus.emit(EventBus.EV_GAME_SLOPPY_COUNT_STARTED, {
 		"total_lines": total_lines,
 		"timestamp": Time.get_ticks_msec(),
 	})
@@ -158,7 +158,7 @@ func run_challenge() -> void:
 		score_delta = -points_below * PENALTY_PER_POINT
 	
 	# Step 4: Emit result event
-	EventBus.emit("game.sloppy_count_result", {
+	EventBus.emit(EventBus.EV_GAME_SLOPPY_COUNT_RESULT, {
 		"percentage": percentage,
 		"crossing_count": crossing_count,
 		"total_lines": total_lines,
@@ -182,7 +182,7 @@ func run_challenge() -> void:
 	_current_score = _apply_score(score_delta)
 	
 	# Step 10: Emit finished event
-	EventBus.emit("game.sloppy_count_finished", {
+	EventBus.emit(EventBus.EV_GAME_SLOPPY_COUNT_FINISHED, {
 		"percentage": percentage,
 		"passed": passed,
 		"score_delta": score_delta,
@@ -435,7 +435,7 @@ func _apply_score(score_delta: int) -> int:
 	if new_score < 0:
 		new_score = 0
 	
-	EventBus.emit("game.score_changed", {
+	EventBus.emit(EventBus.EV_GAME_SCORE_CHANGED, {
 		"amount": score_delta,
 		"reason": "sloppy_count",
 		"new_total": new_score,

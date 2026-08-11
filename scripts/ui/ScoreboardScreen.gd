@@ -116,11 +116,11 @@ func _process(delta: float) -> void:
 		_on_countdown_complete()
 
 func _on_countdown_complete() -> void:
-	EventBus.emit("game.wave_advance", {})
+	EventBus.emit(EventBus.EV_GAME_WAVE_ADVANCE, {})
 
 func _on_skip() -> void:
 	_is_counting = false
-	EventBus.emit("game.wave_advance", {"skipped": true})
+	EventBus.emit(EventBus.EV_GAME_WAVE_ADVANCE, {"skipped": true})
 
 func _animate_count_label(label: Label, final_value: int, suffix: String) -> void:
 	var tween := create_tween()
