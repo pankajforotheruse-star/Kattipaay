@@ -1,0 +1,8 @@
+# Godot editor cache — never commit
+.godot/
+
+# Android export output (export_presets.cfg writes here)
+build/
+
+# OS junk
+.DS_Store

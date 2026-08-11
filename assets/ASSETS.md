@@ -41,3 +41,17 @@ textures). Palettes per GDD §2 (warm terracotta/ochre/sand village tones).
 - Wall segments have a small overlap region for tiling; trim if seam is visible.
 - Raw 1024px source images and processing scripts: `/home/team/shared/artwork/`
   (outside repo; not committed).
+
+## Atlas packaging (Prompt 16 — Android optimization)
+- `assets/atlases/environment_atlas.png` (256×1768, 22 props) and
+  `assets/atlases/entities_atlas.png` (256×152, 6 entities) pack the sprites
+  above into **2 GPU textures** instead of 28.
+- Each sprite has an `AtlasTexture` resource at
+  `assets/atlases/<category>/<name>.tres` (region + atlas reference) plus a
+  JSON region manifest (`*_atlas.json`).
+- **The original PNGs above remain the canonical art and are untouched.**
+  Use the `.tres` resources when placing village art so all same-atlas sprites
+  batch into one draw call.
+- Regenerate the atlases with `python3 tools/pack_atlas.py` (needs Pillow)
+  after art changes; regions are deterministic (shelf pack, 2 px padding,
+  canvas padded to multiples of 4).

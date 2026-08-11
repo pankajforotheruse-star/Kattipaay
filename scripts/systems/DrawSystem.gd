@@ -69,6 +69,10 @@ const UNDO_REFUND_PCT := 0.5
 ## Fade-out duration for expiring lines (seconds).
 const FADE_DURATION := 1.0
 
+## Pre-warmed Line2D nodes in the visual pool. Covers the preview line with
+## headroom; the pool grows on demand toward MAX_ACTIVE_LINES (Prompt 16).
+const LINE_POOL_PREWARM := 16
+
 # --- Chalk type enum (mirrors ChalkLine.ChalkType for convenience) ---
 enum ChalkType {
     WHITE = 0,
@@ -96,6 +100,9 @@ var _line_nodes: Dictionary = {}  # int → Line2D
 
 ## Map from ChalkLine id → Tween for fade-out animations.
 var _fade_tweens: Dictionary = {}  # int → Tween
+
+## Pooled Line2D visuals — strokes reuse nodes instead of new/free per stroke.
+var _line_pool: Pool = null
 
 ## Auto-incrementing line ID counter (never reused within a match).
 var _next_line_id: int = 0
@@ -170,6 +177,11 @@ func _ready() -> void:
     _chalk_container.z_index = 10  # Above ground, below entities
     if _game_world:
         _game_world.add_child(_chalk_container)
+
+    # --- Line2D pool (Android optimization, Prompt 16) ---
+    # Pre-warmed so per-stroke Line2D allocation churn drops to ~zero at
+    # steady state; the pool grows on demand toward MAX_ACTIVE_LINES.
+    _line_pool = Pool.new(func() -> Line2D: return Line2D.new(), LINE_POOL_PREWARM)
 
     # --- Load and configure shader ---
     var shader := load("res://assets/shaders/chalk_line.gdshader") as Shader
@@ -429,11 +441,11 @@ func _remove_line(line: ChalkLine, reason: String) -> void:
             t.kill()
         _fade_tweens.erase(line.id)
 
-    # Remove Line2D node
+    # Remove Line2D node → return to the pool for reuse (no alloc/free churn)
     if _line_nodes.has(line.id):
         var node: Line2D = _line_nodes[line.id]
         if is_instance_valid(node):
-            node.queue_free()
+            _release_line_node(node)
         _line_nodes.erase(line.id)
 
     # Remove from active array
@@ -465,11 +477,25 @@ func _remove_oldest_line() -> void:
 var _preview_line_node: Line2D = null  # Line2D for in-progress drawing preview
 
 
+## Acquire a Line2D node from the pool, parented under the chalk container.
+func _acquire_line_node() -> Line2D:
+    var ln := _line_pool.acquire() as Line2D
+    if _chalk_container and ln.get_parent() != _chalk_container:
+        _chalk_container.add_child(ln)
+    return ln
+
+
+## Reset a Line2D node and return it to the pool for reuse.
+func _release_line_node(node: Line2D) -> void:
+    Pool.reset_line2d(node)
+    _line_pool.release(node)
+
+
 ## Create a Line2D preview during active drawing (updated per touch move).
 func _create_preview_line() -> void:
     if _preview_line_node and is_instance_valid(_preview_line_node):
-        _preview_line_node.queue_free()
-    _preview_line_node = Line2D.new()
+        _release_line_node(_preview_line_node)
+    _preview_line_node = _acquire_line_node()
     _preview_line_node.name = "ChalkPreview"
     _preview_line_node.z_index = 11
     _preview_line_node.width = ChalkLine.BASE_WIDTHS.get(_current_chalk_type, 4.0)
@@ -493,9 +519,8 @@ func _update_preview_line() -> void:
         return
     # Smooth on the fly for preview quality
     var smoothed := _catmull_rom_smooth(_raw_draw_points, SPLINE_SAMPLE_SPACING)
-    _preview_line_node.clear_points()
-    for pt in smoothed:
-        _preview_line_node.add_point(pt)
+    # Single packed assignment — one copy instead of per-point add_point calls.
+    _preview_line_node.points = PackedVector2Array(smoothed)
     # Set per-point widths if we have them
     if _raw_draw_widths.size() > 0:
         var interp_w := _interpolate_widths(_raw_draw_points, _raw_draw_widths, smoothed)
@@ -509,16 +534,16 @@ func _update_preview_line() -> void:
             _preview_line_node.width = avg_w
 
 
-## Remove the preview line node.
+## Remove the preview line node (returned to the pool for reuse).
 func _remove_preview_line() -> void:
     if _preview_line_node and is_instance_valid(_preview_line_node):
-        _preview_line_node.queue_free()
+        _release_line_node(_preview_line_node)
     _preview_line_node = null
 
 
 ## Create a permanent Line2D node from a ChalkLine resource.
 func _create_line2d_node(line: ChalkLine) -> Line2D:
-    var ln := Line2D.new()
+    var ln := _acquire_line_node()
     ln.name = "ChalkLine_%d" % line.id
     ln.z_index = 11  # Above ground, just below entities
     ln.width = line.get_base_width()
@@ -528,9 +553,8 @@ func _create_line2d_node(line: ChalkLine) -> Line2D:
     ln.end_cap_mode = Line2D.LINE_CAP_ROUND
     ln.begin_cap_mode = Line2D.LINE_CAP_ROUND
 
-    # Set points
-    for pt in line.points:
-        ln.add_point(pt)
+    # Set points — single packed assignment instead of per-point add_point.
+    ln.points = PackedVector2Array(line.points)
 
     # Apply shader material
     if _chalk_material:
@@ -538,9 +562,6 @@ func _create_line2d_node(line: ChalkLine) -> Line2D:
         mat.set_shader_parameter("chalk_color", line.get_chalk_color())
         mat.set_shader_parameter("alpha_mult", 1.0)
         ln.material = mat
-
-    if _chalk_container:
-        _chalk_container.add_child(ln)
 
     return ln
 

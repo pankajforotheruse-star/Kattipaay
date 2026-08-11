@@ -1,19 +1,33 @@
 # AudioManager.gd — Procedural audio for CHALK GAON: Ghost Lines
 #
 # Generates all sounds at runtime using AudioStreamGenerator — zero asset files.
-# Single AudioStreamPlayer child, under 1KB memory footprint.
+# Single AudioStreamPlayer child, ~18 KB steady-state buffer (Android budget,
+# full math in docs/android-optimization.md §Audio).
 #
 # Sounds:
 #   - argument_start:   Rising tension tone (200→600 Hz sweep, 0.5s)
 #   - argument_result:  Ascending chime (success) or descending buzz (fail)
 #   - timer_warning:    Tick-tock pulse
 #   - accusation_blurt: Sharp noise burst (0.15s)
+#   - cow_moo:          Ambient moo (0.8s — the longest sound)
+#
+# Memory budget (Prompt 16): every sound is a simple tone ≤ 1200 Hz (the
+# timer tick), so 22.05 kHz sampling (11 kHz Nyquist) has 9x headroom over the
+# highest generated frequency — transparent, but half the CPU and transient
+# memory of 44.1 kHz. Frames are computed mono and mirrored to both channels.
+# Packaged audio: 0 bytes (all procedural) vs the GDD §11 ≤ 4 MB budget.
+# Peak transient (cow_moo): 0.8 s × 22050 × 8 B ≈ 141 KB.
+# Steady state: generator buffer 0.1 s × 22050 × 8 B ≈ 17.6 KB.
 
 extends Node
 
 # ── Audio Params ──────────────────────────────────────────────────────────────
 
-const SAMPLE_RATE := 44100
+## Sample rate for generated streams. 22.05 kHz: the highest generated
+## frequency is 1200 Hz (tick), well under the 11 kHz Nyquist limit, so the
+## drop from 44.1 kHz is inaudible while halving CPU and transient memory.
+## If a future sound needs > 11 kHz content, raise the rate for that sound.
+const SAMPLE_RATE := 22050
 const BUFFER_LENGTH := 0.1  # seconds of buffer
 
 var _player: AudioStreamPlayer = null

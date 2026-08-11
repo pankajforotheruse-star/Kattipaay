@@ -51,6 +51,11 @@ const L3_VILLAGERS: Array[Dictionary] = [
 const ACCUSE_POS := Vector2(600, 1052)
 const ACCUSE_RADIUS := 58.0
 
+# ── Redraw throttle (Prompt 16) ──────────────────────────────────────────────────────
+## Min seconds between full-scene redraws (30 fps is plenty for the level
+## dots / goal rings / stamp pulse; the fast accuse wobble bypasses this).
+const REDRAW_INTERVAL := 1.0 / 30.0
+
 const GHOST_TARGET_ID := 2    # ArgumentSystem stub: _is_target_ghost(id) == (id == 2)
 const PLAYER_ID := 1          # local player / accuser id (prototype convention)
 
@@ -75,6 +80,9 @@ var _accuse_wobble_t: float = 1.0      # 1 = not wobbling (decayed)
 var _dim: float = 0.0                  # argument-pause dim flash
 var _leaving: bool = false
 var _hand_idle_pos := Vector2(360, 200)
+
+## Redraw throttle accumulator (30 fps cap — see _process).
+var _redraw_accum: float = 0.0
 
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -109,7 +117,16 @@ func _process(delta: float) -> void:
 	# the hand idles with a soft bob while the player works
 	if _phase == Phase.L2_PLAY or _phase == Phase.L3_PLAY:
 		_hand.global_position = _hand_idle_pos + Vector2(0.0, sin(_t * 1.6) * 5.0)
-	queue_redraw()
+	# Throttle the full-scene redraw to 30 fps (Prompt 16). The accusation
+	# stamp's fast 26 Hz wobble is the only effect that needs full rate —
+	# redraw at 60 fps while it is active so the shake never aliases.
+	if _accuse_wobble_t < 0.5:
+		queue_redraw()
+	else:
+		_redraw_accum += delta
+		if _redraw_accum >= REDRAW_INTERVAL:
+			_redraw_accum = 0.0
+			queue_redraw()
 
 
 func _exit_tree() -> void:

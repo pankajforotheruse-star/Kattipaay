@@ -59,6 +59,11 @@ const FAKE_TINT := Color(1.0, 0.3, 0.3, 0.4)    # Red tint for spectator view
 const PROXIMITY_SCALE := 1.2
 const PROXIMITY_RANGE := 80.0
 
+## Min seconds between redraws — the pulse/orbit/proximity animation is all
+## slow-moving, so 30 fps is visually identical while halving vertex
+## generation per marker (Prompt 16).
+const REDRAW_INTERVAL := 1.0 / 30.0
+
 # ── Runtime State ─────────────────────────────────────────────────────────────
 
 var _pulse_time: float = 0.0
@@ -69,6 +74,9 @@ var _is_nearby: bool = false
 var _fade_alpha: float = 1.0
 var _dying: bool = false
 var _death_tween: Tween = null
+
+## Redraw throttle accumulator (30 fps cap — see _process).
+var _redraw_accum: float = 0.0
 
 # Spectator-only tint
 var _spectator_mode: bool = false
@@ -102,7 +110,12 @@ func _process(delta: float) -> void:
 	var target := PROXIMITY_SCALE if _is_nearby else 1.0
 	_current_scale = lerpf(_current_scale, target, delta * 8.0)
 
-	queue_redraw()
+	# Throttled to 30 fps — the marker's animation is slow (1.5 s pulse,
+	# slow orbit, proximity lerp), so this is visually identical.
+	_redraw_accum += delta
+	if _redraw_accum >= REDRAW_INTERVAL:
+		_redraw_accum = 0.0
+		queue_redraw()
 
 
 func _draw() -> void:

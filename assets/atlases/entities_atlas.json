@@ -1,0 +1,46 @@
+{
+ "category": "entities",
+ "atlas": "entities_atlas.png",
+ "size": [
+  256,
+  152
+ ],
+ "regions": {
+  "cow": [
+   2,
+   0,
+   62,
+   96
+  ],
+  "goat_bleat": [
+   4,
+   32,
+   47,
+   64
+  ],
+  "goat_idle": [
+   53,
+   32,
+   40,
+   64
+  ],
+  "goat_walk": [
+   95,
+   32,
+   60,
+   64
+  ],
+  "lantern": [
+   157,
+   32,
+   44,
+   64
+  ],
+  "chalk_stick": [
+   2,
+   96,
+   64,
+   56
+  ]
+ }
+}
