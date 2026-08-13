@@ -486,7 +486,11 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_placement_delay = 0.0
 		_placement_due = false
 		_ai_enter(AIState.OBSERVING)
-		if difficulty == Difficulty.NORMAL or difficulty == Difficulty.HARD:
+		if difficulty == Difficulty.NORMAL or difficulty == Difficulty.HARD \
+				or difficulty == Difficulty.NIGHTMARE:
+			# NIGHTMARE included: if the searcher never moves (no move samples,
+			# so the fog-edge placement never arms), the fallback still
+			# guarantees a ghost-line placement for discovery gameplay.
 			_fallback_timer = OBSERVE_FALLBACK_SECONDS
 	elif to_state == GameState.MatchState.SEARCHING:
 		_ai_enter(AIState.OBSERVING)

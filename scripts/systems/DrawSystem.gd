@@ -197,6 +197,18 @@ func _ready() -> void:
     print("DrawSystem: ready — chalk remaining: %.1f/%.1f" % [_chalk_remaining, CHALK_MAX])
 
 
+func _exit_tree() -> void:
+    EventBus.off(EventBus.EV_INPUT_DRAW_START, _on_draw_start)
+    EventBus.off(EventBus.EV_INPUT_DRAW_UPDATE, _on_draw_update)
+    EventBus.off(EventBus.EV_INPUT_DRAW_END, _on_draw_end)
+    EventBus.off(EventBus.EV_INPUT_UNDO_DRAW, _on_undo_draw)
+    EventBus.off(EventBus.EV_NETWORK_CHALK_LINE_DRAWN, _on_network_line_drawn)
+    EventBus.off(EventBus.EV_NETWORK_CHALK_LINE_REJECTED, _on_network_line_rejected)
+    EventBus.off(EventBus.EV_NETWORK_CHALK_LINE_SYNC_BATCH, _on_network_line_sync_batch)
+    EventBus.off(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
+    EventBus.off(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
+
+
 func _process(delta: float) -> void:
     # --- Tick line decay ---
     _tick_decay(delta)

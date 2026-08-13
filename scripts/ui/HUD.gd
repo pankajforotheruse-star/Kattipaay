@@ -559,12 +559,15 @@ func _on_argument_started(payload: Dictionary) -> void:
     # Blurt sound
     AudioManager.play_accusation_blurt()
 
-    # Start cooldown on button
-    _argument_on_cooldown = true
-    _argument_cooldown_timer = ARGUMENT_COOLDOWN
-    if _argument_button:
-        _argument_button.disabled = true
-        _argument_button.modulate = Color(0.5, 0.5, 0.5, 0.7)
+    # Start the 15s button cooldown only for the LOCAL player's own
+    # accusation - a bot/remote accusation (accuser_id != local) must not
+    # disable the human's ACCUSE button.
+    if payload.get("accuser_id", -1) == InputManager.local_entity_id:
+        _argument_on_cooldown = true
+        _argument_cooldown_timer = ARGUMENT_COOLDOWN
+        if _argument_button:
+            _argument_button.disabled = true
+            _argument_button.modulate = Color(0.5, 0.5, 0.5, 0.7)
 
 
 func _on_argument_resolved(payload: Dictionary) -> void:

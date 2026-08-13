@@ -442,10 +442,14 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     var to_state: int = payload.get("to", -1)
     var from_state: int = payload.get("from", -1)
 
-    # Clear hints when leaving DRAWING or SEARCHING
-    if from_state == GameState.MatchState.DRAWING or from_state == GameState.MatchState.SEARCHING:
-        if to_state != GameState.MatchState.PAUSED:
-            clear_all_hints()
+    # Fake hints are only placed during DRAWING; they must survive the
+    # DRAWING -> SEARCHING transition so the searcher can investigate them.
+    # Clear on a fresh DRAWING entry (new round) and when SEARCHING ends,
+    # but keep hints while paused mid-argument.
+    if to_state == GameState.MatchState.DRAWING and from_state != GameState.MatchState.PAUSED:
+        clear_all_hints()
+    elif from_state == GameState.MatchState.SEARCHING and to_state != GameState.MatchState.PAUSED:
+        clear_all_hints()
 
     # Reset spectator reveals on new match start
     if to_state == GameState.MatchState.WAITING:

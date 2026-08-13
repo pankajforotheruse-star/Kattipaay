@@ -62,6 +62,13 @@ func transition_to(to: int, event_data = null) -> bool:
 
 	# GameState.enter_match_state will emit match.state_changed,
 	# which _on_match_state_changed_internal handles to fire entry callbacks.
+	#
+	# Real matches enter DRAWING through this machine (the tutorial drives
+	# its own phases and emits match.drawing_started itself, so there is no
+	# double emit): broadcast the match-start reset so DrawSystem refills
+	# chalk and clears leftover lines from the previous round.
+	if to == GameState.MatchState.DRAWING:
+		EventBus.emit(EventBus.EV_MATCH_DRAWING_STARTED, {})
 	return true
 
 ## Register an entry callback for a match state.

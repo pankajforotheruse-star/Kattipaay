@@ -15,6 +15,9 @@ func _ready() -> void:
 	if not _game_world:
 		push_warning("MovementSystem: GameWorld not found in current scene")
 
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_INPUT_MOVE_COMMAND_WORLD, _on_move_command)
+
 func _on_move_command(payload: Dictionary) -> void:
 	var entity_id: int = payload.get("entity_id", 0)
 	var target: Vector2 = payload.get("target", Vector2.ZERO)

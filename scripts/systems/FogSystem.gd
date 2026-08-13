@@ -349,8 +349,19 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	var from_state: int = payload.get("from", -1)
 	var to_state: int = payload.get("to", -1)
 
+	# Any → PAUSED: freeze the fog in place (keep it visible across
+	# the argument) instead of deactivating it — checked FIRST so a
+	# SEARCHING pause can never fall through to the SEARCHING-exit branch below.
+	if to_state == GameState.MatchState.PAUSED:
+		_is_paused = true
+
+	# PAUSED → any (resume): unfreeze without re-rolling the fog.
+	elif from_state == GameState.MatchState.PAUSED:
+		if _is_paused:
+			_is_paused = false
+
 	# Enter SEARCHING
-	if to_state == GameState.MatchState.SEARCHING:
+	elif to_state == GameState.MatchState.SEARCHING:
 		activate()
 
 	# Exit SEARCHING
@@ -361,15 +372,6 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 			_smooth_fade_out(FOG_SMOOTH_FADE_DURATION)
 		else:
 			deactivate()
-
-	# PAUSED → any (resume)
-	elif from_state == GameState.MatchState.PAUSED:
-		if _is_paused:
-			_is_paused = false
-
-	# Any → PAUSED
-	elif to_state == GameState.MatchState.PAUSED:
-		_is_paused = true
 
 
 func _on_world_ready(_payload = null) -> void:
