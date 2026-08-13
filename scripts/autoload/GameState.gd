@@ -58,9 +58,9 @@ const VALID_MATCH_TRANSITIONS: Dictionary = {
     MatchState.SEARCHING:       [MatchState.REVEAL, MatchState.DRAWING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
     MatchState.REVEAL:          [MatchState.DRAWING, MatchState.SCORING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
     MatchState.SCORING:         [MatchState.DRAWING, MatchState.WINNER, MatchState.RETURN_TO_LOBBY],
-    MatchState.WINNER:          [MatchState.SWAP_TEAMS, MatchState.RETURN_TO_LOBBY, MatchState.GAME_OVER],
+    MatchState.WINNER:          [MatchState.SWAP_TEAMS, MatchState.RETURN_TO_LOBBY],
     MatchState.SWAP_TEAMS:      [MatchState.LOBBY, MatchState.RETURN_TO_LOBBY],
-    MatchState.RETURN_TO_LOBBY: [MatchState.WAITING, MatchState.MAIN_MENU],
+    MatchState.RETURN_TO_LOBBY: [MatchState.WAITING],
     MatchState.PAUSED:          [MatchState.DRAWING, MatchState.SEARCHING, MatchState.REVEAL, MatchState.RETURN_TO_LOBBY],
 }
 

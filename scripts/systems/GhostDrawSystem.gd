@@ -415,7 +415,7 @@ func _check_discovery() -> void:
 		for line_id in discovered_ids:
 			_reveal_line_fade_in(line_id)
 
-	print("GhostDrawSystem: discovered lines %s (penalty: %s, within_window: %s)" % [discovered_ids, penalty_applied, within_penalty_window])
+	print("GhostDrawSystem: discovered lines %s (penalty: %s, within_window: %s)" % [discovered_ids, penalty_applied, penalty_window_hit])
 
 
 # ── Line Generation ────────────────────────────────────────────────────────────

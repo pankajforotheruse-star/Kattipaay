@@ -55,6 +55,7 @@ func _subscribe_events() -> void:
 	EventBus.on(EventBus.EV_GAME_CLUSTER_SURVIVED, _on_cluster_survived)
 	EventBus.on(EventBus.EV_GAME_CLUSTER_FAILED, _on_cluster_failed)
 	EventBus.on(EventBus.EV_GAME_SILENT_SNEAK_LINE_CROSSED, _on_silent_sneak_crossed)
+	EventBus.on(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
 
 # ── Event Handlers ────────────────────────────────────────────────────────
 
@@ -115,6 +116,11 @@ func _reset_round_accumulators() -> void:
 
 func register_line_drawn() -> void:
 	_lines_drawn += 1
+## EventBus handler: count only the local player's own chalk lines.
+func _on_line_drawn(payload: Dictionary) -> void:
+	if payload.get("player_id", -1) != InputManager.local_entity_id:
+		return
+	register_line_drawn()
 
 func _calculate_round_score() -> void:
 	var score := 0
@@ -201,10 +207,10 @@ func _determine_winner() -> void:
 
 func _save_statistics() -> void:
 	_stats.last_played_timestamp = Time.get_unix_time_from_system()
-	SaveManager.save_data("player_statistics", _stats)
+	SaveManager.save_local("player_statistics", _stats)
 
 func _load_statistics() -> void:
-	var saved = SaveManager.load_data("player_statistics")
+	var saved = SaveManager.load_local("player_statistics", {})
 	if saved is Dictionary and not saved.is_empty():
 		_stats = saved
 

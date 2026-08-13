@@ -111,6 +111,7 @@ var _last_heading := Vector2.RIGHT
 var _guilt: float = 0.0
 
 # ── Round state ──────────────────────────────────────────────────────────────
+var ai_state: int = AIState.IDLE
 var _lines_placed_this_round: bool = false
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
