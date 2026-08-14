@@ -54,6 +54,10 @@ func start(host_id: int) -> void:
 	_tick_accumulator = 0.0
 	_reelecting = false
 	_last_seen.clear()
+	# Audit M7: seed our own last-seen so the host never declares itself
+	# lost before it has sent a single heartbeat (offline/WiFi-Direct mode).
+	if _my_session_id >= 0:
+		_last_seen[_my_session_id] = Time.get_unix_time_from_system()
 
 
 func stop() -> void:
@@ -104,12 +108,18 @@ func check_host_health() -> void:
 	if not _enabled or current_host_id < 0:
 		return
 	var now := Time.get_unix_time_from_system()
+	# Audit M7: this device IS the host - alive by construction; keep our
+	# own last-seen fresh every tick so we never re-elect ourselves.
+	if current_host_id == _my_session_id:
+		_last_seen[current_host_id] = now
 	var last: float = _last_seen.get(current_host_id, 0.0)
 	if now - last > HEARTBEAT_INTERVAL * MISSED_HEARTBEAT_THRESHOLD:
 		_on_host_lost(current_host_id)
 
 
 func _on_host_lost(lost_host_id: int) -> void:
+	if _reelecting:
+		return  # audit M7: no re-entry while a re-election is in flight
 	print("HostMigration: host %d lost" % lost_host_id)
 	EventBus.emit(EventBus.EV_NET_HOST_LOST, {"host_id": lost_host_id, "unrecoverable": false})
 	# Stop tracking the dead host.

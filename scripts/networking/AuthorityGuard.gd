@@ -28,7 +28,7 @@ enum Role {
 ## action name → roles allowed to perform it.
 const ACTION_ROLES := {
 	"line.draw": [Role.CLIENT, Role.HOST, Role.SERVER],
-	"ghost.place": [Role.HOST, Role.SERVER],          # only the authority places ghost lines
+	"ghost.place": [Role.CLIENT, Role.HOST, Role.SERVER],  # ghost client requests placement; server re-validates (audit M10)
 	"ghost.discover": [Role.CLIENT, Role.HOST, Role.SERVER],
 	"accusation.start": [Role.CLIENT, Role.HOST, Role.SERVER],
 	"accusation.resolve": [Role.HOST, Role.SERVER],   # resolution is authority-only
