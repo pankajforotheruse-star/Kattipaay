@@ -36,7 +36,7 @@ enum MsgType {
 	RECONNECT = 11,          # rejoin request (room code + token)
 	RESYNC = 12,             # full snapshot in response to RECONNECT
 	LINE_DRAWN = 16,         # chalk line placed (ChalkLine network dict)
-	GHOST_LINE_PLACED = 17,  # ghost line placed (authority only)
+	GHOST_LINE_PLACED = 17,  # ghost line placed (client request; server/host validates & broadcasts)
 	GHOST_LINE_DISCOVERED = 18,
 	ACCUSATION = 19,
 	ACCUSATION_RESOLUTION = 20,

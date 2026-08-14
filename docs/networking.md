@@ -87,7 +87,7 @@ playable.
 | Action | Allowed roles | Ownership check |
 |---|---|---|
 | `line.draw` | CLIENT, HOST, SERVER | must be self |
-| `ghost.place` | HOST, SERVER | — |
+| `ghost.place` | CLIENT, HOST, SERVER | — |
 | `ghost.discover` | CLIENT, HOST, SERVER | — |
 | `accusation.start` | CLIENT, HOST, SERVER | must be self |
 | `accusation.resolve` | HOST, SERVER | — |

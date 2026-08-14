@@ -24,6 +24,7 @@ extends Control
 @onready var _chalk_selector: Control = %ChalkSelector
 @onready var _item_dropdown: OptionButton = %ItemDropdown
 @onready var _loadout_label: Label = %LoadoutLabel
+@onready var _solo_notice_label: Label = %SoloNoticeLabel
 
 var _is_ready: bool = false
 var _is_host: bool = false
@@ -95,12 +96,25 @@ func _on_toggle_ready() -> void:
 		_ready_toggle_btn.text = "✅ READY" if _is_ready else "✕ UNREADY"
 		var color := Color("7A9A6E") if _is_ready else Color("E53935")
 		_ready_toggle_btn.add_theme_color_override("font_color", color)
+	# Audit M8: keep the local slot in sync so the host "Start Game" button
+	# can enable (the legacy EV_NETWORK_PLAYER_READY_CHANGED never fires).
+	if _player_slots.size() > 0:
+		var slot_state := PlayerSlot.SlotState.READY if _is_ready else PlayerSlot.SlotState.WAITING
+		_player_slots[0].set_slot_data({"name": "You", "state": slot_state, "host": true})
+	_update_host_ui()
 	EventBus.emit(EventBus.EV_NETWORK_PLAYER_READY, {"ready": _is_ready})
 
 func _on_start_game() -> void:
 	if not _all_ready():
 		return
 	EventBus.emit("ui.button_pressed", {"button": "start_game"})
+	# Audit M8: the live loop does not run through the network layer yet -
+	# gate the online/offline "Start Game" behind the validated solo-vs-CPU
+	# loop so the player ALWAYS lands in a runnable round (never bare PLAYING
+	# with no SoloMatchDriver). Honest notice + solo start; no fake online.
+	if _solo_notice_label:
+		_solo_notice_label.text = "ONLINE PLAY IS COMING SOON - starting a SOLO match (vs CPU) instead."
+	GameState.solo_vs_cpu = true
 	GameState.transition(GameState.State.PLAYING)
 
 func _on_leave() -> void:

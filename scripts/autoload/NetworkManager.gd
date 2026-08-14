@@ -141,6 +141,12 @@ func disconnect_from_server() -> void:
 func send_rpc(method: String, payload: Dictionary = {}) -> void:
 	if not is_connected:
 		return
+	# Audit M9: the legacy "ghost.lines_placed" batch path is removed - it
+	# silently fell through to LINE_DRAWN and mangled the payload. Ghost
+	# lines go through send_ghost_line_placed() (one typed msg per line).
+	if method == "ghost.lines_placed":
+		push_warning("NetworkManager: send_rpc('ghost.lines_placed') is removed - use send_ghost_line_placed() per line (audit M9)")
+		return
 	var player_id: int = payload.get("player_id", guard.session_player_id)
 	if not guard.assert_action(_rpc_action_for(method), player_id):
 		return
@@ -206,7 +212,7 @@ func send_line_drawn(line_dict: Dictionary) -> void:
 		return
 	session.broadcast_raw_bytes(NetSerializer.MsgType.LINE_DRAWN, NetSerializer.encode_line(line_dict))
 
-## Send a ghost-line placement (authority-only).
+## Send a ghost-line placement (client request; server/host re-validates - audit M10).
 func send_ghost_line_placed(line_dict: Dictionary) -> void:
 	if not guard.assert_action("ghost.place", int(line_dict.get("pid", -1))):
 		return

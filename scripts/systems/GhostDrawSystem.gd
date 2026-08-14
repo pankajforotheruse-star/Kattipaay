@@ -220,18 +220,14 @@ func activate_ghost_draw(anchor_position: Vector2, owner_id: int) -> bool:
 		"line_ids": _get_line_ids(lines),
 	})
 
-	# Network: send to server/host
+	# Network: send to server/host - one typed GHOST_LINE_PLACED per line
+	# (audit M9: legacy "ghost.lines_placed" batch seam removed; encode/decode
+	# is symmetric with NetSerializer.encode_line / decode_line).
 	if NetworkManager.is_connected:
-		var compressed_lines: Array[Dictionary] = []
 		for line in lines:
 			var d := line.to_network_dict()
 			d["id"] = line.id
-			compressed_lines.append(d)
-		NetworkManager.send_rpc("ghost.lines_placed", {
-			"lines": compressed_lines,
-			"owner_id": owner_id,
-			"anchor": {"x": anchor_position.x, "y": anchor_position.y},
-		})
+			NetworkManager.send_ghost_line_placed(d)
 
 	print("GhostDrawSystem: activated — %d ghost lines placed at %s by player %d" % [lines.size(), anchor_position, owner_id])
 	return true

@@ -96,6 +96,7 @@ var _http_queue: Array = []          # {method, path, body, headers, callback}
 var _http_busy := false
 var _socket: WebSocketPeer = null
 var _ws_connected := false
+var _drop_reported := false  # audit M11: EV_NETWORK_DISCONNECTED emitted once per drop
 var _rest_authenticated := false
 
 
@@ -663,6 +664,7 @@ func _poll_ws() -> void:
 	if state == WebSocketPeer.STATE_OPEN:
 		if not _ws_connected:
 			_ws_connected = true
+			_drop_reported = false  # audit M11: socket reopened - a future drop is a new event
 			# Nakama socket handshake: authenticate the socket session.
 			var auth_msg := JSON.stringify({
 				"auth": {"token": auth_token},
@@ -676,7 +678,11 @@ func _poll_ws() -> void:
 	elif state == WebSocketPeer.STATE_CLOSED or state == WebSocketPeer.STATE_CLOSING:
 		_ws_connected = false
 		# Dropped socket: the reconnect cycle takes over (ReconnectManager).
-		EventBus.emit(EventBus.EV_NETWORK_DISCONNECTED, {"reason": "socket_closed"})
+		# Audit M11: emit EV_NETWORK_DISCONNECTED exactly once per drop; the
+		# flag clears when the socket reopens so a later drop re-reports.
+		if not _drop_reported:
+			_drop_reported = true
+			EventBus.emit(EventBus.EV_NETWORK_DISCONNECTED, {"reason": "socket_closed"})
 
 
 func _handle_ws_message(text: String) -> void:
@@ -854,7 +860,11 @@ func _sim_sync_room_state() -> void:
 			_host_migration.current_host_id = room_host
 			if room_host == session_id:
 				EventBus.emit(EventBus.EV_NET_HOST_ELECTED, {"host_id": session_id, "previous_host": previous})
-		_host_migration.note_heartbeat(room_host)
+		# Audit M7: the host device tracks its own liveness via check_host_health();
+		# non-host devices still receive the sim's host heartbeat feed (SIMULATED
+		# transport has no real wire delivery).
+		if room_host != session_id:
+			_host_migration.note_heartbeat(room_host)
 	# Match state sync.
 	var ms := int(room["match_state"])
 	var rd := int(room["round"])

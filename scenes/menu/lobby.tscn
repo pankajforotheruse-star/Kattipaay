@@ -225,3 +225,12 @@ offset_top = 1210.0
 offset_right = 660.0
 offset_bottom = 1258.0
 text = "🚪 LEAVE"
+[node name="SoloNoticeLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 100.0
+offset_top = 1160.0
+offset_right = 620.0
+offset_bottom = 1192.0
+text = ""
+horizontal_alignment = 1

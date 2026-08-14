@@ -127,6 +127,7 @@ func join_lobby(code: String) -> bool:
 	if result == MatchSession.JoinResult.OK:
 		room_code = normalized
 		is_host = false
+		_register_self(_self_display_name(), false)  # audit M14: mirror the create path
 		EventBus.emit(EventBus.EV_NET_LOBBY_JOINED, {"room_code": normalized, "ok": true})
 		print("LobbyManager: joined lobby %s" % normalized)
 		return true
@@ -146,6 +147,7 @@ func _on_async_join_result(code: String, ok: bool, reason := "") -> void:
 	if ok:
 		room_code = code
 		is_host = false
+		_register_self(_self_display_name(), false)  # audit M14: self must be in _players for set_ready()
 		EventBus.emit(EventBus.EV_NET_LOBBY_JOINED, {"room_code": code, "ok": true})
 		print("LobbyManager: joined lobby %s" % code)
 	else:
@@ -206,6 +208,13 @@ func get_player_count() -> int:
 
 
 # ── Roster maintenance (fed by MatchSession presence events) ──────────────
+
+## Display name used when registering self after a join (mirrors the
+## create path's _pending_create_name; audit M14).
+func _self_display_name() -> String:
+	if _session != null and not _session.player_name.is_empty():
+		return _session.player_name
+	return "Player"
 
 func _register_self(display_name: String, host: bool) -> void:
 	if _my_player_id < 0:
