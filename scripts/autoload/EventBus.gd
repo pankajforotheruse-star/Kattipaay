@@ -15,22 +15,15 @@ const EV_GAME_ARGUMENT_STARTED := "game.argument_started"
 const EV_GAME_CHALK_EXHAUSTED := "game.chalk_exhausted"
 const EV_GAME_CHALK_METER_CHANGED := "game.chalk_meter_changed"
 const EV_GAME_CHALK_USED := "game.chalk_used"
-const EV_GAME_CIRCLE_SEALED := "game.circle_sealed"
 const EV_GAME_CLUSTER_BROKEN := "game.cluster_broken"
 const EV_GAME_CLUSTER_FAILED := "game.cluster_failed"
 const EV_GAME_CLUSTER_FORMED := "game.cluster_formed"
 const EV_GAME_CLUSTER_SURVIVED := "game.cluster_survived"
-const EV_GAME_DAILY_REWARD_CLAIMED := "game.daily_reward_claimed"
 const EV_GAME_ENTITY_REGISTER := "game.entity_register"
 const EV_GAME_ENTITY_UNREGISTER := "game.entity_unregister"
-const EV_GAME_FOG_ACTIVATED := "game.fog_activated"
-const EV_GAME_FOG_DEACTIVATED := "game.fog_deactivated"
-const EV_GAME_FOG_GHOST_PULSE := "game.fog_ghost_pulse"
 const EV_GAME_FOG_REVEALED := "game.fog_revealed"
-const EV_GAME_GHOST_DRAW_ACTIVATED := "game.ghost_draw_activated"
 const EV_GAME_GHOST_DRAW_PENALTY := "game.ghost_draw_penalty"
 const EV_GAME_GHOST_LINE_DISCOVERED := "game.ghost_line_discovered"
-const EV_GAME_GHOST_TOUCHES_LINE := "game.ghost_touches_line"
 const EV_GAME_HINT_INVESTIGATED := "game.hint_investigated"
 const EV_GAME_HINT_PLACED := "game.hint_placed"
 const EV_GAME_HINT_REVEALED := "game.hint_revealed"
@@ -53,7 +46,6 @@ const EV_GAME_SLOPPY_COUNT_RESULT := "game.sloppy_count_result"
 const EV_GAME_SLOPPY_COUNT_STARTED := "game.sloppy_count_started"
 const EV_GAME_SPECTATOR_REGISTERED := "game.spectator_registered"
 const EV_GAME_SPECTATOR_REVEAL_USED := "game.spectator_reveal_used"
-const EV_GAME_SPLASH_COMPLETE := "game.splash_complete"
 const EV_GAME_STATE_CHANGED := "game.state_changed"
 const EV_GAME_TIMER_EXPIRED := "game.timer_expired"
 const EV_GAME_TIMER_PAUSED := "game.timer_paused"
@@ -150,11 +142,10 @@ func emit(event_name: String, payload = null) -> void:
 		return
 	# Iterate over a copy — subscribers might add/remove during iteration
 	var arr: Array = _listeners[event_name].duplicate()
+	if payload == null:
+		payload = {}
 	for callback in arr:
-		if payload != null:
-			callback.call(payload)
-		else:
-			callback.call()
+		callback.call(payload)
 
 ## Remove all listeners (used on scene teardown or full reset).
 func clear_all() -> void:

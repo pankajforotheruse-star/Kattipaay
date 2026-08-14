@@ -128,7 +128,6 @@ func _ready() -> void:
 	# Subscribe to game events
 	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 	EventBus.on(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
-	EventBus.on(EventBus.EV_GAME_GHOST_TOUCHES_LINE, _on_ghost_touches_line)
 	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_input_move_start)
 	EventBus.on(EventBus.EV_GAME_WORLD_READY, _on_world_ready)
 
@@ -161,7 +160,6 @@ func _process(delta: float) -> void:
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
 	EventBus.off(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
-	EventBus.off(EventBus.EV_GAME_GHOST_TOUCHES_LINE, _on_ghost_touches_line)
 	EventBus.off(EventBus.EV_INPUT_MOVE_START, _on_input_move_start)
 	EventBus.off(EventBus.EV_GAME_WORLD_READY, _on_world_ready)
 
@@ -408,19 +406,6 @@ func _on_line_drawn(payload: Dictionary) -> void:
 	_revealed_line_ids[line_id] = Time.get_ticks_msec() / 1000.0
 
 
-func _on_ghost_touches_line(payload: Dictionary) -> void:
-	# Ghost crossed a chalk line — trigger a vision pulse.
-	# The GhostSystem is responsible for providing the ghost's world position.
-	# For now we accept an optional position in the payload.
-	var ghost_pos: Vector2 = payload.get("position", Vector2.ZERO)
-	if ghost_pos != Vector2.ZERO:
-		trigger_ghost_pulse(ghost_pos)
-	EventBus.emit(EventBus.EV_GAME_FOG_GHOST_PULSE, {
-		"position": ghost_pos,
-		"radius": GHOST_PULSE_RADIUS,
-		"duration": GHOST_PULSE_DURATION,
-	})
-
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -440,7 +425,6 @@ func activate() -> void:
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
 
-	EventBus.emit(EventBus.EV_GAME_FOG_ACTIVATED, {})
 	print("FogSystem: fog rolling in over %.1fs" % FOG_ROLL_IN_DURATION)
 
 
@@ -455,7 +439,6 @@ func deactivate() -> void:
 	if is_instance_valid(_fog_rect):
 		_fog_rect.visible = false
 
-	EventBus.emit(EventBus.EV_GAME_FOG_DEACTIVATED, {})
 	print("FogSystem: deactivated")
 
 
@@ -478,8 +461,7 @@ func _dramatic_clear() -> void:
 		_is_active = false
 		if is_instance_valid(_fog_rect):
 			_fog_rect.visible = false
-		EventBus.emit(EventBus.EV_GAME_FOG_DEACTIVATED, {})
-	)
+		)
 
 	print("FogSystem: dramatic clear (%.1fs)" % FOG_DRAMATIC_CLEAR_DURATION)
 
@@ -498,8 +480,7 @@ func _smooth_fade_out(duration: float) -> void:
 		_is_active = false
 		if is_instance_valid(_fog_rect):
 			_fog_rect.visible = false
-		EventBus.emit(EventBus.EV_GAME_FOG_DEACTIVATED, {})
-	)
+		)
 
 	print("FogSystem: smooth fade out (%.1fs)" % duration)
 

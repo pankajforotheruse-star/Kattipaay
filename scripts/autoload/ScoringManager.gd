@@ -23,6 +23,7 @@ var winner_id: int = -1
 var _lines_drawn: int = 0
 var _cluster_lines_surviving: int = 0
 var _ghost_lines_discovered: int = 0
+var _ghost_penalty_total: int = 0  # audit m2: sum of payload amounts (PENALTY_AMOUNT x lines)
 var _false_accusations: int = 0
 var _hint_traps_triggered: int = 0
 var _correct_hints: int = 0
@@ -69,9 +70,11 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		GameState.MatchState.SCORING:
 			current_round += 1
 			_calculate_round_score()
+			register_player_score(InputManager.local_entity_id, total_score)  # audit m3
 		GameState.MatchState.WINNER:
 			_determine_winner()
 		GameState.MatchState.RETURN_TO_LOBBY:
+			_stats.games_played += 1  # audit m3: one completed match per RETURN_TO_LOBBY
 			_save_statistics()
 
 func _on_sloppy_count_result(payload: Dictionary) -> void:
@@ -88,8 +91,12 @@ func _on_hint_trap_triggered(_payload: Dictionary) -> void:
 func _on_hint_investigated(_payload: Dictionary) -> void:
 	_correct_hints += 1
 
-func _on_ghost_draw_penalty(_payload: Dictionary) -> void:
-	_ghost_lines_discovered += 1
+func _on_ghost_draw_penalty(payload: Dictionary) -> void:
+	# audit m2: the event carries the real penalty amount (PENALTY_AMOUNT x
+	# lines discovered in that frame). Count lines for stats and accumulate
+	# the actual penalty for the round breakdown.
+	_ghost_lines_discovered += payload.get("line_count", 1)
+	_ghost_penalty_total += payload.get("amount", GHOST_DRAW_PENALTY)
 
 func _on_cluster_survived(payload: Dictionary) -> void:
 	var line_count: int = payload.get("line_count", 0)
@@ -108,6 +115,7 @@ func _reset_round_accumulators() -> void:
 	_lines_drawn = 0
 	_cluster_lines_surviving = 0
 	_ghost_lines_discovered = 0
+	_ghost_penalty_total = 0
 	_false_accusations = 0
 	_hint_traps_triggered = 0
 	_correct_hints = 0
@@ -129,7 +137,7 @@ func _calculate_round_score() -> void:
 		"lines_score": _lines_drawn * BASE_LINE_POINTS,
 		"cluster_lines": _cluster_lines_surviving,
 		"cluster_bonus": _cluster_lines_surviving * CLUSTER_BONUS_PER_LINE,
-		"ghost_penalty": _ghost_lines_discovered * GHOST_DRAW_PENALTY,
+		"ghost_penalty": _ghost_penalty_total,
 		"argument_penalty": _false_accusations * FALSE_ACCUSATION_PENALTY,
 		"hint_trap_penalty": _hint_traps_triggered * HINT_TRAP_PENALTY,
 		"correct_hint_bonus": _correct_hints * CORRECT_HINT_BONUS,

@@ -458,8 +458,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         _is_local_spectator = false
 
 
-## Chalk used event — if it's for a fake hint, the deduction was pre-validated.
-## In production, this would be handled by DrawSystem; here we just log.
+## Chalk used event — DrawSystem (the chalk owner) applies the deduction via
+## this event (audit m4); this listener only logs.
 func _on_chalk_used(payload: Dictionary) -> void:
     var reason: String = payload.get("reason", "")
     if reason == "fake_hint":

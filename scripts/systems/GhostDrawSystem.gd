@@ -213,13 +213,6 @@ func activate_ghost_draw(anchor_position: Vector2, owner_id: int) -> bool:
 		for line in lines:
 			_create_ghost_line_node(line)
 
-	# Emit internal event (NOT to UI systems)
-	EventBus.emit(EventBus.EV_GAME_GHOST_DRAW_ACTIVATED, {
-		"owner_id": owner_id,
-		"line_count": lines.size(),
-		"line_ids": _get_line_ids(lines),
-	})
-
 	# Network: send to server/host - one typed GHOST_LINE_PLACED per line
 	# (audit M9: legacy "ghost.lines_placed" batch seam removed; encode/decode
 	# is symmetric with NetSerializer.encode_line / decode_line).
@@ -386,7 +379,11 @@ func _check_discovery() -> void:
 	if penalty_applied:
 		# Emit penalty event
 		EventBus.emit(EventBus.EV_GAME_GHOST_DRAW_PENALTY, {
-			"amount": PENALTY_AMOUNT,
+			# audit m2: one event per discovery frame - amount must cover ALL
+			# lines discovered this frame so ScoringManager's deduction matches
+			# the per-line breakdown (PENALTY_AMOUNT x line count).
+			"amount": PENALTY_AMOUNT * discovered_ids.size(),
+			"line_count": discovered_ids.size(),
 			"ghost_player_id": _get_ghost_owner_id(),
 			"discoverer_id": _get_discoverer_id(discovered_ids),
 		})

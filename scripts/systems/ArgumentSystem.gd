@@ -352,10 +352,11 @@ func _on_rpc_argument_resolved(payload: Dictionary) -> void:
 	var argument_id: int = payload.get("argument_id", -1)
 	var is_true: bool = payload.get("is_true_ghost", false)
 	var penalty_applied: bool = false
+	var penalty_seconds := 0.0
 
 	if not is_true:
 		# False accusation: remove random time penalty (3–10s, owner decision 2026-08-11)
-		var penalty_seconds := randf_range(FALSE_ACCUSATION_PENALTY_MIN_SECONDS, FALSE_ACCUSATION_PENALTY_MAX_SECONDS)
+		penalty_seconds = randf_range(FALSE_ACCUSATION_PENALTY_MIN_SECONDS, FALSE_ACCUSATION_PENALTY_MAX_SECONDS)
 		MatchTimer.remove_time(penalty_seconds)
 		penalty_applied = true
 
@@ -367,6 +368,7 @@ func _on_rpc_argument_resolved(payload: Dictionary) -> void:
 		"argument_id": argument_id,
 		"is_true": is_true,
 		"penalty_applied": penalty_applied,
+		"penalty_amount": penalty_seconds,  # audit m1: real seconds removed (3-10s), not a fixed 30s
 	})
 
 	# Resume match state (exit PAUSED)

@@ -93,6 +93,10 @@ func _ready() -> void:
 	_bot.difficulty = GameState.cpu_difficulty
 	add_child(_bot)
 
+	# Fresh match: clear totals/rounds carried over from the previous match
+	# (audit m3) so score and statistics don't leak between matches.
+	ScoringManager.reset_match()
+
 	# Kick off the flow: NONE → LOBBY (prototype bootstrap) → DRAWING.
 	_match_machine.transition_to(GameState.MatchState.LOBBY)
 	_match_machine.transition_to(GameState.MatchState.DRAWING)
