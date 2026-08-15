@@ -347,6 +347,13 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	var from_state: int = payload.get("from", -1)
 	var to_state: int = payload.get("to", -1)
 
+	# Fresh DRAWING entry (a new round is starting): wipe explored areas and
+	# vision circles from the previous round so they don't leak into the next
+	# SEARCHING phase. PAUSED → DRAWING is an argument resume — keep
+	# the fog state (batch-2 pause/resume behavior, audit m10).
+	if to_state == GameState.MatchState.DRAWING and from_state != GameState.MatchState.PAUSED:
+		clear_all_fog()
+
 	# Any → PAUSED: freeze the fog in place (keep it visible across
 	# the argument) instead of deactivating it — checked FIRST so a
 	# SEARCHING pause can never fall through to the SEARCHING-exit branch below.

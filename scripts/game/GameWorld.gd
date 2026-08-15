@@ -19,6 +19,11 @@ func _ready() -> void:
 	# Find all entities in the scene and register them
 	_register_existing_entities()
 
+	# The scene presets entity ids (Player=1, NPC1=2). Seed the allocator above
+	# the highest registered id so later-spawned entities never collide with
+	# preset scene entities (audit m12).
+	_next_entity_id = _max_registered_entity_id() + 1
+
 	# Listen for future entity spawn/despawn events
 	EventBus.on(EventBus.EV_GAME_ENTITY_REGISTER, _on_entity_register)
 	EventBus.on(EventBus.EV_GAME_ENTITY_UNREGISTER, _on_entity_unregister)
@@ -49,6 +54,14 @@ func _register_entity(entity: Entity) -> void:
 	entity.set_meta("entity_id", entity.entity_id)
 	entity_registry[entity.entity_id] = entity
 	print("GameWorld: registered entity %d (%s)" % [entity.entity_id, entity.entity_type])
+
+## Highest entity id currently registered (0 when the registry is empty).
+func _max_registered_entity_id() -> int:
+	var max_id := 0
+	for id in entity_registry:
+		if id > max_id:
+			max_id = id
+	return max_id
 
 ## Remove from registry.
 func _unregister_entity(entity: Entity) -> void:

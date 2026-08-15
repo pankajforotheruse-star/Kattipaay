@@ -113,7 +113,7 @@ func _on_game_state_changed(payload: Dictionary) -> void:
 	pass  # HomeScreen doesn't auto-advance; SceneManager handles it
 
 func _on_button_event(payload: Dictionary) -> void:
-	var btn := payload.get("button_name", "")
+	var btn := payload.get("button", "")
 	print("HomeScreen: button event: %s" % btn)
 
 func _gui_input(event: InputEvent) -> void:

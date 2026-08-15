@@ -90,11 +90,13 @@ func abort_to_lobby(reason: String = "") -> void:
 ## Force transition back to MAIN_MENU (full quit from match).
 func quit_to_menu() -> void:
 	print("MatchStateMachine: quitting to main menu")
-	GameState.enter_match_state(GameState.MatchState.RETURN_TO_LOBBY)
-	# After cleanup, transition top-level to MAIN_MENU
-	# This is typically handled by the RETURN_TO_LOBBY entry logic,
-	# but we also trigger the top-level transition here.
-	await get_tree().create_timer(0.1).timeout  # let the match state change process
+	# Go through the proper transition path so the current state's exit
+	# callbacks fire and RETURN_TO_LOBBY's entry callbacks run (audit m8).
+	# transition_to() is synchronous: _fire_exit runs first, then
+	# enter_match_state() commits and emits match.state_changed, which fires
+	# the entry callbacks immediately, so no await is needed before the
+	# top-level transition.
+	transition_to(GameState.MatchState.RETURN_TO_LOBBY)
 	GameState.transition(GameState.State.MAIN_MENU)
 
 ## Convenience: start the match flow from the beginning (WAITING state).
