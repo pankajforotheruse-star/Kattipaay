@@ -333,8 +333,13 @@ func _on_rpc_argument_started(payload: Dictionary) -> void:
 	# Pause timer
 	MatchTimer.pause()
 
-	# Enter PAUSED match state for argument duration
-	if GameState.get_match_state() != GameState.MatchState.PAUSED:
+	# Enter PAUSED match state for argument duration. Guard with is_in_match():
+	# the wordless tutorial drives these systems with top-level MAIN_MENU and
+	# current_match set directly (no events), so without the guard
+	# enter_match_state() push-warns on every accusation (audit m13). In a real
+	# match (top-level PLAYING with a match sub-state) the transition still
+	# runs exactly as before.
+	if GameState.get_match_state() != GameState.MatchState.PAUSED and GameState.is_in_match():
 		GameState.enter_match_state(GameState.MatchState.PAUSED)
 
 	# Emit game event

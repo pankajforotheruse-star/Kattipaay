@@ -20,14 +20,18 @@ const MATCH_DURATIONS: Dictionary = {
 	"endless":  -1,
 }
 
+## Final countdown window (seconds) where the timer-warning sound plays.
+## Matches sound-design-spec SND-021 ("audible urgency from <=10s").
+const TIMER_WARNING_SECONDS := 10
+
 # ── State ─────────────────────────────────────────────────────────────────────
 
 var _remaining_seconds: float = 0.0
 var _total_seconds: float = 0.0
 var _is_running: bool = false
 var _is_paused: bool = false
-var _tick_accumulator: float = 0.0
 var _last_emitted_second: int = -1
+var _warning_played: bool = false
 var _current_duration_key: String = "standard"
 var _is_endless: bool = false
 
@@ -61,6 +65,16 @@ func _process(delta: float) -> void:
 			"total_seconds": int(_total_seconds),
 		})
 
+	# Timer-warning sound (audit m11b / sound-design-spec SND-021): play once
+	# when the clock enters the final TIMER_WARNING_SECONDS window, not every
+	# frame. Re-arms when time is added back above the window.
+	if current_second <= TIMER_WARNING_SECONDS:
+		if not _warning_played:
+			_warning_played = true
+			AudioManager.play_timer_warning()
+	else:
+		_warning_played = false
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 ## Start the timer with a duration key ("quick", "standard", "endless").
@@ -82,7 +96,7 @@ func start(duration_key: String = "standard") -> void:
 	_last_emitted_second = duration
 	_is_running = true
 	_is_paused = false
-	_tick_accumulator = 0.0
+	_warning_played = false
 
 	EventBus.emit(EventBus.EV_GAME_TIMER_TICK, {
 		"remaining_seconds": duration,
@@ -158,7 +172,6 @@ func reset(duration_key: String = "") -> void:
 	_total_seconds = float(duration) if not _is_endless else -1.0
 	_remaining_seconds = float(duration) if not _is_endless else -1.0
 	_last_emitted_second = duration if not _is_endless else -1
-	_tick_accumulator = 0.0
 	print("MatchTimer: reset to %d" % duration)
 
 # ── Queries ───────────────────────────────────────────────────────────────────

@@ -215,3 +215,14 @@ func _reset_match_state() -> void:
     previous_match = current_match
     current_match = MatchState.NONE
     pre_pause_match = MatchState.NONE
+    # Broadcast the reset so EV_MATCH_STATE_CHANGED listeners see it.
+    # MatchStateMachine caches current_state, and without this event the
+    # cache goes stale after returning to MAIN_MENU, so the next match's
+    # exit callbacks fire for the wrong old state (audit m9). Payload shape
+    # matches enter_match_state() (from/to plus names).
+    EventBus.emit(EventBus.EV_MATCH_STATE_CHANGED, {
+        "from": previous_match,
+        "to": current_match,
+        "from_name": _match_state_name(previous_match),
+        "to_name": _match_state_name(current_match),
+    })
