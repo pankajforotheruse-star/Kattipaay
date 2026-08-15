@@ -98,7 +98,6 @@ func _on_collection() -> void:
 
 func _on_daily_reward() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "daily_reward"})
-	EventBus.emit(EventBus.EV_GAME_DAILY_REWARD_CLAIMED, {})
 func _on_tutorial() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "tutorial"})
 	SceneManager.go_to("tutorial/tutorial.tscn")

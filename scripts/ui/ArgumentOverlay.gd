@@ -146,7 +146,7 @@ func _setup_ui() -> void:
 	# --- Penalty Label ---
 	_penalty_label = Label.new()
 	_penalty_label.name = "PenaltyLabel"
-	_penalty_label.text = "-30s"
+	_penalty_label.text = "-0s"  # audit m1: real amount set in show_result()
 	_penalty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_penalty_label.add_theme_font_size_override("font_size", 64)
 	_penalty_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2, 1.0))
@@ -247,6 +247,10 @@ func show_result(data: Dictionary) -> void:
 	var is_true: bool = data.get("is_true", false)
 	var penalty_applied: bool = data.get("penalty_applied", false)
 
+	# audit m1: display the actual penalty amount from the resolution payload
+	# (randf_range(3.0, 10.0)s), not a fixed 30s.
+	_penalty_label.text = "-%.0fs" % data.get("penalty_amount", 0.0)
+
 	var tween := create_tween()
 	tween.set_parallel(true)
 
@@ -313,4 +317,9 @@ func _on_overlay_done() -> void:
 	_is_showing = false
 	hide()
 	queue_redraw()
+	# audit m7: each overlay is instantiated per argument and added to the
+	# root; free it now that the hide animation finished so hidden overlays
+	# don't accumulate across a match (HUD's next-argument cleanup stays as
+	# a safety net via is_instance_valid).
+	queue_free()
 	print("ArgumentOverlay: done")

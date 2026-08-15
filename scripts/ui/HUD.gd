@@ -75,6 +75,7 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
     EventBus.on(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.on(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
+    EventBus.on(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
     EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
 
     # --- Argument events ---
@@ -101,6 +102,7 @@ func _ready() -> void:
     # --- Scoring events ---
     EventBus.on(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, _on_total_score_updated)
     EventBus.on(EventBus.EV_GAME_ROUND_SCORE_CALCULATED, _on_round_score_calculated)
+    EventBus.on(EventBus.EV_GAME_SCORE_CHANGED, _on_score_changed)  # audit m4
 
     # --- Create UI elements ---
     _create_timer_label()
@@ -154,6 +156,7 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
     EventBus.off(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.off(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
+    EventBus.off(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
     EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
@@ -170,6 +173,7 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_SILENT_SNEAK_COOLDOWN_ENDED, _on_silent_sneak_cooldown_ended)
     EventBus.off(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, _on_total_score_updated)
     EventBus.off(EventBus.EV_GAME_ROUND_SCORE_CALCULATED, _on_round_score_calculated)
+    EventBus.off(EventBus.EV_GAME_SCORE_CHANGED, _on_score_changed)  # audit m4
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
 
@@ -535,6 +539,17 @@ func _on_timer_expired(_payload: Dictionary) -> void:
         _timer_label.add_theme_color_override("font_color", Color(1.0, 0.1, 0.1, 1.0))
 
 
+func _on_timer_penalty(payload: Dictionary) -> void:
+    # audit m4: MatchTimer.remove_time() emits EV_GAME_TIMER_PENALTY (not a
+    # tick), so surface visible feedback and refresh the timer display.
+    var amount: int = payload.get("amount", 0)
+    if amount > 0:
+        _show_penalty_flash(amount)
+    if _timer_label and payload.has("remaining_seconds"):
+        var remaining: int = payload.get("remaining_seconds", 0)
+        _timer_label.text = "%d:%02d" % [remaining / 60, remaining % 60]
+
+
 func _on_chalk_meter_changed(payload: Dictionary) -> void:
     var pct: float = payload.get("remaining_percent", 1.0)
     if _chalk_label:
@@ -575,12 +590,13 @@ func _on_argument_resolved(payload: Dictionary) -> void:
     if _argument_overlay and is_instance_valid(_argument_overlay):
         _argument_overlay.show_result(payload)
 
-    # Update info with result
+    # Update info with result (audit m1: show the actual penalty amount
+    # carried by the resolution payload, not a hardcoded -30s).
     var is_true: bool = payload.get("is_true", false)
     if is_true:
         _update_info("CORRECT ACCUSATION! Ghost revealed!")
     else:
-        _update_info("FALSE ACCUSATION! -30s penalty.")
+        _update_info("FALSE ACCUSATION! -%.0fs penalty." % payload.get("penalty_amount", 0.0))
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -852,3 +868,37 @@ func _on_round_score_calculated(payload: Dictionary) -> void:
                 var total := ScoringManager.get_total_score()
                 _score_label.text = "Score: %d" % total
         )
+
+
+func _on_score_changed(payload: Dictionary) -> void:
+    # audit m4: live score delta (SloppyCountSystem) - flash it above the
+    # score label so the event has visible feedback.
+    var amount: int = payload.get("amount", 0)
+    if amount != 0:
+        _show_score_delta_flash(amount)
+
+
+func _show_score_delta_flash(amount: int) -> void:
+    var flash_label := Label.new()
+    flash_label.name = "ScoreDeltaFlash"
+    flash_label.text = "%+d" % amount
+    flash_label.add_theme_font_size_override("font_size", 30)
+    flash_label.add_theme_color_override("font_color", Color(0.83, 0.63, 0.09, 1.0))
+    flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    flash_label.anchors_preset = -1
+    flash_label.anchor_left = 1.0
+    flash_label.anchor_right = 1.0
+    flash_label.offset_left = -180
+    flash_label.offset_top = 40
+    flash_label.offset_right = -16
+    flash_label.offset_bottom = 70
+    add_child(flash_label)
+
+    var tween := create_tween()
+    tween.set_parallel(true)
+    tween.tween_property(flash_label, "scale", Vector2(1.4, 1.4), 0.5)
+    tween.tween_property(flash_label, "modulate:a", 0.0, 0.5)
+    tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+    tween.chain().tween_callback(func():
+        flash_label.queue_free()
+    )

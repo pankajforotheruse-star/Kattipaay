@@ -53,6 +53,6 @@ func _play_intro() -> void:
 	_transition_to_home()
 
 func _transition_to_home() -> void:
-	# Fade out and transition
-	EventBus.emit(EventBus.EV_GAME_SPLASH_COMPLETE, {})
+	# Fade out and transition (audit m4: EV_GAME_SPLASH_COMPLETE had no
+	# consumer - the GameState.transition below is what advances to Home).
 	GameState.transition(GameState.State.MAIN_MENU)

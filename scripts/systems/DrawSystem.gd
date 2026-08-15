@@ -165,6 +165,7 @@ func _ready() -> void:
     # --- Subscribe to match state ---
     EventBus.on(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
     EventBus.on(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
+    EventBus.on(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4: fake-hint chalk cost
 
     # --- Find GameWorld ---
     _game_world = get_tree().current_scene as Node2D
@@ -207,6 +208,7 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_NETWORK_CHALK_LINE_SYNC_BATCH, _on_network_line_sync_batch)
     EventBus.off(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
     EventBus.off(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
+    EventBus.off(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4
 
 
 func _process(delta: float) -> void:
@@ -731,44 +733,11 @@ static func _interpolate_widths(raw_pts: Array[Vector2], raw_w: Array[float], sm
 # =============================================================================
 # COLLISION DETECTION
 # =============================================================================
-
-## Check if a ghost overlaps any active chalk line.
-## Returns array of line IDs that the ghost's circle intersects.
-func check_ghost_collision(ghost_position: Vector2, ghost_radius: float) -> Array[int]:
-    var hit_lines: Array[int] = []
-
-    for line in _active_lines:
-        if line.points.size() < 2:
-            continue
-        # Check each segment against the ghost's collision circle
-        for i in range(line.points.size() - 1):
-            var a := line.points[i]
-            var b := line.points[i + 1]
-            if _segment_intersects_circle(a, b, ghost_position, ghost_radius):
-                hit_lines.append(line.id)
-                EventBus.emit(EventBus.EV_GAME_GHOST_TOUCHES_LINE, {
-                    "ghost_id": -1,  # Filled by caller
-                    "line_id": line.id,
-                    "chalk_type": line.chalk_type,
-                })
-                break  # One hit per line is enough
-
-    return hit_lines
-
-
-## Check if a line segment intersects a circle.
-## Uses closest-point-on-segment distance.
-static func _segment_intersects_circle(a: Vector2, b: Vector2, center: Vector2, radius: float) -> bool:
-    var ab := b - a
-    var ac := center - a
-    var ab_len_sq := ab.length_squared()
-
-    if ab_len_sq < 0.0001:
-        return ac.length_squared() <= radius * radius
-
-    var t := clampf(ac.dot(ab) / ab_len_sq, 0.0, 1.0)
-    var closest := a + ab * t
-    return closest.distance_squared_to(center) <= radius * radius
+# audit m5: check_ghost_collision() was never called and the ghost-touch
+# mechanic has no position source in the current prototype (no ghost entity in
+# game_world.tscn; the solo bot is a mock network peer with no in-world
+# position; online ghost position sync is unwired). The FogSystem consumer also
+# expected a different payload shape. Removed along with EV_GAME_GHOST_TOUCHES_LINE.
 
 
 ## Detect if a newly drawn line forms a closed loop (sealing circle).
@@ -790,14 +759,10 @@ func _check_sealed_circle(line: ChalkLine) -> void:
         if radius * 2.0 < MIN_CIRCLE_DIAMETER or radius * 2.0 > MAX_CIRCLE_DIAMETER:
             return
 
-        # Find ghosts inside (delegated to GhostSystem in production; emit event here)
-        # In prototype, we just emit with empty ghosts_inside — GhostSystem will populate
-        EventBus.emit(EventBus.EV_GAME_CIRCLE_SEALED, {
-            "center": center,
-            "radius": radius,
-            "ghosts_inside": [],  # GhostSystem fills this in
-            "player_id": line.player_id,
-        })
+        # Find ghosts inside (delegated to GhostSystem in production).
+        # audit m4: EV_GAME_CIRCLE_SEALED had no consumer - the sealed-circle
+        # capture mechanic is not implemented, so the notification is removed
+        # (the detection + log above remain).
 
         print("DrawSystem: sealed circle detected — center=%s, radius=%.1f" % [center, radius])
 
@@ -936,6 +901,24 @@ func _on_chalk_exhausted(_payload) -> void:
     _chalk_exhausted = true
     if _is_drawing:
         _finish_drawing()
+
+
+## Fixed-cost chalk deductions (e.g. fake-hint placement) arrive via
+## EV_GAME_CHALK_USED (audit m4): this system owns the chalk pool, so it
+## applies the deduction and refreshes the HUD meter.
+func _on_chalk_used(payload: Dictionary) -> void:
+    var amount: float = payload.get("amount", 0.0)
+    if amount <= 0.0:
+        return
+    _chalk_remaining = maxf(_chalk_remaining - amount, 0.0)
+    if _chalk_remaining <= 0.0 and not _chalk_exhausted:
+        _chalk_remaining = 0.0
+        _chalk_exhausted = true
+        EventBus.emit(EventBus.EV_GAME_CHALK_EXHAUSTED, {})
+    EventBus.emit(EventBus.EV_GAME_CHALK_METER_CHANGED, {
+        "remaining_percent": _chalk_remaining / CHALK_MAX,
+        "remaining_chalk": _chalk_remaining,
+    })
 
 
 # =============================================================================
