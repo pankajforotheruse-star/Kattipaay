@@ -6,3 +6,7 @@ build/
 
 # OS junk
 .DS_Store
+
+# Godot generated import/UID metadata
+*.uid
+*.import
