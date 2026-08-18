@@ -393,8 +393,8 @@ func _flush_outbound() -> void:
 func _send(msg_type: int, payload: PackedByteArray, flags := 0) -> void:
 	if not connected:
 		return
-	if payload.size() > MAX_PAYLOAD:
-		EventBus.emit(EventBus.EV_NET_BANDWIDTH_WARNING, {"bytes": payload.size(), "limit": MAX_PAYLOAD})
+	if payload.size() > NetSerializer.MAX_PAYLOAD:
+		EventBus.emit(EventBus.EV_NET_BANDWIDTH_WARNING, {"bytes": payload.size(), "limit": NetSerializer.MAX_PAYLOAD})
 		push_warning("MatchSession: payload %d bytes exceeds MAX_PAYLOAD" % payload.size())
 		return
 	if payload.size() + NetSerializer.ENVELOPE_SIZE > MAX_EVENT_BYTES:
@@ -646,7 +646,7 @@ func _open_websocket() -> void:
 	var scheme := "wss" if NAKAMA_USE_TLS else "ws"
 	var url := "%s://%s:%d%s" % [scheme, NAKAMA_SERVER_URL, NAKAMA_SERVER_PORT, NAKAMA_WS_PATH]
 	_socket = WebSocketPeer.new()
-	var err := _socket.connect_to_url(url, PackedStringArray(), true, _tls_options())
+	var err := _socket.connect_to_url(url, _tls_options())
 	if err != OK:
 		push_warning("MatchSession: websocket connect failed (%d)" % err)
 		_enter_offline("ws_connect_failed")

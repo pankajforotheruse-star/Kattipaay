@@ -189,7 +189,7 @@ func _setup_reveal_viewport() -> void:
 	_reveal_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_reveal_viewport.transparent_bg = false
 	# Clear color is black (unrevealed)
-	_reveal_viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_TEXTURE_FILTER_LINEAR
+	_reveal_viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_LINEAR
 	add_child(_reveal_viewport)
 
 	# Camera2D for world-space → texture coordinate mapping.
@@ -273,7 +273,7 @@ func _update_pulses(_delta: float) -> void:
 	var i := _pulses.size() - 1
 	while i >= 0:
 		var p: Dictionary = _pulses[i]
-		var elapsed := now - p["start_time"]
+		var elapsed: float = now - float(p["start_time"])
 		if elapsed > p["duration"]:
 			_pulses.remove_at(i)
 		else:

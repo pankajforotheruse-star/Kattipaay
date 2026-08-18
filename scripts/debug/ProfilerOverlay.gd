@@ -90,14 +90,13 @@ func _update_stats() -> void:
 	var fps := Performance.get_monitor(Performance.TIME_FPS)
 	var frame_ms := Performance.get_monitor(Performance.TIME_PROCESS)
 	var draw_calls := Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
-	var items_2d := Performance.get_monitor(Performance.RENDER_2D_ITEMS_IN_FRAME)
 	var ram_mb := OS.get_static_memory_usage() / 1048576.0
 	var ram_peak_mb := OS.get_static_memory_peak_usage() / 1048576.0
 	var nodes := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
 	_label.text = (
 		"FPS: %4.0f  |  frame: %5.2f ms\n"
 		% [fps, frame_ms]
-		+ "draw calls: %d  |  2D items: %d\n" % [draw_calls, items_2d]
+		+ "draw calls: %d\n" % draw_calls
 		+ "RAM: %.1f MB (peak %.1f)\n" % [ram_mb, ram_peak_mb]
 		+ "nodes: %d" % nodes
 	)

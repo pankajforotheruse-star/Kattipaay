@@ -109,7 +109,7 @@ func _on_line_drawn(payload: Dictionary) -> void:
 		return
 
 	# --- Fetch geometry from DrawSystem ---
-	var line := _find_chalk_line(line_id)
+	var line: ChalkLine = _find_chalk_line(line_id) as ChalkLine
 	if not line:
 		push_warning("ClusterSystem: line %d not found in DrawSystem" % line_id)
 		return
@@ -280,7 +280,7 @@ func _rebuild_cluster_after_removal(old_cluster: Cluster) -> void:
 		var queue: Array[int] = [start_id]
 
 		while not queue.is_empty():
-			var current := queue.pop_front()
+			var current: int = int(queue.pop_front())
 			if visited.has(current):
 				continue
 			visited[current] = true
@@ -482,7 +482,7 @@ func _bfs_connected_component(start_id: int) -> Array[int]:
 	var queue: Array[int] = [start_id]
 
 	while not queue.is_empty():
-		var current := queue.pop_front()
+		var current: int = int(queue.pop_front())
 		if visited.has(current):
 			continue
 		visited[current] = true

@@ -703,13 +703,13 @@ static func _subdivide_line(a: Vector2, b: Vector2, spacing: float) -> Array[Vec
 ## Compute line width at a point based on draw speed and chalk type.
 ## Slower drawing → thicker lines; faster → thinner.
 func _compute_width(current_pos: Vector2, previous_pos: Vector2, delta_time: float) -> float:
-    var base := ChalkLine.BASE_WIDTHS.get(_current_chalk_type, 4.0)
+    var base: float = float(ChalkLine.BASE_WIDTHS.get(_current_chalk_type, 4.0))
     var dist := current_pos.distance_to(previous_pos)
-    var speed := dist / max(delta_time, 0.001)
+    var speed: float = dist / max(delta_time, 0.001)
 
     # Map speed to width: slow (0 px/s) → base + 4px, fast (800+ px/s) → base - 1px
     var speed_factor := clampf(1.0 - (speed / 800.0), 0.25, 2.0)
-    var width := base * speed_factor
+    var width: float = base * speed_factor
 
     # Clamp to sane range
     return clampf(width, 1.5, 10.0)

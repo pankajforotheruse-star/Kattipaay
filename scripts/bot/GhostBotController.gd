@@ -674,7 +674,7 @@ func _clamp_to_bounds(p: Vector2, margin: float) -> Vector2:
 
 func _searcher_position() -> Vector2:
 	if _game_world:
-		var entity := _game_world.get_entity(HUMAN_ENTITY_ID)
+		var entity: Node2D = _game_world.get_entity(HUMAN_ENTITY_ID) as Node2D
 		if entity:
 			return entity.global_position
 	if _move_samples.size() > 0:

@@ -189,7 +189,7 @@ func _generate_chime_ascending() -> Array[Vector2]:
     var frames: Array[Vector2] = []
 
     for note_idx in range(notes.size()):
-        var freq := notes[note_idx]
+        var freq: float = float(notes[note_idx])
         var note_samples := int(SAMPLE_RATE * note_duration)
         var phase: float = 0.0
 
