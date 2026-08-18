@@ -319,7 +319,7 @@ func _detect_shake() -> void:
 
 ## Convert screen position to world position using the current viewport's canvas transform.
 static func screen_to_world(screen_pos: Vector2) -> Vector2:
-	var viewport: Window = Engine.get_main_loop().root as Window
+	var viewport: Window = Engine.get_main_loop().root
 	if viewport is Window:
 		var camera: Camera2D = viewport.get_camera_2d()
 		if camera:
