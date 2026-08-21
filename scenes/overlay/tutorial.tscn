@@ -23,7 +23,7 @@ unique_name_in_owner = true
 position = Vector2(360, 800)
 points = PackedVector2Array(0, 40, 20, 0, 0, -40)
 width = 3.0
-default_color = Color("F5F0E8", 1)
+default_color = Color(0.9608, 0.9412, 0.9098, 1)
 
 [node name="InstructionBox" type="Panel" parent="."]
 unique_name_in_owner = true

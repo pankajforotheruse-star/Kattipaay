@@ -15,7 +15,7 @@ offset_left = 0.0
 offset_top = 0.0
 offset_right = 720.0
 offset_bottom = 1280.0
-color = Color("1A1030", 1)
+Color(0.1020, 0.0627, 0.1882, 1)
 
 [node name="SearchPanel" type="Panel" parent="."]
 unique_name_in_owner = true
@@ -43,7 +43,7 @@ offset_left = 180.0
 offset_top = 70.0
 offset_right = 380.0
 offset_bottom = 170.0
-color = Color("CC6B49", 1)
+Color(0.8, 0.4196, 0.2863, 1)
 
 [node name="SpinnerAnim" type="AnimationPlayer" parent="SearchPanel"]
 unique_name_in_owner = true
