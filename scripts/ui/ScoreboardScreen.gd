@@ -103,9 +103,9 @@ func _process(delta: float) -> void:
 	if _countdown_bar:
 		_countdown_bar.value = _countdown_bar.max_value - _countdown_seconds
 	if _countdown_label:
-		var remaining := max(0, int(ceil(_countdown_seconds)))
-		var mins := remaining / 60
-		var secs := remaining % 60
+		var remaining = max(0, int(ceil(_countdown_seconds)))
+		var mins = remaining / 60
+		var secs = remaining % 60
 		_countdown_label.text = "NEXT WAVE IN %01d:%02d" % [mins, secs]
 		
 		if remaining <= 10:

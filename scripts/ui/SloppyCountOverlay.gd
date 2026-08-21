@@ -186,16 +186,13 @@ func _animate_count_up(target: float) -> void:
 	_percentage_label.text = "0%"
 	
 	var tween := create_tween()
-	tween.tween_method(
-		func(val: float):
-			_percentage_label.text = "%d%%" % int(round(val))
-		,
-		0.0,
-		target,
-		COUNT_UP_DURATION
-	)
+	tween.tween_method(_set_percentage_amount, 0.0, target, COUNT_UP_DURATION)
 	tween.set_trans(Tween.TRANS_CUBIC)
 	tween.set_ease(Tween.EASE_OUT)
+
+
+func _set_percentage_amount(val: float) -> void:
+	_percentage_label.text = "%d%%" % int(round(val))
 
 
 func _show_score_delta(score_delta: int, passed: bool) -> void:

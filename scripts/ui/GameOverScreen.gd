@@ -66,7 +66,7 @@ func show_result(result: Dictionary) -> void:
 	_animate_enter()
 
 func _animate_stat_bars(result: Dictionary) -> void:
-	var stats := result.get("stats", {})
+	var stats = result.get("stats", {})
 	_animate_single_bar(_chalk_used_bar, _chalk_used_value, stats.get("chalk_pct", 0), "%")
 	_animate_single_bar(_accuracy_bar, _accuracy_value, stats.get("accuracy", 0), "%")
 	_animate_single_bar(_damage_bar, _damage_value, stats.get("damage_dealt", 0), "%")

@@ -262,7 +262,7 @@ func _run_level_2_demo() -> void:
 	if not lines.is_empty():
 		_ghost_sys._reveal_line_fade_in(lines[0].id)
 		var pts: Array = lines[0].points
-		var mid := (pts[0] + pts[-1]) / 2.0
+		var mid = (pts[0] + pts[-1]) / 2.0
 		TutorialBurst.spawn(self, mid, Color(0.6, 0.8, 1.0, 1.0), 60.0)
 	await _hand.hover(0.55)
 	await _hand.move_to(Vector2(360, 200), 0.6)

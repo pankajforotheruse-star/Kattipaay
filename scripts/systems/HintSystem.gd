@@ -124,18 +124,18 @@ func spectator_reveal_line(spectator_peer_id: int, line_id: int) -> bool:
         return false
 
     # Validate: hasn't used their reveal yet
-    var used := _spectator_reveal_counts.get(spectator_peer_id, 0)
+    var used = _spectator_reveal_counts.get(spectator_peer_id, 0)
     if used >= SPECTATOR_REVEALS_PER_MATCH:
         push_warning("HintSystem: spectator %d already used their reveal" % spectator_peer_id)
         return false
 
     # Validate: line exists in GhostDrawSystem
-    var ghost_sys := _get_ghost_draw_system()
+    var ghost_sys = _get_ghost_draw_system()
     if not ghost_sys:
         push_warning("HintSystem: GhostDrawSystem not found")
         return false
 
-    var ghost_lines := ghost_sys.get_active_ghost_lines()
+    var ghost_lines = ghost_sys.get_active_ghost_lines()
     var target_line: ChalkLine = null
     for line in ghost_lines:
         if line.id == line_id:
@@ -212,7 +212,7 @@ func place_fake_hint(drawer_peer_id: int, world_position: Vector2) -> bool:
                 return false
 
     # Validate: not on top of existing real lines (must be near but not ON)
-    var draw_sys := _get_draw_system()
+    var draw_sys = _get_draw_system()
     if draw_sys:
         for line in draw_sys.get_active_lines():
             if line.is_ghost:
@@ -427,7 +427,7 @@ func _reveal_ghost_line(line_id: int, searcher_id: int) -> void:
 
 func _hide_ghost_line(line_id: int, _searcher_id: int) -> void:
     # After 8s, hide the line again
-    var ghost_sys := _get_ghost_draw_system()
+    var ghost_sys = _get_ghost_draw_system()
     if ghost_sys:
         for line in ghost_sys.get_active_ghost_lines():
             if line.id == line_id:

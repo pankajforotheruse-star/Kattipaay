@@ -82,7 +82,7 @@ func _on_home() -> void:
 func _on_watch_ad() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "watch_ad"})
 	if _chalk_dust_label:
-		var current := _result.get("dust_gained", 0)
+		var current = _result.get("dust_gained", 0)
 		_result["dust_gained"] = current * 2
 		_chalk_dust_label.text = "+%d" % (current * 2)
 	_animate_count_bounce(_chalk_dust_label)
