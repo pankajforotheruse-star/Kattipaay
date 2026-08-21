@@ -13,7 +13,7 @@
 #   3.5s: overlay fades out (0.3s)
 
 class_name ArgumentOverlay
-extends CanvasLayer
+extends Control
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ var _result_data: Dictionary = {}
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
-	layer = 10  # Above HUD
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_setup_ui()
 	hide()
 
@@ -201,7 +201,7 @@ func start_argument(data: Dictionary) -> void:
 	_portrait_right_label.text = "P%d" % target_id
 
 	# Reset visuals
-	_modulate.a = 0.0
+	modulate.a = 0.0
 	show()
 	queue_redraw()
 
