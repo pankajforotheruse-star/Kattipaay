@@ -186,16 +186,13 @@ func _animate_count_up(target: float) -> void:
 	_percentage_label.text = "0%"
 	
 	var tween := create_tween()
-	tween.tween_method(
-		func(val: float):
-			_percentage_label.text = "%d%%" % int(round(val))
-		,
-		0.0,
-		target,
-		COUNT_UP_DURATION
-	)
+	tween.tween_method(_set_percentage_amount, 0.0, target, COUNT_UP_DURATION)
 	tween.set_trans(Tween.TRANS_CUBIC)
 	tween.set_ease(Tween.EASE_OUT)
+
+
+func _set_percentage_amount(val: float) -> void:
+	_percentage_label.text = "%d%%" % int(round(val))
 
 
 func _show_score_delta(score_delta: int, passed: bool) -> void:
@@ -233,6 +230,13 @@ func _pulse_green_vignette() -> void:
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+func _shake_step(original_offset: Vector2, _t: float) -> void:
+	offset = original_offset + Vector2(
+		randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE),
+		randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE)
+	)
+
+
 func _shake_red_vignette() -> void:
 	_vignette.color = Color(0.5, 0.0, 0.0, 0.2)
 	
@@ -240,17 +244,7 @@ func _shake_red_vignette() -> void:
 	var original_offset := offset
 	var shake_tween := create_tween()
 	shake_tween.set_loops(6)
-	shake_tween.tween_method(
-		func(_x: float):
-			offset = original_offset + Vector2(
-				randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE),
-				randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE)
-			)
-		,
-		0.0,
-		1.0,
-		SCREEN_SHAKE_DURATION / 6.0
-	)
+	shake_tween.tween_method(_shake_step.bind(original_offset), 0.0, 1.0, SCREEN_SHAKE_DURATION / 6.0)
 	shake_tween.tween_callback(func():
 		offset = original_offset
 		_vignette.color = Color(0.5, 0.0, 0.0, 0.0)

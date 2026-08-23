@@ -14,7 +14,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color("1E1D2B", 1)
+color = Color(0.1176, 0.1137, 0.1686, 1)
 
 [node name="StudioLabel" type="Label" parent="."]
 unique_name_in_owner = true

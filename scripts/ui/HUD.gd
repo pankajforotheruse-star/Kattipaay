@@ -373,13 +373,13 @@ func _create_silent_sneak_button() -> void:
 
 func _on_silent_sneak_pressed() -> void:
     # Find SilentSneakSystem and activate
-    var sneak_sys := _get_silent_sneak_system()
+    var sneak_sys = _get_silent_sneak_system()
     if not sneak_sys:
         _update_info("Silent Sneak unavailable")
         return
 
     var local_player_id := 1  # Prototype: local player is entity_id=1
-    var ok := sneak_sys.activate_silent_sneak(local_player_id)
+    var ok: bool = sneak_sys.activate_silent_sneak(local_player_id)
     if not ok:
         _update_info("Cannot use Silent Sneak right now")
 
@@ -474,7 +474,7 @@ func _get_argument_system() -> ArgumentSystem:
 func _on_entity_state_changed(payload: Dictionary) -> void:
     var node = payload.get("node")
     if node is Player and node.is_local:
-        var state_name := payload.get("current", "?")
+        var state_name = payload.get("current", "?")
         _state_label.text = "Player State: %s" % state_name
 
 
@@ -765,9 +765,9 @@ func _show_penalty_flash(seconds: int) -> void:
 func _update_hint_counter() -> void:
     if not _hint_counter_label:
         return
-    var hint_sys := _get_hint_system()
+    var hint_sys = _get_hint_system()
     if hint_sys:
-        var count := hint_sys.get_active_hint_count()
+        var count: int = hint_sys.get_active_hint_count()
         _hint_counter_label.text = "Hints: %d" % count
 
 

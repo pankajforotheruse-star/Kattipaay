@@ -16,7 +16,7 @@ offset_left = 0.0
 offset_top = 0.0
 offset_right = 720.0
 offset_bottom = 350.0
-color = Color("1A1030", 1)
+color = Color(0.1020, 0.0627, 0.1882, 1)
 
 [node name="VillageSilhouette" type="Node2D" parent="."]
 unique_name_in_owner = true
@@ -24,14 +24,14 @@ position = Vector2(0, 0)
 
 [node name="HaveliRoof" type="Polygon2D" parent="VillageSilhouette"]
 polygon = PackedVector2Array(0, 140, 60, 100, 120, 140, 180, 110, 240, 140, 300, 95, 360, 140, 420, 105, 500, 140, 560, 110, 620, 140, 680, 100, 720, 140, 720, 160, 0, 160)
-color = Color("0D0815", 1)
+color = Color(0.0510, 0.0314, 0.0824, 1)
 
 [node name="BanyanTree" type="Node2D" parent="VillageSilhouette"]
 position = Vector2(620, 80)
 
 [node name="TreeTrunk" type="Polygon2D" parent="VillageSilhouette/BanyanTree"]
 polygon = PackedVector2Array(30, 60, 45, 60, 40, 120, 35, 120)
-color = Color("0D0815", 1)
+color = Color(0.0510, 0.0314, 0.0824, 1)
 
 [node name="TitlePanel" type="Panel" parent="."]
 unique_name_in_owner = true

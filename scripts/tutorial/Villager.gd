@@ -64,8 +64,12 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 46.0 + pulse * 3.0, 0.0, TAU, 40, Color(1.0, 0.85, 0.4, 0.9), 3.5)
 		draw_arc(Vector2.ZERO, 40.0, 0.0, TAU, 40, Color(1.0, 0.85, 0.4, 0.35), 2.0)
 
-	# ground shadow
-	draw_ellipse(Vector2(0, 30), Vector2(26, 8), Color(0, 0, 0, 0.25))
+	# ground shadow (draw_ellipse removed: not present in Godot 4.4.1)
+	var shadow_pts := PackedVector2Array()
+	for si in 24:
+		var sa := TAU * si / 24.0
+		shadow_pts.append(Vector2(cos(sa) * 24.0, sin(sa) * 7.0))
+	draw_colored_polygon(shadow_pts, Color(0, 0, 0, 0.25))
 
 	# body
 	draw_circle(Vector2(0, 6), 16.0, body)

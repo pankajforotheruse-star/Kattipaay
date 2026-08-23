@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scripts/ui/ArgumentOverlay.gd" id="1_overlay"]
 
-[node name="ArgumentOverlay" type="CanvasLayer"]
+[node name="ArgumentOverlay" type="Control"]
 script = ExtResource("1_overlay")

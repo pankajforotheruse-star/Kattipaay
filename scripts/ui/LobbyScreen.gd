@@ -149,7 +149,7 @@ func _on_edit_loadout(index: int) -> void:
 	EventBus.emit("ui.button_pressed", {"button": "edit_loadout", "slot": index})
 
 func _on_player_joined(payload: Dictionary) -> void:
-	var idx := payload.get("slot", 1) - 1
+	var idx: int = payload.get("slot", 1) - 1
 	if idx < _player_slots.size():
 		_player_slots[idx].set_slot_data({
 			"name": payload.get("name", "Player"),
@@ -159,7 +159,7 @@ func _on_player_joined(payload: Dictionary) -> void:
 	_update_host_ui()
 
 func _on_player_left(payload: Dictionary) -> void:
-	var idx := payload.get("slot", 1) - 1
+	var idx: int = payload.get("slot", 1) - 1
 	if idx < _player_slots.size():
 		_player_slots[idx].set_slot_data({
 			"name": "Player",

@@ -108,7 +108,7 @@ func _animate_press() -> void:
 	tween.tween_property(self, "scale", Vector2(0.95, 0.95), 0.1)
 	tween.tween_property(self, "scale", Vector2.ONE, 0.15).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
 
-func set_disabled(disabled_state: bool) -> void:
+func set_custom_disabled(disabled_state: bool) -> void:
 	disabled = disabled_state
 	if disabled:
 		modulate = Color(0.5, 0.5, 0.5, 0.5)

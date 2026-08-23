@@ -234,7 +234,7 @@ func _zoom_to_chalk_lines(lines: Array) -> void:
 	
 	var zoom_x: float = viewport_size.x / max(bbox.size.x, 1.0)
 	var zoom_y: float = viewport_size.y / max(bbox.size.y, 1.0)
-	var target_zoom := min(zoom_x, zoom_y)
+	var target_zoom: float = min(zoom_x, zoom_y)
 	# Clamp zoom — don't zoom out too far or too close
 	target_zoom = clampf(target_zoom, 0.1, 3.0)
 	

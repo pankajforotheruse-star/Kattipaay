@@ -14,7 +14,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color("1E1D2B", 0.85)
+color = Color(0.1176, 0.1137, 0.1686, 0.85)
 z_index = -1
 
 [node name="HeaderLabel" type="Label" parent="."]
@@ -43,7 +43,7 @@ offset_left = 16.0
 offset_top = 16.0
 offset_right = 96.0
 offset_bottom = 96.0
-color = Color("3B2D23", 1)
+color = Color(0.2314, 0.1765, 0.1373, 1)
 
 [node name="TopNameLabel" type="Label" parent="TopPlayerCard"]
 unique_name_in_owner = true

@@ -47,7 +47,7 @@ func _create_step_dots() -> void:
 
 func _show_step(step: int) -> void:
 	_current_step = step
-	var data := STEP_DATA[step]
+	var data = STEP_DATA[step]
 	
 	if _step_title_label:
 		_step_title_label.text = "%d/5. %s" % [step + 1, data["title"]]
