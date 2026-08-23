@@ -167,7 +167,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func screen_to_world(screen_pos: Vector2) -> Vector2:
 	var cam := get_viewport().get_camera_2d()
 	if cam:
-		return cam.get_screen_center() + (screen_pos - get_viewport().get_visible_rect().size / 2.0) / cam.zoom
+		return cam.get_screen_center_position() + (screen_pos - get_viewport().get_visible_rect().size / 2.0) / cam.zoom
 	return screen_pos
 
 

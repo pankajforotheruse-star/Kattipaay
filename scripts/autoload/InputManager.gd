@@ -323,7 +323,7 @@ static func screen_to_world(screen_pos: Vector2) -> Vector2:
 	if viewport is Window:
 		var camera: Camera2D = viewport.get_camera_2d()
 		if camera:
-			return camera.get_screen_center() + (screen_pos - viewport.size / 2.0) * (Vector2.ONE / camera.zoom)
+			return camera.get_screen_center_position() + (screen_pos - viewport.size / 2.0) * (Vector2.ONE / camera.zoom)
 	return screen_pos
 
 
