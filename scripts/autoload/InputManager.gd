@@ -109,8 +109,12 @@ func _input(event: InputEvent) -> void:
 				if Input.is_key_pressed(KEY_CTRL):
 					# Ctrl+Click = drawing finger
 					_handle_mouse_draw_start(event.position)
+				elif _is_drawing_state():
+					# In the DRAWING phase: left-hold-drag draws chalk, the intuitive
+					# desktop control (no hidden right-click/two-finger required).
+					_handle_mouse_draw_start(event.position)
 				else:
-					# Plain left click = anchor finger
+					# Otherwise plain left click = anchor finger (move/search)
 					_handle_mouse_anchor_start(event.position)
 			else:
 				if _mouse_is_drawing:
@@ -208,6 +212,13 @@ func _handle_touch_drag(index: int, screen_pos: Vector2) -> void:
 # =============================================================================
 # MOUSE HANDLERS (Desktop Testing)
 # =============================================================================
+
+## True when the match is in the DRAWING sub-state. During DRAWING a plain
+## left-hold-drag draws chalk (the obvious desktop control); in every other
+## match state the same gesture moves the player instead.
+func _is_drawing_state() -> bool:
+	return GameState.get_match_state() == GameState.MatchState.DRAWING
+
 
 func _handle_mouse_anchor_start(screen_pos: Vector2) -> void:
 	_mouse_is_anchor = true
