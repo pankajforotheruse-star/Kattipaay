@@ -487,6 +487,13 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     var to_state: int = payload.get("to", -1)
     var from_state: int = payload.get("from", -1)
 
+    # Show the obvious desktop control hint so the owner/player knows that
+    # left-drag draws during DRAWING (vs. moves during SEARCHING).
+    if to_state == GameState.MatchState.DRAWING:
+        _update_info("DRAW: hold LEFT mouse button and drag to draw your chalk lines.")
+    elif to_state == GameState.MatchState.SEARCHING:
+        _update_info("SEARCH: left-click / drag to move and find the ghost lines. Tap ACCUSE to accuse.")
+
     # Toggle argument button visibility
     if to_state == GameState.MatchState.SEARCHING:
         _is_searching = true
