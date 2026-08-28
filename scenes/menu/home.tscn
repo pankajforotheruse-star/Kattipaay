@@ -1,6 +1,119 @@
-[gd_scene load_steps=2 format=3 uid="uid://home_screen_001"]
+[gd_scene load_steps=19 format=3 uid="uid://home_screen_001"]
 
 [ext_resource type="Script" path="res://scripts/ui/HomeScreen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/village_ground_2048x1536.png" id="2_ground"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/house_01.png" id="3_house01"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/house_02.png" id="4_house02"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/temple.png" id="5_temple"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/banyan_canopy.png" id="6_canopy"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/banyan_trunk.png" id="7_trunk"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/well.png" id="8_well"]
+[ext_resource type="Texture2D" path="res://assets/sprites/environment/scarecrow.png" id="9_scarecrow"]
+
+[sub_resource type="StyleBoxFlat" id="sb_title"]
+bg_color = Color(0.09, 0.08, 0.15, 0.78)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.545, 0.42, 0.78, 0.45)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="StyleBoxFlat" id="sb_btn"]
+bg_color = Color(0.16, 0.14, 0.24, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.545, 0.42, 0.78, 0.75)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_hover"]
+bg_color = Color(0.24, 0.2, 0.36, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.72, 0.6, 0.95, 0.95)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_pressed"]
+bg_color = Color(0.11, 0.1, 0.18, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.34, 0.66, 0.9)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="sb_reward"]
+bg_color = Color(0.3, 0.24, 0.1, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.98, 0.78, 0.32, 0.85)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="sb_reward_hover"]
+bg_color = Color(0.4, 0.32, 0.13, 0.97)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.86, 0.48, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="sb_side"]
+bg_color = Color(0.16, 0.14, 0.24, 0.85)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.545, 0.42, 0.78, 0.7)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="sb_bar"]
+bg_color = Color(0.08, 0.07, 0.13, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.545, 0.42, 0.78, 0.4)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="sb_fill"]
+bg_color = Color(0.545, 0.42, 0.78, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [node name="HomeScreen" type="Control"]
 layout_mode = 3
@@ -9,184 +122,316 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_script")
 
+[node name="BaseBG" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.118, 0.114, 0.169, 1)
+
 [node name="SkyGradient" type="ColorRect" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 720.0
-offset_bottom = 350.0
-color = Color(0.1020, 0.0627, 0.1882, 1)
+layout_mode = 1
+anchor_bottom = 0.42
+offset_bottom = 0.0
+mouse_filter = 2
+color = Color(0.14, 0.09, 0.27, 1)
 
 [node name="VillageSilhouette" type="Node2D" parent="."]
 unique_name_in_owner = true
 position = Vector2(0, 0)
 
 [node name="HaveliRoof" type="Polygon2D" parent="VillageSilhouette"]
-polygon = PackedVector2Array(0, 140, 60, 100, 120, 140, 180, 110, 240, 140, 300, 95, 360, 140, 420, 105, 500, 140, 560, 110, 620, 140, 680, 100, 720, 140, 720, 160, 0, 160)
-color = Color(0.0510, 0.0314, 0.0824, 1)
+polygon = PackedVector2Array(0, 465, 60, 425, 120, 465, 180, 435, 240, 465, 300, 420, 360, 465, 420, 430, 500, 465, 560, 435, 620, 465, 680, 425, 720, 465, 720, 485, 0, 485)
+color = Color(0.05, 0.03, 0.08, 0.9)
 
 [node name="BanyanTree" type="Node2D" parent="VillageSilhouette"]
-position = Vector2(620, 80)
+position = Vector2(560, 360)
 
 [node name="TreeTrunk" type="Polygon2D" parent="VillageSilhouette/BanyanTree"]
 polygon = PackedVector2Array(30, 60, 45, 60, 40, 120, 35, 120)
-color = Color(0.0510, 0.0314, 0.0824, 1)
+color = Color(0.05, 0.03, 0.08, 0.9)
+
+[node name="VillageGround" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(360, 1015)
+scale = Vector2(0.3516, 0.3516)
+texture = ExtResource("2_ground")
+
+[node name="VillagePieces" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="Temple" type="Sprite2D" parent="VillagePieces"]
+position = Vector2(645, 600)
+scale = Vector2(0.6, 0.6)
+texture = ExtResource("5_temple")
+
+[node name="Banyan" type="Node2D" parent="VillagePieces"]
+position = Vector2(366, 560)
+
+[node name="Canopy" type="Sprite2D" parent="VillagePieces/Banyan"]
+position = Vector2(0, 0)
+scale = Vector2(0.68, 0.68)
+texture = ExtResource("6_canopy")
+
+[node name="Trunk" type="Sprite2D" parent="VillagePieces/Banyan"]
+position = Vector2(0, 72)
+scale = Vector2(0.68, 0.68)
+texture = ExtResource("7_trunk")
+
+[node name="House01" type="Sprite2D" parent="VillagePieces"]
+position = Vector2(72, 690)
+scale = Vector2(0.8, 0.8)
+texture = ExtResource("3_house01")
+
+[node name="House02" type="Sprite2D" parent="VillagePieces"]
+position = Vector2(222, 730)
+scale = Vector2(0.6, 0.6)
+texture = ExtResource("4_house02")
+
+[node name="Well" type="Sprite2D" parent="VillagePieces"]
+position = Vector2(136, 762)
+scale = Vector2(0.7, 0.7)
+texture = ExtResource("8_well")
+
+[node name="Scarecrow" type="Sprite2D" parent="VillagePieces"]
+position = Vector2(570, 768)
+scale = Vector2(0.8, 0.8)
+texture = ExtResource("9_scarecrow")
+
+[node name="UiShade" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_top = 0.38
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.04, 0.03, 0.08, 0.42)
 
 [node name="TitlePanel" type="Panel" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 60.0
-offset_top = 140.0
-offset_right = 660.0
-offset_bottom = 260.0
+layout_mode = 1
+anchor_top = 0.05
+anchor_right = 1.0
+anchor_bottom = 0.2
+offset_left = 54.0
+offset_right = -54.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("sb_title")
 
 [node name="TitleLabel" type="Label" parent="TitlePanel"]
 layout_mode = 1
-anchors_preset = 15
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 0.0
-offset_top = 20.0
-offset_right = 0.0
-offset_bottom = -16.0
+anchor_bottom = 0.72
+theme_override_colors/font_color = Color(0.95, 0.93, 1, 1)
+theme_override_font_sizes/font_size = 62
 text = "CHALK GAON"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="SubtitleLabel" type="Label" parent="TitlePanel"]
 layout_mode = 1
-anchors_preset = 15
+anchor_top = 0.72
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 0.0
-offset_top = 68.0
-offset_right = 0.0
-offset_bottom = 0.0
+theme_override_colors/font_color = Color(0.78, 0.72, 0.95, 1)
+theme_override_font_sizes/font_size = 26
 text = "Ghost Lines"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="DailyRewardButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 210.0
-offset_top = 300.0
-offset_right = 510.0
-offset_bottom = 372.0
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.24
+anchor_right = 0.5
+anchor_bottom = 0.3
+offset_left = -175.0
+offset_right = 175.0
+theme_override_colors/font_color = Color(0.13, 0.1, 0.04, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_reward")
+theme_override_styles/hover = SubResource("sb_reward_hover")
+theme_override_styles/pressed = SubResource("sb_reward_hover")
+theme_override_styles/focus = SubResource("sb_reward")
 text = "🪔 DAILY  Claim 25 💠"
 
 [node name="ShopButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 40.0
-offset_top = 450.0
-offset_right = 160.0
-offset_bottom = 506.0
-text = "🪙 Shop"
+layout_mode = 1
+anchor_top = 0.02
+anchor_bottom = 0.07
+offset_left = 24.0
+offset_right = 92.0
+offset_bottom = 3.0
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_side")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_side")
+text = "🪙"
 
 [node name="SettingsButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 640.0
-offset_top = 460.0
-offset_right = 696.0
-offset_bottom = 516.0
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 0.02
+anchor_right = 1.0
+anchor_bottom = 0.07
+offset_left = -92.0
+offset_right = -24.0
+offset_bottom = 3.0
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_side")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_side")
 text = "⚙"
 
 [node name="CharacterPreview" type="Control" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 200.0
-offset_top = 430.0
-offset_right = 520.0
-offset_bottom = 590.0
+layout_mode = 1
+anchor_top = 0.35
+anchor_right = 0.22
+anchor_bottom = 0.8
+mouse_filter = 2
 
-[node name="PlayOnlineButton" type="Button" parent="."]
+[node name="MainButtonBox" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 60.0
-offset_top = 660.0
-offset_right = 660.0
-offset_bottom = 740.0
+layout_mode = 1
+anchor_left = 0.22
+anchor_top = 0.42
+anchor_right = 0.78
+anchor_bottom = 0.76
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="PlayOnlineButton" type="Button" parent="MainButtonBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 96)
+theme_override_colors/font_color = Color(0.95, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "▶  PLAY ONLINE"
-[node name="PlayVsCPUButton" type="Button" parent="."]
+
+[node name="PlayVsCPUButton" type="Button" parent="MainButtonBox"]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 60.0
-offset_top = 748.0
-offset_right = 660.0
-offset_bottom = 792.0
+layout_mode = 2
+custom_minimum_size = Vector2(0, 96)
+theme_override_colors/font_color = Color(0.95, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "🤖  PLAY VS CPU"
 
-[node name="OfflinePlayButton" type="Button" parent="."]
+[node name="OfflinePlayButton" type="Button" parent="MainButtonBox"]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 60.0
-offset_top = 800.0
-offset_right = 660.0
-offset_bottom = 864.0
+layout_mode = 2
+custom_minimum_size = Vector2(0, 96)
+theme_override_colors/font_color = Color(0.95, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "📶  OFFLINE PLAY"
 
-[node name="TutorialButton" type="Button" parent="."]
+[node name="TutorialButton" type="Button" parent="MainButtonBox"]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 60.0
-offset_top = 872.0
-offset_right = 660.0
-offset_bottom = 912.0
+layout_mode = 2
+custom_minimum_size = Vector2(0, 96)
+theme_override_colors/font_color = Color(0.95, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "👻  TUTORIAL"
-
-[node name="XPBar" type="ProgressBar" parent="."]
-unique_name_in_owner = true
-layout_mode = 0
-offset_left = 40.0
-offset_top = 920.0
-offset_right = 680.0
-offset_bottom = 952.0
-value = 46.8
-show_percentage = false
 
 [node name="XPLabel" type="Label" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 45.0
-offset_top = 922.0
-offset_right = 300.0
-offset_bottom = 950.0
-text = "Lvl 14 2,340/5,000"
+layout_mode = 1
+anchor_left = 0.15
+anchor_top = 0.78
+anchor_right = 0.85
+anchor_bottom = 0.81
+theme_override_colors/font_color = Color(0.85, 0.82, 0.95, 1)
+theme_override_font_sizes/font_size = 20
+text = "Lvl 14  2,340/5,000 XP"
+
+[node name="XPBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.15
+anchor_top = 0.815
+anchor_right = 0.85
+anchor_bottom = 0.855
+theme_override_styles/background = SubResource("sb_bar")
+theme_override_styles/fill = SubResource("sb_fill")
+value = 46.8
+show_percentage = false
 
 [node name="BattlePassButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 40.0
-offset_top = 970.0
-offset_right = 220.0
-offset_bottom = 1034.0
+layout_mode = 1
+anchor_left = 0.15
+anchor_top = 0.875
+anchor_right = 0.49
+anchor_bottom = 0.925
+theme_override_colors/font_color = Color(0.98, 0.8, 0.4, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "🏆 PASS T8"
 
 [node name="CollectionButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 260.0
-offset_top = 970.0
-offset_right = 460.0
-offset_bottom = 1034.0
+layout_mode = 1
+anchor_left = 0.51
+anchor_top = 0.875
+anchor_right = 0.85
+anchor_bottom = 0.925
+theme_override_colors/font_color = Color(0.85, 0.82, 0.95, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("sb_btn")
+theme_override_styles/hover = SubResource("sb_btn_hover")
+theme_override_styles/pressed = SubResource("sb_btn_pressed")
+theme_override_styles/focus = SubResource("sb_btn")
 text = "COLLECTION 12/48"
 
 [node name="NavDots" type="HBoxContainer" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 310.0
-offset_top = 1250.0
-offset_right = 410.0
-offset_bottom = 1270.0
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.95
+anchor_right = 0.5
+anchor_bottom = 0.97
+offset_left = -50.0
+offset_right = 50.0
+mouse_filter = 2
 
 [node name="VersionLabel" type="Label" parent="."]
 unique_name_in_owner = true
-layout_mode = 0
-offset_left = 20.0
-offset_top = 1260.0
-offset_right = 180.0
-offset_bottom = 1280.0
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.962
+anchor_right = 0.5
+anchor_bottom = 0.992
+offset_left = -80.0
+offset_right = 80.0
+theme_override_colors/font_color = Color(0.6, 0.58, 0.72, 1)
+theme_override_font_sizes/font_size = 16
 text = "v1.0.0"
+horizontal_alignment = 1
+vertical_alignment = 0
