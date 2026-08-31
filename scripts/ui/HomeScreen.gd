@@ -6,6 +6,8 @@ extends Control
 
 const COLOR_BG := Color("1E1D2B")
 
+const POPUP_SCENE: PackedScene = preload("res://scenes/shared/popup_dialog.tscn")
+
 @onready var _play_online_btn: Button = %PlayOnlineButton
 @onready var _offline_play_btn: Button = %OfflinePlayButton
 @onready var _settings_btn: Button = %SettingsButton
@@ -86,18 +88,34 @@ func _on_offline_play() -> void:
 
 func _on_settings() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "settings"})
+	_show_coming_soon("Settings", "Settings are coming soon.")
 
 func _on_shop() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "shop"})
+	_show_coming_soon("Shop", "The village shop is coming soon.")
 
 func _on_battle_pass() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "battle_pass"})
+	_show_coming_soon("Battle Pass", "The battle pass is coming soon.")
 
 func _on_collection() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "collection"})
+	_show_coming_soon("Collection", "Your collection is coming soon.")
 
 func _on_daily_reward() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "daily_reward"})
+	_show_coming_soon("Daily Reward", "Claim your daily reward!")
+
+func _show_coming_soon(title: String, body: String) -> void:
+	if not POPUP_SCENE:
+		return
+	var popup: PopupDialog = POPUP_SCENE.instantiate()
+	popup.dialog_title = title
+	popup.body_text = body
+	popup.button_mode = PopupDialog.ButtonMode.OK_ONLY
+	popup.confirm_label = "OK"
+	popup.dismiss_on_backdrop = true
+	add_child(popup)
 func _on_tutorial() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "tutorial"})
 	SceneManager.go_to("tutorial/tutorial.tscn")
