@@ -230,7 +230,7 @@ func _pulse_green_vignette() -> void:
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
-func _shake_step(original_offset: Vector2, _t: float) -> void:
+func _shake_step(_t: float, original_offset: Vector2) -> void:
 	offset = original_offset + Vector2(
 		randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE),
 		randf_range(-SCREEN_SHAKE_AMPLITUDE, SCREEN_SHAKE_AMPLITUDE)

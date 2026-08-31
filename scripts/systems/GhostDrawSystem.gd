@@ -150,7 +150,7 @@ func _ready() -> void:
 	_ghost_chalk_container.name = "GhostChalkLines"
 	_ghost_chalk_container.z_index = 10  # Same level as regular chalk lines
 	if _game_world:
-		_game_world.add_child(_ghost_chalk_container)
+		_game_world.add_child.call_deferred(_ghost_chalk_container)
 
 	# Line2D pool for ghost visuals (Android optimization, Prompt 16).
 	_ghost_line_pool = Pool.new(func() -> Line2D: return Line2D.new(), GHOST_LINE_POOL_PREWARM)

@@ -177,7 +177,7 @@ func _ready() -> void:
     _chalk_container.name = "ChalkLines"
     _chalk_container.z_index = 10  # Above ground, below entities
     if _game_world:
-        _game_world.add_child(_chalk_container)
+        _game_world.add_child.call_deferred(_chalk_container)
 
     # --- Line2D pool (Android optimization, Prompt 16) ---
     # Pre-warmed so per-stroke Line2D allocation churn drops to ~zero at
@@ -523,8 +523,6 @@ func _create_preview_line() -> void:
         mat.set_shader_parameter("chalk_color", ChalkLine.CHALK_COLORS.get(_current_chalk_type, Color.WHITE))
         mat.set_shader_parameter("alpha_mult", 0.7)  # Slightly transparent during preview
         _preview_line_node.material = mat
-    if _chalk_container:
-        _chalk_container.add_child(_preview_line_node)
 
 
 ## Update the preview line with current raw points (real-time feedback).

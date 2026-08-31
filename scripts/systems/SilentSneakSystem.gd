@@ -315,7 +315,7 @@ func _spawn_cow(searcher_id: int, position: Vector2) -> void:
 	_cow.z_index = 20  # Above ground and chalk, below UI
 
 	if _game_world:
-		_game_world.add_child(_cow)
+		_game_world.add_child.call_deferred(_cow)
 
 	_cow.start_wandering(position, COW_WANDER_RANGE)
 	_cow.moo()
