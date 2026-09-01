@@ -97,7 +97,7 @@ func _ready() -> void:
     _hint_container.name = "HintMarkers"
     _hint_container.z_index = 15  # Above chalk lines
     if _game_world:
-        _game_world.add_child(_hint_container)
+        _game_world.add_child.call_deferred(_hint_container)
 
     print("HintSystem: ready")
 

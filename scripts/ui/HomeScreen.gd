@@ -42,6 +42,10 @@ func _ready() -> void:
 	EventBus.on(EventBus.EV_GAME_STATE_CHANGED, _on_game_state_changed)
 	EventBus.on("ui.button_pressed", _on_button_event)
 
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_GAME_STATE_CHANGED, _on_game_state_changed)
+	EventBus.off("ui.button_pressed", _on_button_event)
+
 func _setup_background() -> void:
 	if _sky_gradient:
 		var mat := ShaderMaterial.new()
