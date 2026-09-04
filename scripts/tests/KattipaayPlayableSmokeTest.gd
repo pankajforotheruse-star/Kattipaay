@@ -207,3 +207,5 @@ func _fail(message: String) -> void:
 	_failed = true
 	push_error("KATTIPAAY_SMOKE: FAIL — %s" % message)
 	print("KATTIPAAY_SMOKE: FAIL — %s" % message)
+
+# CI trigger comment: run this test from the current workflow revision.
