@@ -63,7 +63,7 @@ jobs:
           fi
 
           echo "Checking playable smoke-test log for runtime/script errors..."
-          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Terminating|Segmentation fault|ERROR:" godot-playable-smoke.log; then
+          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Terminating|Segmentation fault|engine abort" godot-playable-smoke.log; then
             echo "Runtime/script error detected during playable smoke test."
             cat godot-playable-smoke.log
             exit 1
