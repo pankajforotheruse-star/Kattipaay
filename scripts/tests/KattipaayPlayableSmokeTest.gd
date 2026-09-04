@@ -27,6 +27,8 @@ const FRAME_SETTLE_COUNT := 2
 
 var _failed := false
 var _game_state: Node = null
+var _event_bus: Node = null
+var _seen_match_states: Dictionary = {}
 
 func _initialize() -> void:
 	call_deferred("_run_test")
@@ -41,10 +43,16 @@ func _run_test() -> void:
 		return
 
 	_game_state = root.get_node_or_null("GameState")
+	_event_bus = root.get_node_or_null("EventBus")
 	if _game_state == null:
 		_fail("GameState autoload was not initialized")
 		quit(1)
 		return
+	if _event_bus == null:
+		_fail("EventBus autoload was not initialized")
+		quit(1)
+		return
+	_event_bus.call("on", "match.state_changed", Callable(self, "_on_match_state_changed"))
 
 	await _wait_for_top_state(TopState.MAIN_MENU, MAX_STARTUP_SECONDS, "MAIN_MENU")
 	if _failed:
@@ -135,9 +143,7 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	var set_target_result = hud.call("set_selected_target", 2)
-	if set_target_result != null:
-		print("KATTIPAAY_SMOKE: TARGET_SELECTION_RESULT=%s" % [set_target_result])
+	hud.call("set_selected_target", 2)
 
 	var accuse_button := hud.get_node_or_null("ArgumentButton") as Button
 	if accuse_button == null:
@@ -159,24 +165,26 @@ func _run_test() -> void:
 	print("KATTIPAAY_SMOKE: HUMAN_TARGET_SELECTED target=2")
 	print("KATTIPAAY_SMOKE: HUMAN_ACCUSE_PRESSED")
 
-	# A real accusation should drive the match through the ArgumentSystem and
-	# into the round-end sequence. Re-enable the bot after the player's action
-	# so normal AI behavior is restored if the round has not already ended.
+	# The accusation is a real gameplay action. Re-enable normal bot behavior
+	# after it so this test does not leave the running match in a modified mode.
 	ghost_bot.set_process(true)
 
-	await _wait_for_match_state(MatchState.REVEAL, MAX_ROUND_END_SECONDS, "REVEAL")
+	# REVEAL/SCORING/RETURN_TO_LOBBY are short-lived states, so record the
+	# actual GameState match.state_changed events instead of waiting for the
+	# current state to still equal each transient value.
+	await _wait_for_seen_match_state(MatchState.REVEAL, MAX_ROUND_END_SECONDS, "REVEAL")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: REVEAL_REACHED")
 
-	await _wait_for_match_state(MatchState.SCORING, 5.0, "SCORING")
+	await _wait_for_seen_match_state(MatchState.SCORING, 5.0, "SCORING")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: SCORING_REACHED")
 
-	await _wait_for_match_state(MatchState.RETURN_TO_LOBBY, 5.0, "RETURN_TO_LOBBY")
+	await _wait_for_seen_match_state(MatchState.RETURN_TO_LOBBY, 5.0, "RETURN_TO_LOBBY")
 	if _failed:
 		quit(1)
 		return
@@ -220,12 +228,26 @@ func _wait_for_match_state(expected: int, timeout_seconds: float, label: String)
 		_fail("Timed out waiting for match state %s (current=%d)" % [label, _get_match_state()])
 
 
+func _wait_for_seen_match_state(expected: int, timeout_seconds: float, label: String) -> void:
+	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while not _seen_match_states.has(expected) and Time.get_ticks_msec() < deadline:
+		await process_frame
+	if not _seen_match_states.has(expected):
+		_fail("Timed out waiting to observe match state %s" % label)
+
+
 func _wait_for_scene(expected_name: String, timeout_seconds: float) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
 	while (current_scene == null or current_scene.name != expected_name) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	if current_scene == null or current_scene.name != expected_name:
 		_fail("Timed out waiting for scene %s (current=%s)" % [expected_name, current_scene.name if current_scene else "null"])
+
+
+func _on_match_state_changed(payload) -> void:
+	var to_state: int = int(payload.get("to", -1))
+	if to_state >= 0:
+		_seen_match_states[to_state] = true
 
 
 func _settle_frames() -> void:
