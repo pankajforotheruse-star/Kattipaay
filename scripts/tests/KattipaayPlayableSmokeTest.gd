@@ -2,17 +2,16 @@
 #
 # End-to-end headless smoke test for the real prototype path:
 #   Splash -> Home -> Play vs CPU -> Easy -> GameWorld
-#   -> DRAWING -> SEARCHING -> human ACCUSE -> REVEAL -> SCORING
-#   -> RETURN_TO_LOBBY -> MAIN_MENU/Home.
+#   -> DRAWING -> SEARCHING -> select NPC -> ACCUSE
+#   -> REVEAL -> SCORING -> RETURN_TO_LOBBY -> MAIN_MENU/Home.
 #
-# The test deliberately uses the game's public UI signals and public system
-# APIs rather than directly forcing GameState enum values. GameState is fetched
-# as the real autoload instance because a standalone --script is compiled
-# before autoload singleton identifiers are available to the parser.
+# The test uses the game's real UI signals and public gameplay API instead of
+# directly forcing GameState enum values. GameState is fetched as the real
+# autoload instance because a standalone --script is compiled before autoload
+# singleton identifiers are available to the parser.
 #
-# It intentionally avoids typed references to project classes (HomeScreen,
-# GameWorld, HUD) so the standalone test script does not compile those scene
-# scripts before the project's autoloads have initialized.
+# It intentionally avoids typed references to project classes so the test
+# script does not compile scene scripts before the project's autoloads exist.
 
 extends SceneTree
 
@@ -104,10 +103,16 @@ func _run_test() -> void:
 		_fail("SoloMatchDriver was not spawned")
 		quit(1)
 		return
-	if world.get_node_or_null("SoloMatchDriver/GhostBot") == null:
+
+	# Stop the bot from racing the human on the first SEARCHING frame. We do
+	# not alter match state; after the human accusation is accepted, the bot is
+	# re-enabled so its normal process can continue if the round still needs it.
+	var ghost_bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
+	if ghost_bot == null:
 		_fail("GhostBot was not spawned by SoloMatchDriver")
 		quit(1)
 		return
+	ghost_bot.set_process(false)
 
 	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
 	if _failed:
@@ -121,14 +126,18 @@ func _run_test() -> void:
 		return
 	print("KATTIPAAY_SMOKE: SEARCHING_REACHED")
 
-	# The SoloMatchDriver selects ghost entity 2 after HUD resets its target on
-	# SEARCHING entry. Press the real HUD ACCUSE button to exercise the public
-	# gameplay action, not a direct state transition.
+	# The public HUD API is used to select the NPC/ghost target, then the real
+	# ACCUSE button signal is emitted. This is the closest deterministic
+	# headless equivalent of a player tapping the NPC and pressing ACCUSE.
 	var hud: Node = world.get_node_or_null("HUD")
 	if hud == null:
 		_fail("HUD not found in GameWorld")
 		quit(1)
 		return
+
+	var set_target_result = hud.call("set_selected_target", 2)
+	if set_target_result != null:
+		print("KATTIPAAY_SMOKE: TARGET_SELECTION_RESULT=%s" % [set_target_result])
 
 	var accuse_button := hud.get_node_or_null("ArgumentButton") as Button
 	if accuse_button == null:
@@ -147,12 +156,14 @@ func _run_test() -> void:
 		return
 
 	accuse_button.pressed.emit()
+	print("KATTIPAAY_SMOKE: HUMAN_TARGET_SELECTED target=2")
 	print("KATTIPAAY_SMOKE: HUMAN_ACCUSE_PRESSED")
 
-	# A real accusation pauses the match for the ArgumentSystem's resolution.
-	# The bot supplies the second accusation needed by SoloMatchDriver's round
-	# end condition; we therefore wait for the actual end-state sequence rather
-	# than forcing it.
+	# A real accusation should drive the match through the ArgumentSystem and
+	# into the round-end sequence. Re-enable the bot after the player's action
+	# so normal AI behavior is restored if the round has not already ended.
+	ghost_bot.set_process(true)
+
 	await _wait_for_match_state(MatchState.REVEAL, MAX_ROUND_END_SECONDS, "REVEAL")
 	if _failed:
 		quit(1)
