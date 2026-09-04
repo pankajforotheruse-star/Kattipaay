@@ -6,20 +6,24 @@
 #   -> RETURN_TO_LOBBY -> MAIN_MENU/Home.
 #
 # The test deliberately uses the game's public UI signals and public system
-# APIs rather than directly forcing GameState enum values. This keeps the
-# test useful as a regression check for the playable wiring.
+# APIs rather than directly forcing GameState enum values. GameState is fetched
+# as the real autoload instance because a standalone --script is compiled
+# before autoload singleton identifiers are available to the parser.
 
 extends SceneTree
+
+enum TopState { SPLASH, MAIN_MENU, LOBBY, PLAYING, PAUSED, GAME_OVER }
+enum MatchState { NONE, WAITING, LOBBY, TEAM_SELECTION, DRAWING, SEARCHING, REVEAL, SCORING, WINNER, SWAP_TEAMS, RETURN_TO_LOBBY, PAUSED }
 
 const MAIN_SCENE := "res://scenes/main.tscn"
 const MAX_STARTUP_SECONDS := 10.0
 const MAX_PLAYING_SECONDS := 8.0
 const MAX_DRAWING_SECONDS := 25.0
-const MAX_SEARCHING_SECONDS := 25.0
 const MAX_ROUND_END_SECONDS := 25.0
 const FRAME_SETTLE_COUNT := 2
 
 var _failed := false
+var _game_state: Node = null
 
 func _initialize() -> void:
 	call_deferred("_run_test")
@@ -33,7 +37,13 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	await _wait_for_top_state(GameState.State.MAIN_MENU, MAX_STARTUP_SECONDS, "MAIN_MENU")
+	_game_state = root.get_node_or_null("GameState")
+	if _game_state == null:
+		_fail("GameState autoload was not initialized")
+		quit(1)
+		return
+
+	await _wait_for_top_state(TopState.MAIN_MENU, MAX_STARTUP_SECONDS, "MAIN_MENU")
 	if _failed:
 		quit(1)
 		return
@@ -68,7 +78,7 @@ func _run_test() -> void:
 	easy_button.pressed.emit()
 	print("KATTIPAAY_SMOKE: PLAY_VS_CPU_SELECTED difficulty=EASY")
 
-	await _wait_for_top_state(GameState.State.PLAYING, MAX_PLAYING_SECONDS, "PLAYING")
+	await _wait_for_top_state(TopState.PLAYING, MAX_PLAYING_SECONDS, "PLAYING")
 	if _failed:
 		quit(1)
 		return
@@ -93,13 +103,13 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	await _wait_for_match_state(GameState.MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
+	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: DRAWING_REACHED")
 
-	await _wait_for_match_state(GameState.MatchState.SEARCHING, MAX_DRAWING_SECONDS, "SEARCHING")
+	await _wait_for_match_state(MatchState.SEARCHING, MAX_DRAWING_SECONDS, "SEARCHING")
 	if _failed:
 		quit(1)
 		return
@@ -121,7 +131,7 @@ func _run_test() -> void:
 		return
 
 	await _settle_frames()
-	if GameState.get_match_state() != GameState.MatchState.SEARCHING:
+	if _get_match_state() != MatchState.SEARCHING:
 		_fail("Match left SEARCHING before ACCUSE action could be exercised")
 		quit(1)
 		return
@@ -137,25 +147,25 @@ func _run_test() -> void:
 	# The bot supplies the second accusation needed by SoloMatchDriver's round
 	# end condition; we therefore wait for the actual end-state sequence rather
 	# than forcing it.
-	await _wait_for_match_state(GameState.MatchState.REVEAL, MAX_ROUND_END_SECONDS, "REVEAL")
+	await _wait_for_match_state(MatchState.REVEAL, MAX_ROUND_END_SECONDS, "REVEAL")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: REVEAL_REACHED")
 
-	await _wait_for_match_state(GameState.MatchState.SCORING, 5.0, "SCORING")
+	await _wait_for_match_state(MatchState.SCORING, 5.0, "SCORING")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: SCORING_REACHED")
 
-	await _wait_for_match_state(GameState.MatchState.RETURN_TO_LOBBY, 5.0, "RETURN_TO_LOBBY")
+	await _wait_for_match_state(MatchState.RETURN_TO_LOBBY, 5.0, "RETURN_TO_LOBBY")
 	if _failed:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: RETURN_TO_LOBBY_REACHED")
 
-	await _wait_for_top_state(GameState.State.MAIN_MENU, 8.0, "MAIN_MENU_AFTER_MATCH")
+	await _wait_for_top_state(TopState.MAIN_MENU, 8.0, "MAIN_MENU_AFTER_MATCH")
 	if _failed:
 		quit(1)
 		return
@@ -169,21 +179,28 @@ func _run_test() -> void:
 	quit(0)
 
 
+func _get_top_state() -> int:
+	return int(_game_state.get("current"))
+
+
+func _get_match_state() -> int:
+	return int(_game_state.call("get_match_state"))
+
+
 func _wait_for_top_state(expected: int, timeout_seconds: float, label: String) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
-	while GameState.current != expected and Time.get_ticks_msec() < deadline:
+	while _get_top_state() != expected and Time.get_ticks_msec() < deadline:
 		await process_frame
-	if GameState.current != expected:
-		_fail("Timed out waiting for top-level state %s (current=%s)" % [label, GameState.State.keys()[GameState.current]])
+	if _get_top_state() != expected:
+		_fail("Timed out waiting for top-level state %s (current=%d)" % [label, _get_top_state()])
 
 
 func _wait_for_match_state(expected: int, timeout_seconds: float, label: String) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
-	while GameState.get_match_state() != expected and Time.get_ticks_msec() < deadline:
+	while _get_match_state() != expected and Time.get_ticks_msec() < deadline:
 		await process_frame
-	if GameState.get_match_state() != expected:
-		var current_name: String = str(GameState.MatchState.keys()[GameState.get_match_state()])
-		_fail("Timed out waiting for match state %s (current=%s)" % [label, current_name])
+	if _get_match_state() != expected:
+		_fail("Timed out waiting for match state %s (current=%d)" % [label, _get_match_state()])
 
 
 func _settle_frames() -> void:
