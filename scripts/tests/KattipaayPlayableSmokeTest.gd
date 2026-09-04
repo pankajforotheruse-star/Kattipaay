@@ -9,6 +9,10 @@
 # APIs rather than directly forcing GameState enum values. GameState is fetched
 # as the real autoload instance because a standalone --script is compiled
 # before autoload singleton identifiers are available to the parser.
+#
+# It intentionally avoids typed references to project classes (HomeScreen,
+# GameWorld, HUD) so the standalone test script does not compile those scene
+# scripts before the project's autoloads have initialized.
 
 extends SceneTree
 
@@ -48,11 +52,12 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	var home := current_scene as HomeScreen
-	if home == null:
-		_fail("Expected HomeScreen, got %s" % [current_scene.get_class() if current_scene else "null"])
+	await _wait_for_scene("HomeScreen", 3.0)
+	if _failed:
 		quit(1)
 		return
+
+	var home: Node = current_scene
 	print("KATTIPAAY_SMOKE: HOME_READY")
 
 	# Exercise the actual Play vs CPU button and generated difficulty picker.
@@ -82,15 +87,16 @@ func _run_test() -> void:
 	if _failed:
 		quit(1)
 		return
-	print("KATTIPAAY_SMOKE: GAME_WORLD_ENTERED")
 
-	var world := current_scene as GameWorld
-	if world == null:
-		_fail("Expected GameWorld in PLAYING state")
+	await _wait_for_scene("GameWorld", 5.0)
+	if _failed:
 		quit(1)
 		return
+	print("KATTIPAAY_SMOKE: GAME_WORLD_ENTERED")
 
-	if world.entity_registry.size() < 2:
+	var world: Node = current_scene
+	var entity_registry: Dictionary = world.get("entity_registry")
+	if entity_registry.size() < 2:
 		_fail("Playable world has fewer than 2 registered entities")
 		quit(1)
 		return
@@ -118,7 +124,7 @@ func _run_test() -> void:
 	# The SoloMatchDriver selects ghost entity 2 after HUD resets its target on
 	# SEARCHING entry. Press the real HUD ACCUSE button to exercise the public
 	# gameplay action, not a direct state transition.
-	var hud := world.get_node_or_null("HUD") as HUD
+	var hud: Node = world.get_node_or_null("HUD")
 	if hud == null:
 		_fail("HUD not found in GameWorld")
 		quit(1)
@@ -170,8 +176,8 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	if not (current_scene is HomeScreen):
-		_fail("Expected HomeScreen after completed solo match")
+	await _wait_for_scene("HomeScreen", 3.0)
+	if _failed:
 		quit(1)
 		return
 
@@ -203,6 +209,14 @@ func _wait_for_match_state(expected: int, timeout_seconds: float, label: String)
 		_fail("Timed out waiting for match state %s (current=%d)" % [label, _get_match_state()])
 
 
+func _wait_for_scene(expected_name: String, timeout_seconds: float) -> void:
+	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while (current_scene == null or current_scene.name != expected_name) and Time.get_ticks_msec() < deadline:
+		await process_frame
+	if current_scene == null or current_scene.name != expected_name:
+		_fail("Timed out waiting for scene %s (current=%s)" % [expected_name, current_scene.name if current_scene else "null"])
+
+
 func _settle_frames() -> void:
 	for _i in range(FRAME_SETTLE_COUNT):
 		await process_frame
@@ -224,5 +238,3 @@ func _fail(message: String) -> void:
 	_failed = true
 	push_error("KATTIPAAY_SMOKE: FAIL — %s" % message)
 	print("KATTIPAAY_SMOKE: FAIL — %s" % message)
-
-# CI trigger comment: run this test from the current workflow revision.
