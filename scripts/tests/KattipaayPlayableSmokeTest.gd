@@ -182,7 +182,7 @@ func _wait_for_match_state(expected: int, timeout_seconds: float, label: String)
 	while GameState.get_match_state() != expected and Time.get_ticks_msec() < deadline:
 		await process_frame
 	if GameState.get_match_state() != expected:
-		var current_name := GameState.MatchState.keys()[GameState.get_match_state()]
+		var current_name: String = str(GameState.MatchState.keys()[GameState.get_match_state()])
 		_fail("Timed out waiting for match state %s (current=%s)" % [label, current_name])
 
 
