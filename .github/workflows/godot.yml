@@ -33,57 +33,48 @@ jobs:
             --editor \
             --quit
 
-      - name: Run game startup smoke test
+      - name: Run Kattipaay Playable Smoke Test
         run: |
-          rm -f godot-runtime.log
+          rm -f godot-playable-smoke.log
 
-          ./Godot_v4.4-stable_linux.x86_64 \
+          echo "Running end-to-end Kattipaay Playable Smoke Test..."
+          set +e
+          timeout 90s ./Godot_v4.4-stable_linux.x86_64 \
             --headless \
             --path . \
+            --script res://scripts/tests/KattipaayPlayableSmokeTest.gd \
             --verbose \
-            --log-file godot-runtime.log &
-          GODOT_PID=$!
+            --log-file godot-playable-smoke.log
+          GODOT_EXIT=$?
+          set -e
 
-          echo "Waiting for the game to reach MAIN_MENU..."
-          for i in $(seq 1 30); do
-            if grep -q "GameState: SPLASH → MAIN_MENU" godot-runtime.log 2>/dev/null; then
-              echo "Startup milestone reached: MAIN_MENU"
-              sleep 2
-              kill "$GODOT_PID" 2>/dev/null || true
-              wait "$GODOT_PID" 2>/dev/null || true
-              break
-            fi
+          echo "Godot smoke-test process exit code: $GODOT_EXIT"
 
-            if ! kill -0 "$GODOT_PID" 2>/dev/null; then
-              echo "Godot exited before reaching MAIN_MENU."
-              cat godot-runtime.log || true
-              exit 1
-            fi
-
-            sleep 1
-          done
-
-          if ! grep -q "GameState: SPLASH → MAIN_MENU" godot-runtime.log 2>/dev/null; then
-            echo "Godot did not reach MAIN_MENU within 30 seconds."
-            cat godot-runtime.log || true
-            kill "$GODOT_PID" 2>/dev/null || true
-            wait "$GODOT_PID" 2>/dev/null || true
+          if [ "$GODOT_EXIT" -ne 0 ]; then
+            echo "Kattipaay Playable Smoke Test process failed."
+            cat godot-playable-smoke.log || true
             exit 1
           fi
 
-          echo "Checking runtime log for fatal startup errors..."
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Fatal|Terminating|engine abort|Segmentation fault" godot-runtime.log; then
-            echo "Fatal/script startup error detected."
-            cat godot-runtime.log
+          if ! grep -q "KATTIPAAY_SMOKE: PASS" godot-playable-smoke.log; then
+            echo "Smoke-test PASS marker was not found."
+            cat godot-playable-smoke.log || true
             exit 1
           fi
 
-          echo "Godot runtime startup smoke test PASSED."
+          echo "Checking playable smoke-test log for runtime/script errors..."
+          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Terminating|Segmentation fault|ERROR:" godot-playable-smoke.log; then
+            echo "Runtime/script error detected during playable smoke test."
+            cat godot-playable-smoke.log
+            exit 1
+          fi
 
-      - name: Upload Godot log
+          echo "Kattipaay Playable Smoke Test PASSED."
+
+      - name: Upload playable smoke-test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: godot-runtime-log
-          path: godot-runtime.log
+          name: godot-playable-smoke-log
+          path: godot-playable-smoke.log
           if-no-files-found: ignore
