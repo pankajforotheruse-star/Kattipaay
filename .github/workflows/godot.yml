@@ -30,7 +30,8 @@ jobs:
           chmod +x "$GODOT_BIN"
 
       - name: Verify Godot version
-        run: "$GODOT_BIN" --version
+        run: |
+          "$GODOT_BIN" --version
 
       - name: Import project and validate scripts
         run: |
@@ -76,7 +77,8 @@ jobs:
           chmod +x "$GODOT_BIN"
 
       - name: Verify Godot version
-        run: "$GODOT_BIN" --version
+        run: |
+          "$GODOT_BIN" --version
 
       - name: Import project
         run: |
