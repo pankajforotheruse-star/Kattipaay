@@ -1,4 +1,4 @@
-name: Godot 4.4 Tests
+name: Kattipaay CI - Godot 4.4
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   GODOT_BIN: ./Godot_v4.4-stable_linux.x86_64
 
@@ -14,28 +17,33 @@ jobs:
   static-check:
     name: Static / Parse Check
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Download Godot 4.4 stable
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          set -euo pipefail
+          wget -q --show-progress https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           unzip -q Godot_v4.4-stable_linux.x86_64.zip
           chmod +x "$GODOT_BIN"
+
       - name: Verify Godot version
         run: "$GODOT_BIN" --version
+
       - name: Import project and validate scripts
         run: |
+          set -euo pipefail
           rm -f godot-static-check.log
-          set +e
           "$GODOT_BIN" --headless --path . --editor --quit --verbose --log-file godot-static-check.log
-          GODOT_EXIT=$?
-          set -e
-          echo "Godot static-check process exit code: $GODOT_EXIT"
           cat godot-static-check.log || true
-          if [ "$GODOT_EXIT" -ne 0 ]; then exit 1; fi
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-static-check.log; then exit 1; fi
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-static-check.log; then
+            echo "Static / Parse Check FAILED: Godot reported a script/runtime initialization error."
+            exit 1
+          fi
           echo "Static / Parse Check PASSED."
+
       - name: Upload static-check log
         if: always()
         uses: actions/upload-artifact@v4
@@ -47,30 +55,48 @@ jobs:
   playable-smoke-test:
     name: Kattipaay Playable Smoke Test
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Download Godot 4.4 stable
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          set -euo pipefail
+          wget -q --show-progress https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           unzip -q Godot_v4.4-stable_linux.x86_64.zip
           chmod +x "$GODOT_BIN"
+
       - name: Verify Godot version
         run: "$GODOT_BIN" --version
+
       - name: Import project
         run: "$GODOT_BIN" --headless --path . --editor --quit
+
       - name: Run Kattipaay Playable Smoke Test
         run: |
+          set -euo pipefail
           rm -f godot-playable-smoke.log
           set +e
           timeout 90s "$GODOT_BIN" --headless --path . --script res://scripts/tests/KattipaayPlayableSmokeTest.gd --verbose --log-file godot-playable-smoke.log
           GODOT_EXIT=$?
           set -e
           echo "Godot smoke-test process exit code: $GODOT_EXIT"
-          if [ "$GODOT_EXIT" -ne 0 ]; then cat godot-playable-smoke.log || true; exit 1; fi
-          if ! grep -q "KATTIPAAY_SMOKE: PASS" godot-playable-smoke.log; then cat godot-playable-smoke.log || true; exit 1; fi
-          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Terminating|Segmentation fault|engine abort" godot-playable-smoke.log; then cat godot-playable-smoke.log; exit 1; fi
+          cat godot-playable-smoke.log || true
+          if [ "$GODOT_EXIT" -ne 0 ]; then
+            echo "Kattipaay Playable Smoke Test FAILED: Godot process exited non-zero."
+            exit 1
+          fi
+          if ! grep -q "KATTIPAAY_SMOKE: PASS" godot-playable-smoke.log; then
+            echo "Kattipaay Playable Smoke Test FAILED: PASS marker not found."
+            exit 1
+          fi
+          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-playable-smoke.log; then
+            echo "Kattipaay Playable Smoke Test FAILED: runtime/script error detected."
+            exit 1
+          fi
           echo "Kattipaay Playable Smoke Test PASSED."
+
       - name: Upload playable smoke-test log
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,6 +108,7 @@ jobs:
   regression-check:
     name: Regression Check
     runs-on: ubuntu-22.04
+    timeout-minutes: 2
     needs: [static-check, playable-smoke-test]
     steps:
       - name: Regression gate
