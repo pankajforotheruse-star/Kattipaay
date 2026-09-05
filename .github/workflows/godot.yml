@@ -34,10 +34,18 @@ jobs:
 
       - name: Import project and validate scripts
         run: |
-          set -euo pipefail
+          set -u
           rm -f godot-static-check.log
+          set +e
           "$GODOT_BIN" --headless --path . --editor --quit --verbose --log-file godot-static-check.log
+          GODOT_EXIT=$?
+          set -e
+          echo "Godot static-check process exit code: $GODOT_EXIT"
           cat godot-static-check.log || true
+          if [ "$GODOT_EXIT" -ne 0 ]; then
+            echo "Static / Parse Check FAILED: Godot process exited non-zero."
+            exit 1
+          fi
           if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-static-check.log; then
             echo "Static / Parse Check FAILED: Godot reported a script/runtime initialization error."
             exit 1
@@ -71,11 +79,27 @@ jobs:
         run: "$GODOT_BIN" --version
 
       - name: Import project
-        run: "$GODOT_BIN" --headless --path . --editor --quit
+        run: |
+          set -u
+          rm -f godot-import.log
+          set +e
+          "$GODOT_BIN" --headless --path . --editor --quit --verbose --log-file godot-import.log
+          GODOT_EXIT=$?
+          set -e
+          echo "Godot import process exit code: $GODOT_EXIT"
+          cat godot-import.log || true
+          if [ "$GODOT_EXIT" -ne 0 ]; then
+            echo "Import project FAILED: Godot process exited non-zero."
+            exit 1
+          fi
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-import.log; then
+            echo "Import project FAILED: Godot reported a script/runtime initialization error."
+            exit 1
+          fi
 
       - name: Run Kattipaay Playable Smoke Test
         run: |
-          set -euo pipefail
+          set -u
           rm -f godot-playable-smoke.log
           set +e
           timeout 90s "$GODOT_BIN" --headless --path . --script res://scripts/tests/KattipaayPlayableSmokeTest.gd --verbose --log-file godot-playable-smoke.log
