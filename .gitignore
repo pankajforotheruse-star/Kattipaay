@@ -10,3 +10,6 @@ build/
 # Godot generated import/UID metadata
 *.uid
 *.import
+
+# Android gradle build template (install via Project menu / not committed)
+android/
