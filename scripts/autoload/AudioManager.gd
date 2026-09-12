@@ -102,6 +102,28 @@ func play_timer_warning() -> void:
 
     _push_frames(frames)
 
+## End-of-draw warning: three quick high ticks (distinct from the two-tick
+## timer warning) - plays once when the DRAWING phase enters its last 5s.
+func play_draw_warning() -> void:
+    var frames: Array[Vector2] = []
+    var tick_duration := 0.04
+    var tick_samples := int(SAMPLE_RATE * tick_duration)
+    var gap_samples := int(SAMPLE_RATE * 0.09)
+
+    for _tick_idx in range(3):
+        # Tick: short high-pitched burst at 1300Hz, faster decay than the
+        # timer warning so the two cue families are distinguishable.
+        for i in range(tick_samples):
+            var t := float(i) / float(SAMPLE_RATE)
+            var amp := exp(-t * 30.0)
+            var val := amp * sin(t * 1300.0 * TAU)
+            frames.append(Vector2(val, val))
+        # Gap: silence
+        for _i in range(gap_samples):
+            frames.append(Vector2.ZERO)
+
+    _push_frames(frames)
+
 ## Sharp noise burst — 0.15 second chaotic tone.
 func play_accusation_blurt() -> void:
     var duration := 0.15
