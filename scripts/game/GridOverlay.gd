@@ -9,8 +9,9 @@ extends Node2D
 @export var grid_extent: int = 1000  # half-size of the grid in pixels
 
 func _draw() -> void:
-    # Background fill
-    draw_rect(Rect2(-grid_extent, -grid_extent, grid_extent * 2, grid_extent * 2), Color(0.1, 0.12, 0.18, 1))
+    # Background fill - transparent so the village ground texture shows
+    # through; the grid stays as a debug reference on top of the terrain.
+    draw_rect(Rect2(-grid_extent, -grid_extent, grid_extent * 2, grid_extent * 2), Color(0.1, 0.12, 0.18, 0.0))
 
     var start_x := -grid_extent
     var end_x := grid_extent
