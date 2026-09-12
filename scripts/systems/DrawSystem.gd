@@ -258,6 +258,12 @@ func _on_draw_start(payload: Dictionary) -> void:
 
     # Record first point
     var pos: Vector2 = payload.get("position", Vector2.ZERO)
+    # MVP zone lock: during DRAWING the player draws only inside the PLAYER
+    # zone - stroke samples are clamped into the zone rect (bounds blocking).
+    # No clamp in other states, so the tutorial (match sub-state is SEARCHING)
+    # keeps drawing exactly as before.
+    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+        pos = ZoneLayout.clamp_to_player_zone(pos)
     _raw_draw_points.append(pos)
     _raw_draw_widths.append(_compute_width(pos, pos, 0.016))  # initial width = base width
 
@@ -274,6 +280,8 @@ func _on_draw_update(payload: Dictionary) -> void:
         return
 
     var pos: Vector2 = payload.get("position", Vector2.ZERO)
+    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+        pos = ZoneLayout.clamp_to_player_zone(pos)
     var last_pos := _raw_draw_points[-1] if _raw_draw_points.size() > 0 else pos
 
     # Only record if moved enough (avoid duplicate points)

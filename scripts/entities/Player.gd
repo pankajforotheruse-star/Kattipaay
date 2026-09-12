@@ -68,6 +68,12 @@ func _on_move_command(payload: Dictionary) -> void:
 	var screen_pos: Vector2 = payload.get("screen_position", Vector2.ZERO)
 	var world_pos := InputManager.screen_to_world(screen_pos)
 
+	# MVP zone lock: during DRAWING the player can move only inside the PLAYER
+	# zone - the move target is clamped to the zone rect so walking stops at
+	# the boundary. Movement outside DRAWING (meeting/search) stays free.
+	if GameState.get_match_state() == GameState.MatchState.DRAWING:
+		world_pos = ZoneLayout.clamp_to_player_zone(world_pos)
+
 	set_meta("target_position", world_pos)
 	set_meta("has_target", true)
 
