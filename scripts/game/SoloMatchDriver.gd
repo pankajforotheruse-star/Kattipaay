@@ -40,7 +40,10 @@
 class_name SoloMatchDriver
 extends Node
 
-const SOLO_DRAWING_SECONDS := 20.0
+const SOLO_DRAWING_SECONDS := 40.0
+## Final N seconds of the draw phase that trigger the end-of-draw warning
+## (visible + audible) - owner spec: warn during the LAST 5 seconds of DRAWING.
+const DRAW_PHASE_WARNING_SECONDS := 5.0
 const SOLO_TIMER_KEY := "quick"         # 180s match timer (auto-start is "standard")
 const GHOST_ENTITY_ID := 2
 const MAX_ACCUSATIONS_PER_ROUND := 2    # one per player (2 players)
@@ -56,6 +59,10 @@ var _argument_started_count: int = 0
 var _ending: bool = false
 var _end_pending: bool = false
 var _in_searching: bool = false
+
+## Draw-phase clock state (visible + audible end-of-draw warning, last 5s).
+var _draw_warning_played: bool = false
+var _draw_phase_last_tick: int = -1
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -115,12 +122,33 @@ func _process(delta: float) -> void:
 		return
 	if ms == GameState.MatchState.DRAWING:
 		_drawing_elapsed += delta
+		_tick_draw_phase()
 		if _drawing_elapsed >= SOLO_DRAWING_SECONDS:
 			_drawing_elapsed = 0.0
 			_match_machine.transition_to(GameState.MatchState.SEARCHING)
 			return
 	if _end_pending:
 		_end_round()
+
+
+## Emit per-second draw-phase ticks, plus the one-shot end-of-draw warning
+## (visible + audible) when the phase enters its LAST 5 seconds. The shared
+## MatchTimer warning (<=10s) is against the whole-match clock and never
+## covers the DRAWING phase, so the driver owns the draw-phase clock itself.
+func _tick_draw_phase() -> void:
+	var remaining_abs := SOLO_DRAWING_SECONDS - _drawing_elapsed
+	var remaining := int(ceil(remaining_abs))
+	if remaining != _draw_phase_last_tick:
+		_draw_phase_last_tick = remaining
+		EventBus.emit(EventBus.EV_GAME_DRAW_PHASE_TICK, {
+			"remaining_seconds": remaining,
+		})
+	if remaining_abs <= DRAW_PHASE_WARNING_SECONDS and not _draw_warning_played:
+		_draw_warning_played = true
+		EventBus.emit(EventBus.EV_GAME_DRAW_PHASE_WARNING, {
+			"remaining_seconds": remaining,
+		})
+		AudioManager.play_draw_warning()
 
 
 func _exit_tree() -> void:
@@ -143,6 +171,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_in_searching = false
 		_argument_started_count = 0
 		_drawing_elapsed = 0.0
+		_draw_warning_played = false
+		_draw_phase_last_tick = -1
 	elif to_state == GameState.MatchState.SEARCHING:
 		_in_searching = true
 		_argument_started_count = 0

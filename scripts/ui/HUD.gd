@@ -49,6 +49,11 @@ var _score_label: Label = null
 var _spectator_reveal_used: bool = false
 var _is_spectator: bool = false
 
+# ââ End-of-Draw Warning UI ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+var _draw_warning_label: Label = null
+var _draw_warning_tween: Tween = null
+
 # ── Silent Sneak UI Elements ──────────────────────────────────────────────────
 
 var _silent_sneak_button: Button = null
@@ -76,6 +81,8 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.on(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
     EventBus.on(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
+    EventBus.on(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
+    EventBus.on(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
 
     # --- Argument events ---
@@ -114,6 +121,7 @@ func _ready() -> void:
     _create_spectator_notification()
     _create_sloppy_count_banner()
     _create_score_label()
+    _create_draw_warning_label()
 
     _update_info("Tap anywhere to move the RED player.\nBLUE player patrols automatically.\nGreen grid = 100px squares.")
 
@@ -157,6 +165,8 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.off(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
     EventBus.off(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
+    EventBus.off(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
+    EventBus.off(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
@@ -486,6 +496,10 @@ func _on_game_state_changed(payload: Dictionary) -> void:
 func _on_match_state_changed(payload: Dictionary) -> void:
     var to_state: int = payload.get("to", -1)
     var from_state: int = payload.get("from", -1)
+
+    # Reset the end-of-draw banner on any DRAWING boundary (fresh entry or exit).
+    if to_state == GameState.MatchState.DRAWING or from_state == GameState.MatchState.DRAWING:
+        _hide_draw_warning()
 
     # Show the obvious desktop control hint so the owner/player knows that
     # left-drag draws during DRAWING (vs. moves during SEARCHING).
@@ -909,3 +923,58 @@ func _show_score_delta_flash(amount: int) -> void:
     tween.chain().tween_callback(func():
         flash_label.queue_free()
     )
+
+
+# ── End-of-Draw Warning ────────────────────────────────────────────────────────────────────────────────
+
+func _create_draw_warning_label() -> void:
+    _draw_warning_label = Label.new()
+    _draw_warning_label.name = "DrawWarningLabel"
+    _draw_warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _draw_warning_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    _draw_warning_label.add_theme_font_size_override("font_size", 34)
+    _draw_warning_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.2, 1.0))
+    _draw_warning_label.anchors_preset = Control.PRESET_CENTER
+    _draw_warning_label.offset_left = -300
+    _draw_warning_label.offset_top = -170
+    _draw_warning_label.offset_right = 300
+    _draw_warning_label.offset_bottom = -110
+    _draw_warning_label.hide()
+    add_child(_draw_warning_label)
+
+
+## One-shot: the DRAWING phase entered its final 5 seconds - big visible
+## banner + red pulse. The audible cue is played by the SoloMatchDriver.
+func _on_draw_phase_warning(payload: Dictionary) -> void:
+    if not _draw_warning_label:
+        return
+    var remaining: int = payload.get("remaining_seconds", 5)
+    _draw_warning_label.text = "⏳ %d SECONDS LEFT!\nFinish your lines!" % remaining
+    _draw_warning_label.show()
+    _draw_warning_label.modulate = Color.WHITE
+    if _draw_warning_tween and _draw_warning_tween.is_valid():
+        _draw_warning_tween.kill()
+    _draw_warning_tween = create_tween()
+    _draw_warning_tween.set_loops(0)
+    _draw_warning_tween.tween_property(_draw_warning_label, "scale", Vector2(1.08, 1.08), 0.5)
+    _draw_warning_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+    _draw_warning_tween.tween_property(_draw_warning_label, "scale", Vector2(1.0, 1.0), 0.5)
+    _draw_warning_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## Per-second countdown label update during the last 5 seconds of DRAWING.
+func _on_draw_phase_tick(payload: Dictionary) -> void:
+    if not _draw_warning_label:
+        return
+    var remaining: int = payload.get("remaining_seconds", -1)
+    if not _draw_warning_label.visible:
+        return
+    if remaining <= 0:
+        _hide_draw_warning()
+    else:
+        _draw_warning_label.text = "⏳ %d!" % remaining
+
+
+func _hide_draw_warning() -> void:
+    if _draw_warning_label:
+        _draw_warning_label.hide()

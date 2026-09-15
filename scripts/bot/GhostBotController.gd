@@ -197,7 +197,7 @@ func _ai_tick(delta: float) -> void:
 		if _fallback_timer <= 0.0:
 			_fallback_timer = 0.0
 			if not _lines_placed_this_round and _placement_delay <= 0.0 and not _placement_due:
-				_placement_anchor = _clamp_to_bounds(_searcher_position(), WORLD_EDGE_MARGIN)
+				_placement_anchor = _clamp_to_cpu_zone(_searcher_position())
 				_schedule_placement(1.0)
 
 	if _placement_due:
@@ -252,7 +252,7 @@ func _execute_placement() -> void:
 			anchor = _compute_nightmare_anchor()
 		_:
 			anchor = _placement_anchor  # computed when the observation arrived
-	anchor = _clamp_to_bounds(anchor, WORLD_EDGE_MARGIN)
+	anchor = _clamp_to_cpu_zone(anchor)
 
 	var dicts := _build_line_dicts(anchor)
 	EventBus.emit(EventBus.EV_NETWORK_GHOST_LINES_PLACED, {
@@ -276,8 +276,8 @@ func _build_line_dicts(anchor: Vector2) -> Array[Dictionary]:
 	var angle_offset := _rng.randf_range(PI / 3.0, 2.0 * PI / 3.0)
 	var angle2 := angle1 + angle_offset * (1.0 if _rng.randf() > 0.5 else -1.0)
 	var sep := _rng.randf_range(MIN_LINE_SEPARATION, MAX_LINE_SEPARATION)
-	var start1 := _clamp_to_bounds(anchor, WORLD_EDGE_MARGIN)
-	var start2 := _clamp_to_bounds(anchor + Vector2.RIGHT.rotated(angle1) * sep, WORLD_EDGE_MARGIN)
+	var start1 := _clamp_to_cpu_zone(anchor)
+	var start2 := _clamp_to_cpu_zone(anchor + Vector2.RIGHT.rotated(angle1) * sep)
 	dicts.append(_build_one_line_dict(start1, angle1, _rng.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH)))
 	dicts.append(_build_one_line_dict(start2, angle2, _rng.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH)))
 	return dicts
@@ -297,6 +297,11 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float) -> Dictio
 		mid += perp * _rng.randf_range(-length * 0.2, length * 0.2)
 		line.points = [start, mid, end]
 		line.widths = [width, width, width]
+	# MVP zone lock: every ghost line vertex stays inside the CPU zone.
+	var clamped_points: Array[Vector2] = []
+	for p in line.points:
+		clamped_points.append(_clamp_to_cpu_zone(p))
+	line.points = clamped_points
 
 	line.id = -1  # -1 unconfirmed sentinel → GhostDrawSystem assigns an ID
 	line.chalk_type = ChalkLine.ChalkType.GHOST
@@ -498,7 +503,7 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 			_schedule_placement(_rng.randf_range(EASY_PLACE_DELAY_MIN, EASY_PLACE_DELAY_MAX))
 		elif (difficulty == Difficulty.NORMAL or difficulty == Difficulty.HARD) \
 				and not _lines_placed_this_round and _placement_delay <= 0.0 and not _placement_due:
-			_placement_anchor = _clamp_to_bounds(_searcher_position(), WORLD_EDGE_MARGIN)
+			_placement_anchor = _clamp_to_cpu_zone(_searcher_position())
 			_schedule_placement(1.0)
 		elif difficulty == Difficulty.NIGHTMARE and _move_samples.size() >= 2 \
 				and not _lines_placed_this_round and _placement_delay <= 0.0 and not _placement_due:
@@ -670,6 +675,12 @@ func _clamp_to_bounds(p: Vector2, margin: float) -> Vector2:
 	if max_y < min_y:
 		max_y = min_y
 	return Vector2(clampf(p.x, min_x, max_x), clampf(p.y, min_y, max_y))
+
+
+## MVP zone lock: clamp a point into the CPU (ghost) zone. Every ghost line
+## the bot places must stay inside its own half during DRAWING.
+func _clamp_to_cpu_zone(p: Vector2) -> Vector2:
+	return ZoneLayout.clamp_to_cpu_zone(p)
 
 
 func _searcher_position() -> Vector2:

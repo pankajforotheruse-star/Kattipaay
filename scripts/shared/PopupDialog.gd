@@ -24,7 +24,7 @@ enum ButtonMode { OK_ONLY, OK_CANCEL, CONFIRM_CANCEL, CUSTOM }
 @onready var _body_label: Label = %BodyLabel
 @onready var _confirm_btn: Button = %ConfirmButton
 @onready var _cancel_btn: Button = %CancelButton
-@onready var _vbox: VBoxContainer = %ButtonVBox
+@onready var _vbox: HBoxContainer = %ButtonVBox
 
 func _ready() -> void:
 	_overlay.gui_input.connect(_on_overlay_gui_input)

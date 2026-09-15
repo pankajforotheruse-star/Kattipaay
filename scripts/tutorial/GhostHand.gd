@@ -65,7 +65,7 @@ func _ready() -> void:
 	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.z_index = 5
 	if get_parent():
-		get_parent().add_child(trail)
+		get_parent().add_child.call_deferred(trail)
 	trail.visible = false
 	modulate.a = 0.0
 	set_process(true)
