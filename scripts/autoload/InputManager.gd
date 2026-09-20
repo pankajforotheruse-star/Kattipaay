@@ -84,6 +84,11 @@ func _input(event: InputEvent) -> void:
 	if not touch_to_move_enabled:
 		return
 
+	# MEETING input lockdown: both sides are assembled at the alley and only
+	# the coin buttons (GUI) may respond - no movement, no drawing, no undo.
+	if _is_meeting_state():
+		return
+
 	# --- Keyboard: Undo shortcut (desktop testing) ---
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_U:
@@ -218,6 +223,12 @@ func _handle_touch_drag(index: int, screen_pos: Vector2) -> void:
 ## match state the same gesture moves the player instead.
 func _is_drawing_state() -> bool:
 	return GameState.get_match_state() == GameState.MatchState.DRAWING
+
+
+## True during the MEETING phase: world input (movement/drawing) is locked;
+## only the CoinDeciderOverlay buttons respond.
+func _is_meeting_state() -> bool:
+	return GameState.get_match_state() == GameState.MatchState.MEETING
 
 
 func _handle_mouse_anchor_start(screen_pos: Vector2) -> void:

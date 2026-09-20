@@ -124,6 +124,41 @@ func play_draw_warning() -> void:
 
     _push_frames(frames)
 
+## Coin flip: three quick metallic pings (the coin turning over in the air).
+func play_coin_flip() -> void:
+    var frames: Array[Vector2] = []
+    var ping_duration := 0.05
+    var ping_samples := int(SAMPLE_RATE * ping_duration)
+    var gap_samples := int(SAMPLE_RATE * 0.1)
+    var freq := 1500.0
+
+    for ping_idx in range(3):
+        # Ping: bright harmonic-ish metallic tone with fast decay.
+        for i in range(ping_samples):
+            var t := float(i) / float(SAMPLE_RATE)
+            var amp := exp(-t * 45.0) * 0.5
+            var val := amp * (sin(t * freq * TAU) + 0.5 * sin(t * freq * 2.0 * TAU))
+            frames.append(Vector2(val, val))
+        # Gap: silence between pings.
+        for _i in range(gap_samples):
+            frames.append(Vector2.ZERO)
+
+    _push_frames(frames)
+
+## Coin landing: one short metallic clink.
+func play_coin_clink() -> void:
+    var duration := 0.12
+    var samples := int(SAMPLE_RATE * duration)
+    var frames: Array[Vector2] = []
+
+    for i in range(samples):
+        var t := float(i) / float(SAMPLE_RATE)
+        var amp := exp(-t * 30.0) * 0.55
+        var val := amp * (sin(t * 1150.0 * TAU) + 0.6 * sin(t * 1730.0 * TAU) + 0.3 * sin(t * 2300.0 * TAU))
+        frames.append(Vector2(val, val))
+
+    _push_frames(frames)
+
 ## Sharp noise burst — 0.15 second chaotic tone.
 func play_accusation_blurt() -> void:
     var duration := 0.15

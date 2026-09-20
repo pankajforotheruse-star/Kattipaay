@@ -27,6 +27,7 @@ enum MatchState {
     LOBBY,             # match lobby: loadout, ready-up, chat (distinct from top-level LOBBY)
     TEAM_SELECTION,    # competitive: pick Red/Blue teams
     DRAWING,           # active gameplay — draw chalk, trap ghosts
+    MEETING,           # both sides gather at the alley; coin decides who searches first
     SEARCHING,         # between-wave: find hidden shades, low visibility
     REVEAL,            # high-intensity climax: all ghosts visible, boss exposed
     SCORING,           # post-wave / post-match score tally
@@ -54,7 +55,8 @@ const VALID_MATCH_TRANSITIONS: Dictionary = {
     MatchState.WAITING:         [MatchState.LOBBY, MatchState.RETURN_TO_LOBBY],
     MatchState.LOBBY:           [MatchState.TEAM_SELECTION, MatchState.DRAWING, MatchState.RETURN_TO_LOBBY],
     MatchState.TEAM_SELECTION:  [MatchState.DRAWING, MatchState.RETURN_TO_LOBBY],
-    MatchState.DRAWING:         [MatchState.SEARCHING, MatchState.SCORING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
+    MatchState.DRAWING:         [MatchState.MEETING, MatchState.SEARCHING, MatchState.SCORING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
+    MatchState.MEETING:         [MatchState.SEARCHING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
     MatchState.SEARCHING:       [MatchState.REVEAL, MatchState.DRAWING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
     MatchState.REVEAL:          [MatchState.DRAWING, MatchState.SCORING, MatchState.PAUSED, MatchState.RETURN_TO_LOBBY],
     MatchState.SCORING:         [MatchState.DRAWING, MatchState.WINNER, MatchState.RETURN_TO_LOBBY],
