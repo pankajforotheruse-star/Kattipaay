@@ -46,6 +46,18 @@ const SOLO_DRAWING_SECONDS := 40.0
 const DRAW_PHASE_WARNING_SECONDS := 5.0
 const SOLO_TIMER_KEY := "quick"         # 180s match timer (auto-start is "standard")
 const GHOST_ENTITY_ID := 2
+const HUMAN_ENTITY_ID := 1
+
+## MEETING phase clocks (owner spec): the player must call the coin within
+## MEETING_CALL_TIMEOUT_SECONDS; the whole meeting owns ~MEETING_MAX_SECONDS
+## (incl. flip animation + result hold) so the round never stalls.
+const MEETING_CALL_TIMEOUT_SECONDS := 8.0
+const MEETING_MAX_SECONDS := 15.0
+const COIN_RESULT_HOLD_SECONDS := 2.0
+## Face-off spots at the alley: a few px apart so BOTH characters are
+## visible facing each other (owner decision #4), centered on the alley.
+const MEETING_PLAYER_POS := Vector2(1150.0, 885.0)
+const MEETING_CPU_POS := Vector2(1250.0, 915.0)
 const MAX_ACCUSATIONS_PER_ROUND := 2    # one per player (2 players)
 
 var _match_machine: MatchStateMachine = null
@@ -59,6 +71,19 @@ var _argument_started_count: int = 0
 var _ending: bool = false
 var _end_pending: bool = false
 var _in_searching: bool = false
+
+## MEETING/coin phase state.
+var _meeting_elapsed: float = 0.0
+var _meeting_call_made: bool = false
+var _meeting_resolved: bool = false
+var _meeting_result_hold: float = 0.0
+var _coin_overlay: CoinDeciderOverlay = null
+
+## Who searches first this round (1 = human, 2 = ghost) and who defends.
+## Set when the coin resolves; consumed by SEARCHING (and the later
+## zone+role swap slice).
+var active_searcher: int = HUMAN_ENTITY_ID
+var defender: int = GHOST_ENTITY_ID
 
 ## Draw-phase clock state (visible + audible end-of-draw warning, last 5s).
 var _draw_warning_played: bool = false
@@ -88,6 +113,7 @@ func _ready() -> void:
 	EventBus.on(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
 	EventBus.on(EventBus.EV_GAME_GHOST_LINE_DISCOVERED, _on_ghost_line_discovered)
 	EventBus.on(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
+	EventBus.on(EventBus.EV_GAME_COIN_DECIDED, _on_coin_decided)
 
 	# The real match sub-state machine, driven like the multiplayer flow.
 	_match_machine = MatchStateMachine.new()
@@ -125,8 +151,11 @@ func _process(delta: float) -> void:
 		_tick_draw_phase()
 		if _drawing_elapsed >= SOLO_DRAWING_SECONDS:
 			_drawing_elapsed = 0.0
-			_match_machine.transition_to(GameState.MatchState.SEARCHING)
+			_match_machine.transition_to(GameState.MatchState.MEETING)
 			return
+	if ms == GameState.MatchState.MEETING:
+		_tick_meeting_phase(delta)
+		return
 	if _end_pending:
 		_end_round()
 
@@ -156,6 +185,7 @@ func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
 	EventBus.off(EventBus.EV_GAME_GHOST_LINE_DISCOVERED, _on_ghost_line_discovered)
 	EventBus.off(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
+	EventBus.off(EventBus.EV_GAME_COIN_DECIDED, _on_coin_decided)
 	# The solo session owns the flag: leaving the game world ends solo mode so
 	# a later normal/online match never spawns the bot.
 	GameState.solo_vs_cpu = false
@@ -173,9 +203,20 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_drawing_elapsed = 0.0
 		_draw_warning_played = false
 		_draw_phase_last_tick = -1
+	elif to_state == GameState.MatchState.MEETING:
+		_in_searching = false
+		_argument_started_count = 0
+		_meeting_elapsed = 0.0
+		_meeting_call_made = false
+		_meeting_resolved = false
+		_meeting_result_hold = 0.0
+		_assemble_at_alley()
+		_show_coin_decider()
 	elif to_state == GameState.MatchState.SEARCHING:
 		_in_searching = true
 		_argument_started_count = 0
+		_free_coin_overlay()
+		_spawn_search_entry()
 		# Make the existing HUD ACCUSE flow work against the ghost: pre-select
 		# the ghost entity as the target (HUD resets selection on SEARCHING
 		# entry, so this must run after the HUD's own handler).
@@ -199,6 +240,126 @@ func _on_ghost_line_discovered(_payload: Dictionary) -> void:
 func _on_argument_started(_payload: Dictionary) -> void:
 	_argument_started_count += 1
 	_maybe_end_round()
+
+
+# -- MEETING / coin phase ----------------------------------------------------------
+
+## Meeting clock: the player gets MEETING_CALL_TIMEOUT_SECONDS to call the
+## coin; after that the overlay auto-randomizes (round never hangs). Once the
+## coin resolves, the big result banner holds COIN_RESULT_HOLD_SECONDS, then
+## SEARCHING starts with the recorded roles.
+func _tick_meeting_phase(delta: float) -> void:
+	_meeting_elapsed += delta
+	if _coin_overlay == null or not is_instance_valid(_coin_overlay):
+		# Overlay missing (scene failed to load): never hang the round - decide
+		# randomly at the hard cap and move on to SEARCHING.
+		if _meeting_elapsed >= MEETING_MAX_SECONDS:
+			_force_coin_decision()
+		return
+	if not _meeting_call_made and _meeting_elapsed >= MEETING_CALL_TIMEOUT_SECONDS:
+		_meeting_call_made = true
+		print("SoloMatchDriver: no call within %ds - coin auto-randomizes" % MEETING_CALL_TIMEOUT_SECONDS)
+		_coin_overlay.auto_randomize()
+	if _meeting_resolved:
+		_meeting_result_hold += delta
+		if _meeting_result_hold >= COIN_RESULT_HOLD_SECONDS:
+			_begin_searching()
+	elif _meeting_elapsed >= MEETING_MAX_SECONDS:
+		# Absolute safety net: never stall the round.
+		print("SoloMatchDriver: meeting exceeded %ds - forcing resolution" % MEETING_MAX_SECONDS)
+		if not _meeting_call_made:
+			_meeting_call_made = true
+			_coin_overlay.auto_randomize()
+		else:
+			_coin_overlay.force_resolve()
+
+
+## Walk both characters to their face-off spots at the alley (the player and
+## the ghost's visible body, NPC entity 2). Camera follows the player, so it
+## pans to the alley with them.
+func _assemble_at_alley() -> void:
+	var player: Node2D = _game_world.get_entity(HUMAN_ENTITY_ID) as Node2D if _game_world else null
+	var npc: Node2D = _game_world.get_entity(GHOST_ENTITY_ID) as Node2D if _game_world else null
+	if player:
+		_walk_entity_to(player, MEETING_PLAYER_POS)
+	if npc is NPC:
+		npc.patrolling = false
+		_walk_entity_to(npc, MEETING_CPU_POS)
+
+
+## Standard walk-to-target via the entity metas the MovementSystem uses.
+func _walk_entity_to(entity: Node2D, target: Vector2) -> void:
+	entity.set_meta("target_position", target)
+	entity.set_meta("has_target", true)
+	var sm: Node = entity.get_node_or_null("EntityStateMachine")
+	if sm and sm.current_state_name() != "walking":
+		sm.transition_to("walking")
+
+
+## Create the coin decider overlay (driver-owned, like the argument overlay).
+func _show_coin_decider() -> void:
+	_free_coin_overlay()
+	var scene := load("res://scenes/overlay/coin_decider.tscn") as PackedScene
+	if scene == null:
+		push_error("SoloMatchDriver: coin_decider.tscn missing")
+		return
+	_coin_overlay = scene.instantiate() as CoinDeciderOverlay
+	get_tree().root.add_child(_coin_overlay)
+
+
+func _free_coin_overlay() -> void:
+	if _coin_overlay and is_instance_valid(_coin_overlay):
+		_coin_overlay.queue_free()
+	_coin_overlay = null
+
+
+## EV_GAME_COIN_DECIDED: record the roles decided by the coin toss.
+func _on_coin_decided(payload: Dictionary) -> void:
+	if GameState.get_match_state() != GameState.MatchState.MEETING:
+		return
+	if _meeting_resolved:
+		return
+	_meeting_resolved = true
+	active_searcher = int(payload.get("active_searcher", HUMAN_ENTITY_ID))
+	defender = int(payload.get("defender", GHOST_ENTITY_ID))
+	print("SoloMatchDriver: coin resolved - active_searcher=%d defender=%d (human_first=%s)" % [
+		active_searcher, defender, str(payload.get("human_first", false))
+	])
+
+
+## Last-resort decision when the decider overlay is missing: a FAIR 50/50
+## toss (owner decision #2 - difficulty never influences who searches first).
+func _force_coin_decision() -> void:
+	if _meeting_resolved:
+		return
+	_meeting_resolved = true
+	var human_first := randi() % 2 == 0
+	active_searcher = HUMAN_ENTITY_ID if human_first else GHOST_ENTITY_ID
+	defender = GHOST_ENTITY_ID if human_first else HUMAN_ENTITY_ID
+	push_error("SoloMatchDriver: coin overlay missing - auto-decided searcher=%d defender=%d" % [active_searcher, defender])
+
+
+## MEETING -> SEARCHING once the result banner has had its hold time.
+func _begin_searching() -> void:
+	if _ending:
+		return
+	if GameState.get_match_state() != GameState.MatchState.MEETING:
+		return
+	_match_machine.transition_to(GameState.MatchState.SEARCHING)
+
+
+## SEARCHING entry: point the searcher at the alley exit leading to the
+## opponent's zone. MVP slice 2 keeps the playable human-search flow; when
+## the CPU won the toss the roles are already recorded (active_searcher == 2)
+## and the CPU-search half (CPU walking into the player zone + live
+## strike-out) is the later zone+role swap slice (R6).
+func _spawn_search_entry() -> void:
+	var player: Node2D = _game_world.get_entity(HUMAN_ENTITY_ID) as Node2D if _game_world else null
+	if player:
+		_walk_entity_to(player, ZoneLayout.SEARCH_ENTRY_HUMAN)
+	var npc: Node2D = _game_world.get_entity(GHOST_ENTITY_ID) as Node2D if _game_world else null
+	if npc is NPC:
+		npc.patrolling = true  # resume patrol (ghost returns toward its zone)
 
 
 # ── Round end ────────────────────────────────────────────────────────────────
@@ -239,6 +400,7 @@ func _end_round() -> void:
 	_ending = true
 	_end_pending = false
 	MatchTimer.stop()
+	_free_coin_overlay()  # the round may end during MEETING (match timer)
 	print("SoloMatchDriver: round ended")
 
 	# SEARCHING → REVEAL (dramatic fog clear) → SCORING (round score +

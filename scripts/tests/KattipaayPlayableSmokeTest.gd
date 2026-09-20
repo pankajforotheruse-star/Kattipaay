@@ -2,7 +2,7 @@
 #
 # End-to-end headless smoke test for the real prototype path:
 #   Splash -> Home -> Play vs CPU -> Easy -> GameWorld
-#   -> DRAWING -> SEARCHING -> select NPC -> ACCUSE
+#   -> DRAWING -> MEETING (coin) -> SEARCHING -> select NPC -> ACCUSE
 #   -> REVEAL -> SCORING -> RETURN_TO_LOBBY -> MAIN_MENU/Home.
 #
 # The test uses the game's real UI signals and public gameplay API instead of
@@ -16,12 +16,14 @@
 extends SceneTree
 
 enum TopState { SPLASH, MAIN_MENU, LOBBY, PLAYING, PAUSED, GAME_OVER }
-enum MatchState { NONE, WAITING, LOBBY, TEAM_SELECTION, DRAWING, SEARCHING, REVEAL, SCORING, WINNER, SWAP_TEAMS, RETURN_TO_LOBBY, PAUSED }
+enum MatchState { NONE, WAITING, LOBBY, TEAM_SELECTION, DRAWING, MEETING, SEARCHING, REVEAL, SCORING, WINNER, SWAP_TEAMS, RETURN_TO_LOBBY, PAUSED }
 
 const MAIN_SCENE := "res://scenes/main.tscn"
 const MAX_STARTUP_SECONDS := 10.0
 const MAX_PLAYING_SECONDS := 8.0
-const MAX_DRAWING_SECONDS := 25.0
+# Solo draw is SOLO_DRAWING_SECONDS=40s (PR #20) + MEETING clock (~12s):
+# the 25.0 budget from the pre-#20 flow can no longer see SEARCHING.
+const MAX_DRAWING_SECONDS := 50.0
 const MAX_ROUND_END_SECONDS := 25.0
 const FRAME_SETTLE_COUNT := 2
 
@@ -127,6 +129,12 @@ func _run_test() -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: DRAWING_REACHED")
+
+	await _wait_for_match_state(MatchState.MEETING, MAX_DRAWING_SECONDS, "MEETING")
+	if _failed:
+		quit(1)
+		return
+	print("KATTIPAAY_SMOKE: MEETING_REACHED")
 
 	await _wait_for_match_state(MatchState.SEARCHING, MAX_DRAWING_SECONDS, "SEARCHING")
 	if _failed:

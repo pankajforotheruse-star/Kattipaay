@@ -11,8 +11,8 @@
 # the GhostBotController all enforce the same bounds. World size matches the
 # FogSystem default world bounds (2400 x 1800).
 #
-# MVP slice 1: only the geometry + clamp helpers. The meeting phase itself
-# (MEETING match state, coin decider) is a later slice.
+# MVP slice 1 delivered the geometry + clamp helpers; slice 2 added the
+# MEETING phase (match state, coin decider) and the search-entry points.
 
 class_name ZoneLayout
 extends RefCounted
@@ -37,6 +37,16 @@ const CPU_ZONE := Rect2(0.0, 1020.0, 2400.0, 780.0)
 
 ## Center of the alley — where the MEETING phase will gather both sides.
 const MEETING_POINT := Vector2(1200.0, 900.0)
+
+## Where the human searcher walks to at the start of search #1: the alley's
+## bottom exit, just inside the CPU zone (the winner walks from the meeting
+## into the opponent's half).
+const SEARCH_ENTRY_HUMAN := Vector2(1200.0, 1040.0)
+
+## Where the CPU searcher will walk to in the later zone+role swap slice:
+## the alley's top exit, just inside the player zone. Kept here now so both
+## slice halves share one geometry source.
+const SEARCH_ENTRY_CPU := Vector2(1200.0, 760.0)
 
 ## Clamp a point into the player zone (used during DRAWING for the human's
 ## movement targets and chalk stroke samples — drawing outside your own half

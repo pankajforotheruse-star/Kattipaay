@@ -14,6 +14,11 @@ extends Entity
 ## Color of this NPC.
 @export var npc_color: Color = Color.BLUE
 
+## When false the patrol AI stops: the NPC stands where it is. Used by the
+## SoloMatchDriver during the MEETING/coin phase so the ghost's visible
+## character stays put at the alley instead of resuming its waypoint loop.
+@export var patrolling: bool = true
+
 const VISUAL_SIZE := Vector2(32, 32)
 
 var state_machine: EntityStateMachine
@@ -58,6 +63,9 @@ func _draw() -> void:
 
 func _physics_process(delta: float) -> void:
 	queue_redraw()
+
+	if not patrolling:
+		return
 
 	if _is_waiting:
 		_wait_timer -= delta
