@@ -28,6 +28,21 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 [input_devices]
 pointing/emulate_touch_from_mouse=true
+
+[chalk_gaon]
+; Play VS CPU round pacing (slice 3, R6). Owner default: draw 40s, meeting ~15s,
+; each search phase 30s. The smoke test overrides these to short values via
+; ProjectSettings.set_setting() so the CI headless run stays well under 90s.
+solo_drawing_seconds=40.0
+solo_meeting_call_timeout_seconds=8.0
+solo_meeting_max_seconds=15.0
+solo_coin_result_hold_seconds=2.0
+solo_meeting_flip_duration=2.0
+solo_search_phase_seconds=30.0
+solo_early_exit_grace_seconds=1.0
+solo_empty_phase_grace_seconds=1.0
+solo_winner_hold_seconds=3.0
+cpu_sweep_speed=420.0
 [importer_defaults]
 texture={
 "compress/mode": 2,

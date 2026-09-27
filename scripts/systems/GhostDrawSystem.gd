@@ -246,6 +246,47 @@ func reset_for_new_round() -> void:
 	_vision_cache.clear()
 	print("GhostDrawSystem: reset for new round")
 
+## Container holding this system's Line2D chalk visuals (the WipeEffect
+## parents under it so z-order matches the chalk).
+func get_ghost_chalk_container() -> Node2D:
+	return _ghost_chalk_container
+
+
+## Strike out (wipe + remove) a ghost line -- slice 3 live strike-out.
+## Returns false if the line is unknown or already struck (a no-op).
+## The struck line gets the WipeEffect animation, its Line2D node is released
+## back to the pool, and the line record is REMOVED from the active set
+## (removal semantics: struck lines no longer count as hidden/surviving).
+func strike_ghost_line(line_id: int) -> bool:
+	var line := _find_ghost_line_by_id(line_id)
+	if line == null or line.is_struck:
+		return false
+	line.is_struck = true
+	# Kill any in-flight reveal tween for this line.
+	if _ghost_reveal_tweens.has(line_id):
+		var tween: Tween = _ghost_reveal_tweens[line_id]
+		if tween.is_valid():
+			tween.kill()
+		_ghost_reveal_tweens.erase(line_id)
+	# Release the Line2D node (visual removal) back to the pool.
+	if _ghost_line_nodes.has(line_id):
+		var node: Line2D = _ghost_line_nodes[line_id]
+		if is_instance_valid(node):
+			_release_ghost_line_node(node)
+		_ghost_line_nodes.erase(line_id)
+	# Wipe animation over the line's extent, then remove the line record.
+	WipeEffect.play(_ghost_chalk_container, ChalkLine.compute_center(line.points), ChalkLine.compute_size(line.points), ChalkLine.GHOST_REVEALED_COLOR)
+	_active_ghost_lines.erase(line)
+	AudioManager.play_line_strike()
+	EventBus.emit(EventBus.EV_GAME_LINE_STRUCK, {
+		"line_id": line_id,
+		"is_ghost": true,
+		"owner_id": line.ghost_owner_id,
+		"defender": "cpu",
+		"remaining": _active_ghost_lines.size(),
+	})
+	return true
+
 
 # ── Event Handlers ─────────────────────────────────────────────────────────────
 
@@ -343,7 +384,7 @@ func _check_discovery() -> void:
 
 	# Check each ghost line against each vision circle
 	for line in _active_ghost_lines:
-		if line.is_discovered:
+		if line.is_discovered or line.is_struck:
 			continue
 		if line.points.size() < 2:
 			continue

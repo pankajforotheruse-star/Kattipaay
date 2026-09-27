@@ -951,6 +951,34 @@ func _emit_chalk_meter_if_changed() -> void:
 func get_active_lines() -> Array[ChalkLine]:
     return _active_lines.duplicate()
 
+## Container holding this system's Line2D chalk visuals (the WipeEffect
+## parents under it so z-order matches the chalk).
+func get_chalk_container() -> Node2D:
+    return _chalk_container
+
+
+## Strike out (wipe + remove) a player-drawn line -- slice 3 live strike-out.
+## Returns false if the line is unknown or already struck (a no-op).
+## The struck line gets the WipeEffect animation and is removed via the normal
+## removal path (Line2D node returned to the pool, entry dropped from the
+## active set) -- struck lines no longer count as hidden/surviving.
+func strike_line(line_id: int) -> bool:
+    var line := _find_line_by_id(line_id)
+    if line == null or line.is_struck:
+        return false
+    line.is_struck = true
+    WipeEffect.play(_chalk_container, ChalkLine.compute_center(line.points), ChalkLine.compute_size(line.points), line.get_chalk_color())
+    _remove_line(line, "struck")
+    AudioManager.play_line_strike()
+    EventBus.emit(EventBus.EV_GAME_LINE_STRUCK, {
+        "line_id": line.id,
+        "is_ghost": false,
+        "owner_id": line.player_id,
+        "defender": "human",
+        "remaining": _active_lines.size(),
+    })
+    return true
+
 
 ## Return remaining chalk as a float (0.0 to CHALK_MAX).
 func get_chalk_remaining() -> float:

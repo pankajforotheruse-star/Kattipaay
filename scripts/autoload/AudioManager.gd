@@ -210,6 +210,24 @@ func play_cow_moo() -> void:
 
     _push_frames(frames)
 
+## Soft chalk-wipe scratch for a struck-out line (fast decaying mid-tone
+## burst, ~0.18s) - the R6 "struck out" sound cue.
+func play_line_strike() -> void:
+    var duration := 0.18
+    var samples := int(SAMPLE_RATE * duration)
+    var frames: Array[Vector2] = []
+
+    for i in range(samples):
+        var t := float(i) / float(SAMPLE_RATE)
+        # Soft band-ish scratch: three detuned mid tones with a fast decay,
+        # low volume so it reads as a wipe, not a hit.
+        var amp := exp(-t * 65.0) * 0.32
+        var val := amp * (sin(t * 1400.0 * TAU) + 0.8 * sin(t * 1750.0 * TAU) + 0.5 * sin(t * 950.0 * TAU)) / 2.3
+        frames.append(Vector2(val, val))
+
+    _push_frames(frames)
+
+
 # ── Generator Helpers ─────────────────────────────────────────────────────────
 
 ## Generate a frequency sweep from start_hz to end_hz over duration.

@@ -11,6 +11,7 @@ const FALSE_ACCUSATION_PENALTY := 10
 const HINT_TRAP_PENALTY := 10           # searcher fell for fake hint
 const CORRECT_HINT_BONUS := 10          # searcher correctly identified real hint
 const SILENT_SNEAK_BONUS := 20          # successful silent sneak line crossing
+const SURVIVOR_POINTS_PER_LINE := 10      # surviving hidden line (R6: surviving lines win)
 
 # ── State ─────────────────────────────────────────────────────────────────
 var total_score: int = 0
@@ -41,6 +42,9 @@ var _stats: Dictionary = {
 }
 
 var _all_player_scores: Dictionary = {}  # {player_id: total_score}
+var _human_surviving_lines: int = 0
+var _cpu_surviving_lines: int = 0
+var _survivors_registered: bool = false
 
 func _ready() -> void:
 	_subscribe_events()
@@ -138,6 +142,8 @@ func _calculate_round_score() -> void:
 		"cluster_lines": _cluster_lines_surviving,
 		"cluster_bonus": _cluster_lines_surviving * CLUSTER_BONUS_PER_LINE,
 		"ghost_penalty": _ghost_penalty_total,
+		"human_surviving_lines": _human_surviving_lines,
+		"cpu_surviving_lines": _cpu_surviving_lines,
 		"argument_penalty": _false_accusations * FALSE_ACCUSATION_PENALTY,
 		"hint_trap_penalty": _hint_traps_triggered * HINT_TRAP_PENALTY,
 		"correct_hint_bonus": _correct_hints * CORRECT_HINT_BONUS,
@@ -148,7 +154,7 @@ func _calculate_round_score() -> void:
 	# Apply formula
 	score += breakdown.lines_score
 	score += breakdown.cluster_bonus
-	score -= breakdown.ghost_penalty
+	score += breakdown.human_surviving_lines * SURVIVOR_POINTS_PER_LINE
 	score -= breakdown.argument_penalty
 	score -= breakdown.hint_trap_penalty
 	score += breakdown.correct_hint_bonus
@@ -186,6 +192,24 @@ func register_player_score(player_id: int, score: int) -> void:
 	_all_player_scores[player_id] = score
 
 func _determine_winner() -> void:
+	# R6: Play VS CPU rounds are decided by surviving hidden lines. The side
+	# with MORE surviving (unstruck, unidentified) lines after BOTH searches
+	# wins; ties (including the both-empty edge case) resolve to the human so
+	# the round always produces a winner.
+	if _survivors_registered:
+		var human_won := _human_surviving_lines >= _cpu_surviving_lines
+		winner_id = InputManager.local_entity_id if human_won else 2
+		if human_won:
+			_stats.wins += 1
+		EventBus.emit(EventBus.EV_GAME_WINNER_DETERMINED, {
+			"winner_id": winner_id,
+			"final_score": _human_surviving_lines,
+			"all_scores": {1: _human_surviving_lines, 2: _cpu_surviving_lines},
+			"total_score": total_score,
+			"survivors": {"human": _human_surviving_lines, "cpu": _cpu_surviving_lines},
+		})
+		return
+
 	# Use registered player scores if available, otherwise use local total
 	var best_id := -1
 	var best_score := -1
@@ -239,6 +263,19 @@ func get_round_breakdown(round_num: int) -> Dictionary:
 func get_winner_id() -> int:
 	return winner_id
 
+## Record the surviving (unstruck) hidden-line counts for the R6 winner
+## logic. Called by SoloMatchDriver after BOTH search phases.
+func set_survivors(human: int, cpu: int) -> void:
+	_human_surviving_lines = maxi(human, 0)
+	_cpu_surviving_lines = maxi(cpu, 0)
+	_survivors_registered = true
+
+func get_human_surviving_lines() -> int:
+	return _human_surviving_lines
+
+func get_cpu_surviving_lines() -> int:
+	return _cpu_surviving_lines
+
 func get_statistics() -> Dictionary:
 	return _stats.duplicate()
 
@@ -249,5 +286,8 @@ func reset_match() -> void:
 	current_round = 0
 	winner_id = -1
 	_all_player_scores.clear()
+	_survivors_registered = false
+	_human_surviving_lines = 0
+	_cpu_surviving_lines = 0
 	_reset_round_accumulators()
 	EventBus.emit(EventBus.EV_GAME_TOTAL_SCORE_UPDATED, {"total_score": 0, "round_number": 0})
