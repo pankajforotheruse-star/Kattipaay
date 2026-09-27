@@ -48,6 +48,14 @@ const SEARCH_ENTRY_HUMAN := Vector2(1200.0, 1040.0)
 ## slice halves share one geometry source.
 const SEARCH_ENTRY_CPU := Vector2(1200.0, 760.0)
 
+## Where the human DEFENDER stands while the CPU searches the player zone
+## (center of the player zone, visible to the camera with the CPU's targets).
+const DEFEND_POS_HUMAN := Vector2(1200.0, 390.0)
+
+## Where the CPU (NPC) DEFENDER patrols/stands while the human searches the
+## CPU zone (center of the CPU zone).
+const DEFEND_POS_CPU := Vector2(1200.0, 1410.0)
+
 ## Clamp a point into the player zone (used during DRAWING for the human's
 ## movement targets and chalk stroke samples — drawing outside your own half
 ## is blocked by clamping to this rect).

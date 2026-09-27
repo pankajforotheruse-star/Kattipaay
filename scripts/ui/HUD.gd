@@ -54,6 +54,11 @@ var _is_spectator: bool = false
 var _draw_warning_label: Label = null
 var _draw_warning_tween: Tween = null
 
+# --- Remaining-lines counter + search banner (slice 3, R6) ---
+
+var _remaining_lines_label: Label = null
+var _search_banner_label: Label = null
+
 # ── Silent Sneak UI Elements ──────────────────────────────────────────────────
 
 var _silent_sneak_button: Button = null
@@ -81,6 +86,9 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.on(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
     EventBus.on(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
+    EventBus.on(EventBus.EV_GAME_LINE_STRUCK, _on_line_struck)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
@@ -122,6 +130,8 @@ func _ready() -> void:
     _create_sloppy_count_banner()
     _create_score_label()
     _create_draw_warning_label()
+    _create_remaining_lines_label()
+    _create_search_banner_label()
 
     _update_info("Tap anywhere to move the RED player.\nBLUE player patrols automatically.\nGreen grid = 100px squares.")
 
@@ -165,6 +175,9 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_TIMER_TICK, _on_timer_tick)
     EventBus.off(EventBus.EV_GAME_TIMER_EXPIRED, _on_timer_expired)
     EventBus.off(EventBus.EV_GAME_TIMER_PENALTY, _on_timer_penalty)  # audit m4
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
+    EventBus.off(EventBus.EV_GAME_LINE_STRUCK, _on_line_struck)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
@@ -528,6 +541,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         if _silent_sneak_button:
             _silent_sneak_button.hide()
         _selected_target_id = -1
+        if _remaining_lines_label:
+            _remaining_lines_label.hide()
+        if _search_banner_label:
+            _search_banner_label.hide()
 
     # Show spectator button when spectator enters SEARCHING
     if _is_spectator and to_state == GameState.MatchState.SEARCHING:
@@ -553,6 +570,79 @@ func _on_timer_tick(payload: Dictionary) -> void:
         else:
             _timer_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.65, 1.0))
 
+func _create_remaining_lines_label() -> void:
+    _remaining_lines_label = Label.new()
+    _remaining_lines_label.name = "RemainingLinesLabel"
+    _remaining_lines_label.text = ""
+    _remaining_lines_label.add_theme_font_size_override("font_size", 22)
+    _remaining_lines_label.add_theme_color_override("font_color", Color(1.0, 0.62, 0.3, 1.0))
+    _remaining_lines_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _remaining_lines_label.anchors_preset = Control.PRESET_CENTER_TOP
+    _remaining_lines_label.offset_top = 96
+    _remaining_lines_label.offset_left = -220
+    _remaining_lines_label.offset_right = 220
+    _remaining_lines_label.offset_bottom = 126
+    _remaining_lines_label.hide()
+    add_child(_remaining_lines_label)
+
+
+func _create_search_banner_label() -> void:
+    _search_banner_label = Label.new()
+    _search_banner_label.name = "SearchBannerLabel"
+    _search_banner_label.text = ""
+    _search_banner_label.add_theme_font_size_override("font_size", 17)
+    _search_banner_label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.8, 0.95))
+    _search_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _search_banner_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _search_banner_label.anchors_preset = Control.PRESET_CENTER_TOP
+    _search_banner_label.offset_top = 128
+    _search_banner_label.offset_left = -300
+    _search_banner_label.offset_right = 300
+    _search_banner_label.offset_bottom = 182
+    _search_banner_label.hide()
+    add_child(_search_banner_label)
+
+
+func _on_search_phase_started(payload: Dictionary) -> void:
+    var searcher: int = payload.get("searcher", -1)
+    var remaining: int = payload.get("target_lines", 0)
+    if _remaining_lines_label:
+        _remaining_lines_label.text = "Lines left: %d" % remaining
+        _remaining_lines_label.show()
+    if _search_banner_label:
+        if searcher == 1:
+            _search_banner_label.text = "YOUR SEARCH - tap revealed lines to wipe them out"
+        else:
+            _search_banner_label.text = "CPU IS SEARCHING - protect your lines!"
+        _search_banner_label.show()
+    if searcher == 1:
+        # The human searcher keeps the ACCUSE / Sneak / hint UI.
+        if _argument_button:
+            _argument_button.show()
+        if _silent_sneak_button:
+            _silent_sneak_button.show()
+        if _hint_counter_label:
+            _hint_counter_label.show()
+    else:
+        # The defender watches the CPU strike their lines live - no accuse UI.
+        if _argument_button:
+            _argument_button.hide()
+        if _silent_sneak_button:
+            _silent_sneak_button.hide()
+        if _hint_counter_label:
+            _hint_counter_label.hide()
+
+
+func _on_search_phase_ended(_payload: Dictionary) -> void:
+    if _remaining_lines_label:
+        _remaining_lines_label.hide()
+    if _search_banner_label:
+        _search_banner_label.hide()
+
+
+func _on_line_struck(payload: Dictionary) -> void:
+    if _remaining_lines_label and payload.has("remaining"):
+        _remaining_lines_label.text = "Lines left: %d" % int(payload.get("remaining", 0))
 
 func _on_timer_expired(_payload: Dictionary) -> void:
     if _timer_label:

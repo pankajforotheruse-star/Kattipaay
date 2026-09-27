@@ -82,6 +82,11 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## Whether this ghost line has been discovered by the searcher player.
 @export var is_discovered: bool = false
 
+## Whether this line has been STRUCK OUT (wiped away) by a searcher.
+## Striking = REMOVAL in the MVP: struck lines are wiped + removed from the
+## world and only count as "not surviving" at the end of the search.
+@export var is_struck: bool = false
+
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
 
@@ -124,6 +129,27 @@ func get_chalk_color() -> Color:
             return GHOST_REVEALED_COLOR
         return CHALK_COLORS[ChalkType.GHOST]
     return CHALK_COLORS.get(chalk_type, Color.WHITE)
+
+## Bounding center of the line's points (world space). Used by the strike
+## systems to aim the WipeEffect and the CPU sweep.
+static func compute_center(points: Array[Vector2]) -> Vector2:
+    var sum := Vector2.ZERO
+    for p in points:
+        sum += p
+    return sum / float(points.size()) if points.size() > 0 else Vector2.ZERO
+
+## Bounding size (min-to-max extent) of the line's points, clamped to a
+## minimum of 20px so the WipeEffect always has a readable target.
+static func compute_size(points: Array[Vector2]) -> Vector2:
+    if points.is_empty():
+        return Vector2(20, 20)
+    var mn := points[0]
+    var mx := points[0]
+    for p in points.slice(1):
+        mn = Vector2(minf(mn.x, p.x), minf(mn.y, p.y))
+        mx = Vector2(maxf(mx.x, p.x), maxf(mx.y, p.y))
+    var s := mx - mn
+    return Vector2(maxf(s.x, 20.0), maxf(s.y, 20.0))
 
 # --- Network Serialization ---
 

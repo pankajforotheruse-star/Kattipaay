@@ -28,8 +28,9 @@ const GHOST_ENTITY_ID := 2
 enum CoinSide { HEADS = 0, TAILS = 1 }
 enum Phase { CALL, FLIP, RESULT }
 
-## Coin flip animation length (owner spec: ~2s).
-const FLIP_DURATION := 2.0
+## Coin flip animation length (owner spec: ~2s). Runtime value so the
+## smoke test can shorten it (ProjectSettings "chalk_gaon/solo_meeting_flip_duration").
+var _flip_duration: float = 2.0
 const FLIP_CYCLES := 7
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ var _flip_tween: Tween = null
 
 func _ready() -> void:
 	randomize()
+	_flip_duration = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_flip_duration", 2.0))
 	_build_ui()
 	_reset_to_call()
 
@@ -108,7 +110,7 @@ func _run_flip_animation() -> void:
 	if _flip_tween and _flip_tween.is_valid():
 		_flip_tween.kill()
 	_flip_tween = create_tween()
-	var half := FLIP_DURATION / (FLIP_CYCLES * 2.0)
+	var half := _flip_duration / (FLIP_CYCLES * 2.0)
 	for i in range(FLIP_CYCLES * 2):
 		_flip_tween.tween_property(_coin_panel, "scale:x", 0.05, half) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)

@@ -18,6 +18,7 @@ const MATCH_DURATIONS: Dictionary = {
 	"quick":    180,
 	"standard": 480,
 	"endless":  -1,
+	"search":   30,
 }
 
 ## Final countdown window (seconds) where the timer-warning sound plays.
@@ -103,6 +104,24 @@ func start(duration_key: String = "standard") -> void:
 		"total_seconds": duration,
 	})
 	print("MatchTimer: started — %ds (%s)" % [duration, duration_key])
+
+## Start a raw countdown with an explicit duration (solo search phases:
+## each SEARCH is capped at the configured phase seconds).
+func start_seconds(seconds: float) -> void:
+	_current_duration_key = "search"
+	_is_endless = false
+	_total_seconds = maxf(seconds, 1.0)
+	_remaining_seconds = _total_seconds
+	_last_emitted_second = int(ceil(_total_seconds))
+	_is_running = true
+	_is_paused = false
+	_warning_played = false
+
+	EventBus.emit(EventBus.EV_GAME_TIMER_TICK, {
+		"remaining_seconds": _last_emitted_second,
+		"total_seconds": int(_total_seconds),
+	})
+	print("MatchTimer: started — %.0fs (search phase)" % _total_seconds)
 
 ## Pause the countdown (e.g., during argument phase).
 func pause() -> void:

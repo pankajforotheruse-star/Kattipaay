@@ -90,6 +90,12 @@ var solo_vs_cpu: bool = false
 ## CPU difficulty for solo mode (GhostBotController.Difficulty enum value).
 var cpu_difficulty: int = GhostBotController.Difficulty.NORMAL
 
+## Who is the ACTIVE SEARCHER in the current solo search phase
+## (HUMAN_ENTITY_ID=1 or GHOST_ENTITY_ID=2) and who defends.
+## Set by SoloMatchDriver on each search phase (coin result + zone/role swap).
+var solo_active_searcher: int = 0
+var solo_defender: int = 0
+
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
