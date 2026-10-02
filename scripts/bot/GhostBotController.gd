@@ -491,6 +491,12 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_placement_delay = 0.0
 		_placement_due = false
 		_ai_enter(AIState.OBSERVING)
+		if difficulty == Difficulty.EASY:
+			# EASY (audit MAJOR-2): place during DRAWING too, so the human's
+			# search always has real ghost lines even when they win the toss.
+			# Personality unchanged (placement stays pure-random via
+			# _easy_anchor()); only WHEN placement happens moves earlier.
+			_fallback_timer = OBSERVE_FALLBACK_SECONDS
 		if difficulty == Difficulty.NORMAL or difficulty == Difficulty.HARD \
 				or difficulty == Difficulty.NIGHTMARE:
 			# NIGHTMARE included: if the searcher never moves (no move samples,

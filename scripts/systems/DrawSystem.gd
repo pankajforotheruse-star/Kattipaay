@@ -212,8 +212,16 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
-    # --- Tick line decay ---
-    _tick_decay(delta)
+    # --- Tick line decay (DRAWING phase only) ---
+    # Owner spec: BOTH sets of lines persist invisibly through MEETING and
+    # both SEARCH phases; decay is only a draw-phase mechanic. Ticking decay
+    # unconditionally (audit MAJOR-1) expired every human white line mid-round
+    # in real pacing (60s decay vs ~115s draw+meeting+2x search), so
+    # human_surviving was 0 at _finish_round in virtually every real round.
+    # Frozen lines keep their remaining lifetime and only expire during a
+    # later DRAWING phase (or the max-line/undo paths).
+    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+        _tick_decay(delta)
 
     # --- Consume chalk while actively drawing ---
     if _is_drawing and not _chalk_exhausted and not _match_time_exceeded:
