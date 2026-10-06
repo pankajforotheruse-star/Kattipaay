@@ -45,6 +45,11 @@ var _is_showing: bool = false
 var _argument_data: Dictionary = {}
 var _result_data: Dictionary = {}
 
+## When true the overlay runs the lightweight defender-argue (distract)
+## display instead of the accusation flow (slice 4).
+var _argue_mode: bool = false
+var _status_label: Label = null
+
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
@@ -53,6 +58,8 @@ func _ready() -> void:
 	hide()
 
 func _process(delta: float) -> void:
+	if _argue_mode:
+		return
 	if not _is_showing or _typewriter_index >= _full_text.length():
 		return
 
@@ -161,7 +168,7 @@ func _setup_ui() -> void:
 # ── Drawing ───────────────────────────────────────────────────────────────────
 
 func _draw() -> void:
-	if not _is_showing:
+	if not _is_showing or _argue_mode:
 		return
 
 	var center := get_viewport().get_visible_rect().size / 2.0
@@ -239,6 +246,55 @@ func start_argument(data: Dictionary) -> void:
 
 	print("ArgumentOverlay: started — \"%s\"" % _full_text)
 
+
+## Defender-argue (distract) flash (slice 4): a short loud banner with the
+## taunt and a status line ("CPU distracted!" / "your strikes are muffled!"),
+## then an auto-fade and free. No accusation portraits/results.
+func show_argue(data: Dictionary) -> void:
+	_argue_mode = true
+	_is_showing = true
+	_full_text = data.get("taunt", "")
+	var arguer_id: int = data.get("arguer_id", 1)
+	var stall: float = data.get("stall_seconds", 3.0)
+	var by_player := arguer_id == 1
+
+	_background.color = Color(0.10, 0.06, 0.18, 0.86) if by_player else Color(0.18, 0.08, 0.08, 0.86)
+	_accusation_rich.text = _full_text
+	_accusation_rich.visible = true
+	_accusation_rich.modulate = Color.WHITE
+	_accusation_rich.add_theme_color_override("default_color", Color(1.0, 0.98, 0.9, 1.0))
+	if _status_label == null:
+		_status_label = Label.new()
+		_status_label.name = "ArgueStatus"
+		_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_status_label.add_theme_font_size_override("font_size", 26)
+		_status_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		_status_label.offset_left = -420
+		_status_label.offset_top = 90
+		_status_label.offset_right = 420
+		_status_label.offset_bottom = 150
+		add_child(_status_label)
+
+	_status_label.text = ("CPU DISTRACTED — misses your lines for %.0fs!" % stall) if by_player else ("CPU distracts you — your strikes miss for %.0fs!" % stall)
+	_status_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.55, 1.0))
+	_status_label.show()
+	show()
+	queue_redraw()
+	modulate.a = 1.0
+	var tween := create_tween()
+	tween.tween_interval(1.2)
+	tween.tween_property(self, "modulate:a", 0.0, 0.35)
+	tween.chain().tween_callback(_on_argue_finished)
+	print("ArgumentOverlay: argue \u2014 \"" + _full_text + "\"")
+
+
+## End of the argue display: hide + free (the tween drove the fade).
+func _on_argue_finished() -> void:
+	_argue_mode = false
+	_is_showing = false
+	hide()
+	queue_free()
 
 ## Show the result of the argument.
 ## data: { argument_id, is_true, penalty_applied }

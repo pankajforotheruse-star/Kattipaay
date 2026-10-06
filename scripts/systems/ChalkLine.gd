@@ -87,6 +87,12 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## world and only count as "not surviving" at the end of the search.
 @export var is_struck: bool = false
 
+## Whether this line is a defender SNEAK line (drawn while the CPU searches the
+## player zone in solo VS CPU). Sneak lines count as surviving hidden lines at
+## scoring unless the CPU NOTICES them (penalty: struck out + nearby defender
+## lines auto-struck) or the sweep physically strikes them.
+@export var is_sneak: bool = false
+
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
 
