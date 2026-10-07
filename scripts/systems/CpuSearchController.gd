@@ -79,12 +79,14 @@ func _ready() -> void:
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 	EventBus.on(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
+	EventBus.on(EventBus.EV_GAME_SNEAK_LINE_DRAWN, _on_sneak_line_drawn)
 
 
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
 	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 	EventBus.off(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
+	EventBus.off(EventBus.EV_GAME_SNEAK_LINE_DRAWN, _on_sneak_line_drawn)
 
 
 ## Sweep speed + notice chance are read at every CPU phase start so tests and
@@ -135,6 +137,16 @@ func _on_defender_argue_started(payload: Dictionary) -> void:
 	var stall: float = float(payload.get("stall_seconds", 3.0))
 	_pause_timer = maxf(_pause_timer, stall)
 	print("CpuSearchController: distracted by argue — sweep stalls %.1fs" % stall)
+
+## A sneak line the defender draws mid-phase joins the unresolved set so the
+## proximity roll (and the end-of-sweep roll) can notice it. Without this the
+## CPU can never catch a sneak drawn after the phase started.
+func _on_sneak_line_drawn(payload: Dictionary) -> void:
+	if not _active:
+		return
+	var line_id := int(payload.get("line_id", -1))
+	if line_id >= 0:
+		_unresolved_sneaks[line_id] = true
 
 
 # ── Sweep ────────────────────────────────────────────────────────────────────
