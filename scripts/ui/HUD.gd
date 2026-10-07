@@ -89,6 +89,8 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
     EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
     EventBus.on(EventBus.EV_GAME_LINE_STRUCK, _on_line_struck)
+    EventBus.on(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
+    EventBus.on(EventBus.EV_GAME_SNEAK_NOTICED, _on_sneak_noticed)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
@@ -178,6 +180,8 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
     EventBus.off(EventBus.EV_GAME_LINE_STRUCK, _on_line_struck)
+    EventBus.off(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
+    EventBus.off(EventBus.EV_GAME_SNEAK_NOTICED, _on_sneak_noticed)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
     EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
@@ -631,6 +635,29 @@ func _on_search_phase_started(payload: Dictionary) -> void:
             _silent_sneak_button.hide()
         if _hint_counter_label:
             _hint_counter_label.hide()
+
+
+## Defender-argue banner (slice 4): the argue/distract is visible.
+func _on_defender_argue_started(payload: Dictionary) -> void:
+    if _search_banner_label == null:
+        return
+    var stall: float = float(payload.get("stall_seconds", 3.0))
+    if int(payload.get("target_searcher_id", -1)) == 2:
+        _search_banner_label.text = "ARGUE! - CPU misses your lines for %.0fs" % stall
+    else:
+        _search_banner_label.text = "CPU ARGUES - your strikes miss for %.0fs" % stall
+    _search_banner_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.55, 1.0))
+    _search_banner_label.show()
+
+
+## NOTICED! feedback: the CPU caught a sneak line - penalty struck lines.
+func _on_sneak_noticed(payload: Dictionary) -> void:
+    if _search_banner_label == null:
+        return
+    var penalty_count: int = int(payload.get("penalty_line_ids", []).size())
+    _search_banner_label.text = "NOTICED! CPU caught your sneak - %d line(s) struck" % penalty_count
+    _search_banner_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3, 1.0))
+    _search_banner_label.show()
 
 
 func _on_search_phase_ended(_payload: Dictionary) -> void:

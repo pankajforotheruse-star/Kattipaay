@@ -132,6 +132,8 @@ func register_line_drawn() -> void:
 func _on_line_drawn(payload: Dictionary) -> void:
 	if payload.get("player_id", -1) != InputManager.local_entity_id:
 		return
+	if payload.get("is_sneak", false):
+		return  # sneak lines score only as survivors
 	register_line_drawn()
 
 func _calculate_round_score() -> void:

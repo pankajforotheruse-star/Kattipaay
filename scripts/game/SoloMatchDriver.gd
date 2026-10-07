@@ -203,6 +203,7 @@ func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_LINE_STRUCK, _on_line_struck)
 	# Restore input control (the CPU-search phase locks it).
 	InputManager.touch_to_move_enabled = true
+	InputManager.sneak_draw_enabled = false
 	# The solo session owns the flag: leaving the game world ends solo mode so
 	# a later normal/online match never spawns the bot.
 	GameState.solo_vs_cpu = false
@@ -439,6 +440,7 @@ func _configure_search_scene(searcher: int) -> void:
 			npc.patrolling = false
 			_walk_entity_to(npc, ZoneLayout.DEFEND_POS_CPU)
 		InputManager.touch_to_move_enabled = true  # human controls restored
+		InputManager.sneak_draw_enabled = false
 		if _camera:
 			_camera.clear_overview()
 		if _fog_sys:
@@ -455,6 +457,7 @@ func _configure_search_scene(searcher: int) -> void:
 		if npc is NPC:
 			npc.patrolling = false  # the sweep controller drives the NPC now
 		InputManager.touch_to_move_enabled = false
+		InputManager.sneak_draw_enabled = true  # defender may sneak-extra lines while the CPU sweeps
 		if _camera:
 			_camera.set_overview(Rect2(
 				ZoneLayout.PLAYER_ZONE.position + Vector2(0.0, -40.0),

@@ -467,6 +467,7 @@ func _finish_drawing() -> void:
         "player_id": line.player_id,
         "chalk_type": line.chalk_type,
         "point_count": line.points.size(),
+        "is_sneak": line.is_sneak,
         "compressed_size": compressed_size,
     })
 
