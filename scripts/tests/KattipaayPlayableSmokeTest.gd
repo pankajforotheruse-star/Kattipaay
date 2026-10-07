@@ -758,7 +758,8 @@ func _run_sneak_defender_pass(diff_label: String) -> void:
 		_fail("Sneak line B (%d) did not survive to scoring unstruck+is_sneak (noticed at chance 0.0?)" % sneak_b_id)
 		return
 	var survivors := int(draw_sys.call("get_active_lines").size())
-	var manager_survivors := int(ScoringManager.get_human_surviving_lines())
+	var scoring_mgr: Node = root.get_node_or_null("ScoringManager")
+	var manager_survivors := int(scoring_mgr.call("get_human_surviving_lines")) if scoring_mgr else -1
 	if survivors < 1 or manager_survivors < 1:
 		_fail("Human surviving lines at winner is 0 — sneaks did not count (active=%d scored=%d)" % [survivors, manager_survivors])
 		return

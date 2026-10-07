@@ -48,7 +48,7 @@ func _ready() -> void:
 		if systems:
 			_ghost_sys = systems.get_node_or_null("GhostDrawSystem") as GhostDrawSystem
 			_draw_sys = systems.get_node_or_null("DrawSystem") as DrawSystem
-	_arg_sys = systems.get_node_or_null("ArgumentSystem") as ArgumentSystem
+			_arg_sys = systems.get_node_or_null("ArgumentSystem") as ArgumentSystem
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_input_move_start)
