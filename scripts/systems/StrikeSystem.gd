@@ -33,11 +33,11 @@ var _draw_sys: DrawSystem = null
 var _active: bool = false
 ## True when the HUMAN is the active searcher (so taps strike ghost lines).
 var _human_is_searcher: bool = false
-	## Human strikes muffled for this many seconds (CPU defends + argues).
-	var _argue_muffled: float = 0.0
-	## One-shot per phase: the bot argues at most once while it defends.
-	var _cpu_argue_checked: bool = true
-	var _arg_sys: ArgumentSystem = null
+## Human strikes muffled for this many seconds (CPU defends + argues).
+var _argue_muffled: float = 0.0
+## One-shot per phase: the bot argues at most once while it defends.
+var _cpu_argue_checked: bool = true
+var _arg_sys: ArgumentSystem = null
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
