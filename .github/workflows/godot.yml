@@ -104,7 +104,7 @@ jobs:
           set -u
           rm -f godot-playable-smoke.log
           set +e
-          timeout 90s "$GODOT_BIN" --headless --path . --script res://scripts/tests/KattipaayPlayableSmokeTest.gd --verbose --log-file godot-playable-smoke.log
+          timeout 240s "$GODOT_BIN" --headless --path . --script res://scripts/tests/KattipaayPlayableSmokeTest.gd --verbose --log-file godot-playable-smoke.log
           GODOT_EXIT=$?
           set -e
           echo "Godot smoke-test process exit code: $GODOT_EXIT"

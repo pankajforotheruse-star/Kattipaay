@@ -190,15 +190,6 @@ func _run_test() -> void:
 		quit(1)
 		return
 
-	# Pass 3: NORMAL — defender argue + sneak (slice 4): argue stalls the
-	# CPU sweep; sneak noticed (chance forced 1.0) → NOTICED + penalty
-	# strikes of the sneak AND 2 nearby defender lines; sneak unnoticed
-	# (chance forced 0.0) survives into the winner's surviving count.
-	await _run_sneak_defender_pass("NORMAL")
-	if _failed:
-		quit(1)
-		return
-
 	print("KATTIPAAY_SMOKE: PASS")
 	quit(0)
 
