@@ -38,6 +38,7 @@ var _argument_on_cooldown: bool = false
 var _selected_target_id: int = -1
 var _is_searching: bool = false
 var _argument_overlay: ArgumentOverlay = null
+var _argue_button: Button = null           # slice-4: human defender ARGUE (CPU search phase)
 
 # ── Hint Trap UI Elements ────────────────────────────────────────────────────
 
@@ -125,6 +126,7 @@ func _ready() -> void:
     _create_timer_label()
     _create_chalk_label()
     _create_argument_button()
+    _create_argue_button()
     _create_silent_sneak_button()
     _create_hint_counter_label()
     _create_spectator_button()
@@ -320,6 +322,95 @@ func _start_pulse_animation() -> void:
     _argument_pulse_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
     _argument_pulse_tween.tween_property(_argument_button, "scale", Vector2(1.0, 1.0), 0.6)
     _argument_pulse_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+# ── Defender ARGUE Button (slice 4) ─────────────────────────────────────────────
+
+## The human defender's one tool while the CPU searches their zone: stalls the
+## CPU sweep for chalk_gaon/solo_argue_stall_seconds so it misses lines. Calls
+## ArgumentSystem.request_defender_argue(local) - the system enforces the
+## SEARCHING + defender + per-phase use-cap rules. Bottom-right, above where
+## the legacy ACCUSE button used to sit.
+func _create_argue_button() -> void:
+    _argue_button = Button.new()
+    _argue_button.name = "ArgueButton"
+    _argue_button.text = "ARGUE"
+    _argue_button.add_theme_font_size_override("font_size", 22)
+    _argue_button.custom_minimum_size = Vector2(180, 64)
+
+    _argue_button.anchors_preset = -1
+    _argue_button.anchor_left = 1.0
+    _argue_button.anchor_right = 1.0
+    _argue_button.anchor_top = 1.0
+    _argue_button.anchor_bottom = 1.0
+    _argue_button.offset_left = -200
+    _argue_button.offset_top = -260
+    _argue_button.offset_right = -20
+    _argue_button.offset_bottom = -196
+
+    # Style: terracotta, same family as the legacy accuse button.
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color(0.8, 0.42, 0.29, 0.9)
+    style.corner_radius_top_left = 12
+    style.corner_radius_top_right = 12
+    style.corner_radius_bottom_left = 12
+    style.corner_radius_bottom_right = 12
+    style.border_width_left = 2
+    style.border_width_right = 2
+    style.border_width_top = 2
+    style.border_width_bottom = 2
+    style.border_color = Color(0.9, 0.55, 0.4, 1.0)
+    _argue_button.add_theme_stylebox_override("normal", style)
+
+    var hover_style := style.duplicate() as StyleBoxFlat
+    hover_style.bg_color = Color(0.85, 0.48, 0.35, 0.95)
+    _argue_button.add_theme_stylebox_override("hover", hover_style)
+
+    var pressed_style := style.duplicate() as StyleBoxFlat
+    pressed_style.bg_color = Color(0.7, 0.35, 0.22, 1.0)
+    _argue_button.add_theme_stylebox_override("pressed", pressed_style)
+
+    var disabled_style := style.duplicate() as StyleBoxFlat
+    disabled_style.bg_color = Color(0.4, 0.35, 0.3, 0.5)
+    _argue_button.add_theme_stylebox_override("disabled", disabled_style)
+
+    _argue_button.add_theme_color_override("font_color", Color.WHITE)
+    _argue_button.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85, 1.0))
+    _argue_button.add_theme_color_override("font_pressed_color", Color(0.9, 0.85, 0.75, 1.0))
+    _argue_button.add_theme_color_override("font_disabled_color", Color(0.6, 0.6, 0.6, 0.6))
+
+    _argue_button.pressed.connect(_on_argue_pressed)
+    _argue_button.hide()
+    add_child(_argue_button)
+
+
+## Reset the ARGUE button to the live per-phase state (use-cap from
+## ArgumentSystem) and show it. Called when the CPU-search phase begins.
+func _refresh_argue_button() -> void:
+    if _argue_button == null:
+        return
+    _argue_button.show()
+    var arg_sys := _get_argument_system()
+    if arg_sys and arg_sys.has_argued(InputManager.local_entity_id):
+        _argue_button.disabled = true
+        _argue_button.text = "ARGUED \u2713"
+        _argue_button.modulate = Color(0.6, 0.6, 0.6, 0.8)
+    else:
+        _argue_button.disabled = false
+        _argue_button.text = "ARGUE"
+        _argue_button.modulate = Color.WHITE
+
+
+func _on_argue_pressed() -> void:
+    var arg_sys := _get_argument_system()
+    if not arg_sys:
+        _update_info("Argument system unavailable")
+        return
+    var ok: bool = arg_sys.request_defender_argue(InputManager.local_entity_id)
+    if ok:
+        _update_info("ARGUE! The CPU misses your lines for a few seconds.")
+    else:
+        _update_info("ARGUE only works while the CPU searches your zone (once per phase).")
+
 
 # ── Silent Sneak Button ───────────────────────────────────────────────────────
 
@@ -523,14 +614,17 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     if to_state == GameState.MatchState.DRAWING:
         _update_info("DRAW: hold LEFT mouse button and drag to draw your chalk lines.")
     elif to_state == GameState.MatchState.SEARCHING:
-        _update_info("SEARCH: left-click / drag to move and find the ghost lines. Tap ACCUSE to accuse.")
+        _update_info("SEARCH: left-click / drag to move; tap revealed ghost lines to strike them out.")
 
     # Toggle argument button visibility
     if to_state == GameState.MatchState.SEARCHING:
         _is_searching = true
+        # The legacy ACCUSE button is hidden in real matches (slice 3: search
+        # is tap-to-strike, accusation only exists for the tutorial shim).
         if _argument_button:
-            _argument_button.show()
-            _start_pulse_animation()
+            _argument_button.hide()
+        if _argue_button:
+            _argue_button.hide()  # phase event decides; defender may not be human
         if _hint_counter_label:
             _hint_counter_label.show()
         if _silent_sneak_button:
@@ -540,6 +634,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         _is_searching = false
         if _argument_button:
             _argument_button.hide()
+        if _argue_button:
+            _argue_button.hide()
         if _hint_counter_label:
             _hint_counter_label.hide()
         if _silent_sneak_button:
@@ -620,25 +716,35 @@ func _on_search_phase_started(payload: Dictionary) -> void:
             _search_banner_label.text = "CPU IS SEARCHING - protect your lines!"
         _search_banner_label.show()
     if searcher == 1:
-        # The human searcher keeps the ACCUSE / Sneak / hint UI.
+        # The human searcher keeps the Sneak / hint UI (tap-strike, no ACCUSE).
         if _argument_button:
-            _argument_button.show()
+            _argument_button.hide()
+        if _argue_button:
+            _argue_button.hide()  # human is the searcher, not the defender
         if _silent_sneak_button:
             _silent_sneak_button.show()
         if _hint_counter_label:
             _hint_counter_label.show()
     else:
-        # The defender watches the CPU strike their lines live - no accuse UI.
+        # The CPU searches the HUMAN zone: the human is the defender - the
+        # ARGUE button is the defender's one tool (calls request_defender_argue).
         if _argument_button:
             _argument_button.hide()
+        if _argue_button:
+            _refresh_argue_button()
         if _silent_sneak_button:
-            _silent_sneak_button.hide()
+            _silent_sneak_button.show()
         if _hint_counter_label:
             _hint_counter_label.hide()
 
 
 ## Defender-argue banner (slice 4): the argue/distract is visible.
 func _on_defender_argue_started(payload: Dictionary) -> void:
+    # Once the human defender argued, the button reflects the used state.
+    if _argue_button and int(payload.get("arguer_id", -1)) == InputManager.local_entity_id:
+        _argue_button.disabled = true
+        _argue_button.text = "ARGUED \u2713"
+        _argue_button.modulate = Color(0.6, 0.6, 0.6, 0.8)
     if _search_banner_label == null:
         return
     var stall: float = float(payload.get("stall_seconds", 3.0))
