@@ -37,6 +37,9 @@ func _ready() -> void:
 	_setup_initial_state()
 	EventBus.on(EventBus.EV_NETWORK_MATCH_FOUND, _on_match_found)
 
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_NETWORK_MATCH_FOUND, _on_match_found)
+
 func _connect_signals() -> void:
 	if _cancel_btn: _cancel_btn.pressed.connect(_on_cancel)
 	if _bots_btn: _bots_btn.pressed.connect(_on_start_with_bots)

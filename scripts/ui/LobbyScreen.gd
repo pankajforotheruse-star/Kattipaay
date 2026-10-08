@@ -46,6 +46,11 @@ func _ready() -> void:
 	EventBus.on(EventBus.EV_NETWORK_PLAYER_LEFT, _on_player_left)
 	EventBus.on(EventBus.EV_NETWORK_PLAYER_READY_CHANGED, _on_player_ready_changed)
 
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_NETWORK_PLAYER_JOINED, _on_player_joined)
+	EventBus.off(EventBus.EV_NETWORK_PLAYER_LEFT, _on_player_left)
+	EventBus.off(EventBus.EV_NETWORK_PLAYER_READY_CHANGED, _on_player_ready_changed)
+
 func _connect_signals() -> void:
 	if _back_btn: _back_btn.pressed.connect(_on_back)
 	if _ready_toggle_btn: _ready_toggle_btn.pressed.connect(_on_toggle_ready)

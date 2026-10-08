@@ -36,6 +36,10 @@ func _ready() -> void:
 	if GameState.solo_vs_cpu:
 		_spawn_solo_match()
 
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_GAME_ENTITY_REGISTER, _on_entity_register)
+	EventBus.off(EventBus.EV_GAME_ENTITY_UNREGISTER, _on_entity_unregister)
+
 ## Scan the scene tree for Entity nodes and register them.
 func _register_existing_entities() -> void:
 	var entities_container := get_node_or_null("Entities")
