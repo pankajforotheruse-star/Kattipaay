@@ -84,6 +84,11 @@ const CLUSTER_START := Vector2(120.0, 90.0)
 const CLUSTER_STRIDE := 70.0
 const DECAY_PROBE_START := Vector2(2330.0, 60.0)
 const DECAY_PROBE_DURATION := 8.6
+# Pass 3 (slice 4): the defender's anchor cluster + sneak strokes. The 3
+# anchor lines sit ~70-160px apart so the CPU's nearest-first sweep always
+# passes within NOTICE_RADIUS (170px) of a sneak line drawn on the cluster
+# whatever side of the zone the CPU starts from.
+const SNEAK_ANCHOR := Vector2(160.0, 130.0)
 
 var _failed := false
 var _game_state: Node = null
@@ -97,6 +102,11 @@ var _saw_human_line_drawn := false
 var _saw_line_struck_human := false  # EV_GAME_LINE_STRUCK with is_ghost=false
 var _last_struck_remaining := -1
 var _last_struck_line_id := -1
+var _saw_argue_started := false
+var _saw_sneak_noticed := false
+var _sneak_noticed_payload: Dictionary = {}
+var _sneak_line_ids: Array = []
+var _saw_sneak_meter := false
 
 func _initialize() -> void:
 	call_deferred("_run_test")
@@ -114,11 +124,13 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_max_seconds", 4.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_coin_result_hold_seconds", 1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_flip_duration", 0.5)
-	ProjectSettings.set_setting("chalk_gaon/solo_search_phase_seconds", 2.0)
+	ProjectSettings.set_setting("chalk_gaon/solo_search_phase_seconds", 5.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_early_exit_grace_seconds", 0.5)
 	ProjectSettings.set_setting("chalk_gaon/solo_empty_phase_grace_seconds", 0.5)
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 420.0)  # restored per-pass for the sneak pass
 	ProjectSettings.set_setting("chalk_gaon/solo_winner_hold_seconds", 1.0)
-	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=2 winner_hold=1")
+	ProjectSettings.set_setting("chalk_gaon/solo_argue_stall_seconds", 1.0)
+	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=5 winner_hold=1 argue_stall=1")
 
 	if change_scene_to_file(MAIN_SCENE) != OK:
 		_fail("Unable to load main scene")
@@ -140,6 +152,10 @@ func _run_test() -> void:
 	_event_bus.call("on", "game.search_phase_started", Callable(self, "_on_phase_started"))
 	_event_bus.call("on", "game.line_drawn", Callable(self, "_on_line_drawn"))
 	_event_bus.call("on", "game.line_struck", Callable(self, "_on_line_struck"))
+	_event_bus.call("on", "game.defender_argue_started", Callable(self, "_on_defender_argue_started"))
+	_event_bus.call("on", "game.sneak_line_drawn", Callable(self, "_on_sneak_line_drawn"))
+	_event_bus.call("on", "game.sneak_meter_changed", Callable(self, "_on_sneak_meter_changed"))
+	_event_bus.call("on", "game.sneak_noticed", Callable(self, "_on_sneak_noticed"))
 
 	await _wait_for_top_state(TopState.MAIN_MENU, MAX_STARTUP_SECONDS, "MAIN_MENU")
 	if _failed:
@@ -161,6 +177,15 @@ func _run_test() -> void:
 
 	# ── Pass 2: EASY — ghost lines must exist before the search (MAJOR-2).
 	await _run_match_pass("EASY", false)
+	if _failed:
+		quit(1)
+		return
+
+	# ── Pass 3: NORMAL — defender argue + sneak (slice 4): argue stalls the
+	# ── CPU sweep; sneak noticed (chance forced 1.0) → NOTICED + penalty
+	# ── strikes of the sneak AND 2 nearby defender lines; sneak unnoticed
+	# ── (chance forced 0.0) survives into the winner's surviving count.
+	await _run_sneak_defender_pass("NORMAL")
 	if _failed:
 		quit(1)
 		return
@@ -518,6 +543,229 @@ func _cpu_phase_started() -> bool:
 	if _seen_phases.size() >= 2 and int(_seen_phases[1].get("searcher", -1)) == GHOST_ID:
 		return true
 	return false
+
+
+func _on_defender_argue_started(payload) -> void:
+	_saw_argue_started = true
+	if payload != null:
+		print("KATTIPAAY_SMOKE: ARGUE_EVENT arguer=%d target=%d stall=%.1f" % [
+			int(payload.get("arguer_id", -1)), int(payload.get("target_searcher_id", -1)),
+			float(payload.get("stall_seconds", 0.0))])
+
+
+func _on_sneak_line_drawn(payload) -> void:
+	if payload == null:
+		return
+	_sneak_line_ids.append(int(payload.get("line_id", -1)))
+
+
+func _on_sneak_meter_changed(_payload) -> void:
+	_saw_sneak_meter = true
+
+
+func _on_sneak_noticed(payload) -> void:
+	_saw_sneak_noticed = true
+	_sneak_noticed_payload = payload if payload is Dictionary else {}
+
+
+func _wait_seconds(seconds: float) -> void:
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+
+## Pass 3 (slice 4) — defender argue + sneak, one full match:
+##   (1) while the CPU searches the human's zone, the human argues → argue
+##       event + the CPU sweep stalls (_pause_timer >= stall, no strikes
+##       during the stall) + the one-use-per-phase cap holds;
+##   (2) sneak A drawn next to the anchor lines with the notice chance FORCED
+##       to 1.0 → EV_GAME_SNEAK_NOTICED fires and the penalty strikes the
+##       sneak AND the 2 nearest defender lines (active drops by 3);
+##   (3) sneak B drawn with the chance FORCED to 0.0 → the CPU's sweep and
+##       its end-of-sweep scan pass it → it stays active and appears in the
+##       winner's surviving-lines total (unstruck, is_sneak=true).
+func _run_sneak_defender_pass(diff_label: String) -> void:
+	# Fresh per-pass observation state.
+	_seen_match_states.clear()
+	_coin_searcher = -1
+	_coin_human_first = false
+	_seen_phases.clear()
+	_human_line_ids.clear()
+	_saw_human_line_drawn = false
+	_saw_line_struck_human = false
+	_last_struck_remaining = -1
+	_last_struck_line_id = -1
+	_saw_argue_started = false
+	_saw_sneak_noticed = false
+	_sneak_noticed_payload = {}
+	_sneak_line_ids.clear()
+	_saw_sneak_meter = false
+
+	# THIS pass only: fast sweep + guaranteed notice (the per-line chance is
+	# read live from ProjectSettings at each roll; 0.0 is forced later).
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 700.0)
+	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", 1.0)
+
+	print("KATTIPAAY_SMOKE: PASS_START difficulty=%s slice4-defender(SNEAK)" % diff_label)
+
+	var home: Node = current_scene
+	if home == null or home.name != "HomeScreen":
+		_fail("Expected HomeScreen at pass start, got %s" % (home.name if home else "null"))
+		return
+	var play_cpu := home.get_node_or_null("%PlayVsCPUButton") as Button
+	if play_cpu == null:
+		_fail("PlayVsCPUButton not found on HomeScreen")
+		return
+	play_cpu.pressed.emit()
+	await _settle_frames()
+	var picker := home.get_node_or_null("DifficultyPicker")
+	if picker == null:
+		_fail("DifficultyPicker was not created by Play vs CPU")
+		return
+	var diff_button := _find_button_with_text(picker, diff_label)
+	if diff_button == null:
+		_fail("%s difficulty button not found" % diff_label)
+		return
+	diff_button.pressed.emit()
+	await _wait_for_top_state(TopState.PLAYING, MAX_PLAYING_SECONDS, "PLAYING")
+	if _failed:
+		return
+	await _wait_for_scene("GameWorld", 5.0)
+	if _failed:
+		return
+	var world: Node = current_scene
+	var draw_sys: Node = world.get_node_or_null("Systems/DrawSystem")
+	var arg_sys: Node = world.get_node_or_null("Systems/ArgumentSystem")
+	if draw_sys == null:
+		_fail("Systems/DrawSystem not found in GameWorld")
+		return
+	if arg_sys == null:
+		_fail("Systems/ArgumentSystem not found in GameWorld")
+		return
+
+	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
+	if _failed:
+		return
+	# 3 close anchor lines: the CPU's nearest-first sweep targets this cluster
+	# from anywhere in its zone, and the 240px penalty radius turns 2 of them
+	# into penalty fodder when sneak A is noticed.
+	for i in range(3):
+		var base := SNEAK_ANCHOR + Vector2(60.0 * float(i), 30.0 * float(i))
+		await _draw_human_stroke(base, base + Vector2(40.0, 70.0))
+		await _settle_frames()
+	if _human_line_ids.size() != 3:
+		_fail("Expected 3 human-drawn anchor lines in the sneak pass, got %d" % _human_line_ids.size())
+		return
+	print("KATTIPAAY_SMOKE: SLICE4_ANCHOR_LINES_DRAWN ids=%s" % str(_human_line_ids))
+
+	await _wait_for_match_state(MatchState.MEETING, MAX_DRAWING_SECONDS, "MEETING")
+	if _failed:
+		return
+	await _wait_until(func() -> bool: return _coin_searcher >= 1, MAX_MEETING_SECONDS, "COIN_DECIDED")
+	if _failed:
+		return
+	await _wait_for_match_state(MatchState.SEARCHING, MAX_MEETING_SECONDS, "SEARCHING")
+	if _failed:
+		return
+
+	# Wait for the CPU's search phase (phase 1 or 2 — the coin decides) and
+	# run the argue + sneak choreography inside it.
+	await _wait_until(Callable(self, "_cpu_phase_started"), MAX_SEARCH_SECONDS, "CPU_SEARCH_PHASE")
+	if _failed:
+		return
+	var cpu_sweep: Node = world.get_node_or_null("SoloMatchDriver/CpuSearchController")
+	if cpu_sweep == null:
+		_fail("CpuSearchController not found")
+		return
+
+	# ── (1) argue: valid only for the defender once per phase ──
+	var argued_ok: bool = bool(arg_sys.call("request_defender_argue", 1))
+	if not argued_ok:
+		_fail("request_defender_argue(1) returned false during the CPU search phase")
+		return
+	await _wait_until(func() -> bool: return _saw_argue_started, 2.0, "EV_GAME_DEFENDER_ARGUE_STARTED")
+	if _failed:
+		return
+	var stall_left: float = float(cpu_sweep.get("_pause_timer"))
+	if stall_left < 0.8:
+		_fail("Argue did not stall the CPU sweep (_pause_timer=%.2f < 0.8)" % stall_left)
+		return
+	var c0 := int(draw_sys.call("get_active_lines").size())
+	await _wait_seconds(0.6)
+	if int(draw_sys.call("get_active_lines").size()) != c0:
+		_fail("CPU swept during the argue stall (active %d -> %d)" % [c0, int(draw_sys.call("get_active_lines").size())])
+		return
+	if bool(arg_sys.call("request_defender_argue", 1)):
+		_fail("Arguing twice in one defender phase was allowed (use-cap broken)")
+		return
+	print("KATTIPAAY_SMOKE: SLICE4_ARGUE_STALL_OK stall=%.1f active_held=%d" % [stall_left, c0])
+
+	# ── (2a) sneak A, chance forced 1.0 → NOTICED + penalty ──
+	var before_notice := int(draw_sys.call("get_active_lines").size())
+	await _draw_human_stroke(SNEAK_ANCHOR + Vector2(18.0, 6.0), SNEAK_ANCHOR + Vector2(44.0, 26.0))
+	await _settle_frames()
+	var sneak_a_id := int(_sneak_line_ids[-1]) if _sneak_line_ids.size() > 0 else -1
+	if sneak_a_id < 0:
+		_fail("Sneak line A was not registered (EV_GAME_SNEAK_LINE_DRAWN)")
+		return
+	if not _saw_sneak_meter:
+		_fail("No EV_GAME_SNEAK_METER_CHANGED observed after the sneak draw")
+		return
+	await _wait_until(func() -> bool: return _saw_sneak_noticed, 8.0, "EV_GAME_SNEAK_NOTICED")
+	if _failed:
+		return
+	var penalty_ids: Array = _sneak_noticed_payload.get("penalty_line_ids", [])
+	if not penalty_ids.has(sneak_a_id):
+		_fail("NOTICED penalty payload missing the sneak line %d: %s" % [sneak_a_id, str(penalty_ids)])
+		return
+	if penalty_ids.size() < 3:
+		_fail("NOTICED penalty struck %d line(s), expected sneak + 2 defender lines: %s" % [penalty_ids.size(), str(penalty_ids)])
+		return
+	var active_after_notice := int(draw_sys.call("get_active_lines").size())
+	if active_after_notice != before_notice - 3:
+		_fail("After NOTICED penalty active went %d -> %d (expected %d)" % [before_notice, active_after_notice, before_notice - 3])
+		return
+	print("KATTIPAAY_SMOKE: SLICE4_SNEAK_NOTICED_OK sneak=%d penalty=%d active=%d->%d" % [sneak_a_id, penalty_ids.size(), before_notice, active_after_notice])
+
+	# ── (2b) sneak B, chance forced 0.0 → passes unseen, survives ──
+	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", 0.0)
+	await _draw_human_stroke(SNEAK_ANCHOR + Vector2(238.0, 76.0), SNEAK_ANCHOR + Vector2(264.0, 96.0))
+	await _settle_frames()
+	var sneak_b_id := int(_sneak_line_ids[-1]) if _sneak_line_ids.size() > 0 else -1
+	print("KATTIPAAY_SMOKE: SLICE4_SNEAK_B_DRAWN id=%d (chance forced 0.0)" % sneak_b_id)
+
+	# The round finishes on its own clocks; B must be in the surviving count.
+	await _wait_for_seen_match_state(MatchState.WINNER, 20.0, "WINNER")
+	if _failed:
+		return
+	var active_lines: Array = draw_sys.call("get_active_lines")
+	var b_alive := false
+	var b_sneak := false
+	for line in active_lines:
+		if int(line.get("id")) == sneak_b_id:
+			b_alive = not bool(line.get("is_struck"))
+			b_sneak = bool(line.get("is_sneak"))
+			break
+	if not b_alive or not b_sneak:
+		_fail("Sneak line B (%d) did not survive to scoring unstruck+is_sneak (noticed at chance 0.0?)" % sneak_b_id)
+		return
+	var survivors := int(draw_sys.call("get_active_lines").size())
+	var scoring_mgr: Node = root.get_node_or_null("ScoringManager")
+	var manager_survivors := int(scoring_mgr.call("get_human_surviving_lines")) if scoring_mgr else -1
+	if survivors < 1 or manager_survivors < 1:
+		_fail("Human surviving lines at winner is 0 — sneaks did not count (active=%d scored=%d)" % [survivors, manager_survivors])
+		return
+	print("KATTIPAAY_SMOKE: SLICE4_SNEAK_SURVIVED_OK sneak=%d survivors=%d scored=%d" % [sneak_b_id, survivors, manager_survivors])
+
+	await _wait_for_seen_match_state(MatchState.RETURN_TO_LOBBY, 6.0, "RETURN_TO_LOBBY")
+	if _failed:
+		return
+	await _wait_for_top_state(TopState.MAIN_MENU, 8.0, "MAIN_MENU_AFTER_MATCH")
+	if _failed:
+		return
+	await _wait_for_scene("HomeScreen", 3.0)
+	if _failed:
+		return
+	print("KATTIPAAY_SMOKE: PASS_DONE difficulty=%s slice4" % diff_label)
 
 
 func _opponent_of(entity_id: int) -> int:

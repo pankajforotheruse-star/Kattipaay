@@ -33,6 +33,11 @@ var _draw_sys: DrawSystem = null
 var _active: bool = false
 ## True when the HUMAN is the active searcher (so taps strike ghost lines).
 var _human_is_searcher: bool = false
+## Human strikes muffled for this many seconds (CPU defends + argues).
+var _argue_muffled: float = 0.0
+## One-shot per phase: the bot argues at most once while it defends.
+var _cpu_argue_checked: bool = true
+var _arg_sys: ArgumentSystem = null
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -43,15 +48,18 @@ func _ready() -> void:
 		if systems:
 			_ghost_sys = systems.get_node_or_null("GhostDrawSystem") as GhostDrawSystem
 			_draw_sys = systems.get_node_or_null("DrawSystem") as DrawSystem
+			_arg_sys = systems.get_node_or_null("ArgumentSystem") as ArgumentSystem
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_input_move_start)
+	EventBus.on(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
 
 
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
 	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 	EventBus.off(EventBus.EV_INPUT_MOVE_START, _on_input_move_start)
+	EventBus.off(EventBus.EV_GAME_DEFENDER_ARGUE_STARTED, _on_defender_argue_started)
 
 
 # ── Event handlers ───────────────────────────────────────────────────────────
@@ -59,6 +67,8 @@ func _exit_tree() -> void:
 func _on_search_phase_started(payload: Dictionary) -> void:
 	_active = true
 	_human_is_searcher = int(payload.get("searcher", -1)) == 1
+	_argue_muffled = 0.0
+	_cpu_argue_checked = false
 
 
 func _on_search_phase_ended(_payload: Dictionary) -> void:
@@ -69,8 +79,35 @@ func _on_search_phase_ended(_payload: Dictionary) -> void:
 func _on_input_move_start(payload: Dictionary) -> void:
 	if not _active or not _human_is_searcher:
 		return
+	if _argue_muffled > 0.0:
+		return  # muffled by the CPU's argue
 	var screen_pos: Vector2 = payload.get("screen_position", Vector2.ZERO)
 	try_strike_at(InputManager.screen_to_world(screen_pos), HUMAN_STRIKE_RADIUS)
+
+
+func _process(delta: float) -> void:
+	if _argue_muffled > 0.0:
+		_argue_muffled = maxf(_argue_muffled - delta, 0.0)
+	if not _active or _human_is_searcher or _cpu_argue_checked:
+		return
+	_cpu_argue_checked = true
+	if _arg_sys == null or _arg_sys.has_argued(2):
+		return
+	# The bot argues once while IT defends (the human searches its zone),
+	# with chalk_gaon/cpu_argue_chance (read live for tests/tuning).
+	if randf() < float(ProjectSettings.get_setting("chalk_gaon/cpu_argue_chance", 0.5)):
+		_arg_sys.request_defender_argue(2)
+
+
+## The CPU defender argues: the human searcher's strikes are muffled
+## for stall_seconds (miss everything while the bot distracts).
+func _on_defender_argue_started(payload: Dictionary) -> void:
+	if not _active or not _human_is_searcher:
+		return
+	if int(payload.get("target_searcher_id", -1)) != 1:
+		return
+	_argue_muffled = float(payload.get("stall_seconds", 3.0))
+	print("StrikeSystem: CPU argues — human strikes muffled for %.1fs" % _argue_muffled)
 
 
 # ── Public API ───────────────────────────────────────────────────────────────

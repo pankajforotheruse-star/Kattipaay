@@ -19,6 +19,12 @@ extends Node
 ## In future: can switch to joystick mode.
 var touch_to_move_enabled: bool = true
 
+## Defender SNEAK mode (solo VS CPU slice 4): while true, the FIRST finger draws
+## a sneak line (one-finger tap-draw, like the DRAWING phase) instead of moving.
+## Enabled only during the CPU's search of the player zone (the defender stays
+## in stance - movement stays locked via touch_to_move_enabled = false).
+var sneak_draw_enabled: bool = false
+
 ## Entity ID of the local player (set by GameWorld when player spawns).
 var local_entity_id: int = 1
 
@@ -81,7 +87,7 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not touch_to_move_enabled:
+	if not touch_to_move_enabled and not sneak_draw_enabled:
 		return
 
 	# MEETING input lockdown: both sides are assembled at the alley and only
@@ -114,8 +120,9 @@ func _input(event: InputEvent) -> void:
 				if Input.is_key_pressed(KEY_CTRL):
 					# Ctrl+Click = drawing finger
 					_handle_mouse_draw_start(event.position)
-				elif _is_drawing_state():
-					# In the DRAWING phase: left-hold-drag draws chalk, the intuitive
+				elif _is_drawing_state() or sneak_draw_enabled:
+					# In the DRAWING phase (or the defender SNEAK phase):
+					# left-hold-drag draws chalk, the intuitive
 					# desktop control (no hidden right-click/two-finger required).
 					_handle_mouse_draw_start(event.position)
 				else:
@@ -147,6 +154,18 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 		"position": screen_pos,
 		"start_time": Time.get_ticks_msec() / 1000.0,
 	}
+
+	if sneak_draw_enabled and _draw_touch_index == -1 and index != _anchor_touch_index:
+		# Defender sneak: the FIRST finger draws (one-finger tap-draw during the
+		# defender phase - no anchor finger, the defender never moves).
+		_draw_touch_index = index
+		var world_pos := screen_to_world(screen_pos)
+		EventBus.emit(EventBus.EV_INPUT_DRAW_START, {
+			"entity_id": local_entity_id,
+			"position": world_pos,
+			"chalk_type": current_chalk_type,
+		})
+		return
 
 	if _anchor_touch_index == -1:
 		# First finger → anchor (movement)
@@ -252,8 +271,9 @@ func _handle_mouse_anchor_end(_screen_pos: Vector2) -> void:
 
 
 func _handle_mouse_draw_start(screen_pos: Vector2) -> void:
-	if not _mouse_is_anchor:
-		# Auto-start anchor if drawing without anchor (convenience for desktop)
+	if not _mouse_is_anchor and not sneak_draw_enabled:
+		# Auto-start anchor if drawing without anchor (convenience for desktop).
+		# The defender sneak phase skips this: the defender never moves.
 		_mouse_is_anchor = true
 		EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
 			"entity_id": local_entity_id,

@@ -43,6 +43,15 @@ solo_early_exit_grace_seconds=1.0
 solo_empty_phase_grace_seconds=1.0
 solo_winner_hold_seconds=3.0
 cpu_sweep_speed=420.0
+; Defender argue/distract + sneak (slice 4, R6): the defender can argue once per
+; phase (stalls the CPU's sweep) and sneak-draw extra lines while the CPU
+; searches; the CPU notices sneaks probabilistically (chance per difficulty,
+; override -1 = per-difficulty default).
+solo_argue_stall_seconds=3.0
+solo_argue_uses_per_phase=1
+cpu_argue_chance=0.5
+solo_sneak_max_lines=3
+cpu_sneak_notice_chance=-1.0
 [importer_defaults]
 texture={
 "compress/mode": 2,

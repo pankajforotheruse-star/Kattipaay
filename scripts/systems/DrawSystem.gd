@@ -145,6 +145,19 @@ var _last_undo_time: float = -UNDO_COOLDOWN
 ## Time spent drawing current stroke (for chalk consumption tracking).
 var _current_stroke_duration: float = 0.0
 
+# --- Defender SNEAK state (slice 4: solo VS CPU - the CPU searches the player
+# zone; the defender may sneak extra lines) ---
+
+## When true, newly drawn lines are tagged SNEAK and clamped to the player
+## zone. Enabled only while a solo CPU-searcher phase is active.
+var sneak_mode: bool = false
+
+## Max sneak lines per defender phase (chalk_gaon/solo_sneak_max_lines).
+var sneak_max_lines: int = 3
+
+## Sneak lines drawn this defender phase (reset on every search phase start).
+var _sneak_lines_used: int = 0
+
 
 # =============================================================================
 # LIFECYCLE
@@ -166,6 +179,11 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
     EventBus.on(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
     EventBus.on(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4: fake-hint chalk cost
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
+
+    # Defender sneak cap (slice 4): chalk_gaon/solo_sneak_max_lines, min 0.
+    sneak_max_lines = maxi(int(ProjectSettings.get_setting("chalk_gaon/solo_sneak_max_lines", 3)), 0)
 
     # --- Find GameWorld ---
     _game_world = get_tree().current_scene as Node2D
@@ -209,6 +227,8 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_MATCH_DRAWING_STARTED, _on_match_drawing_started)
     EventBus.off(EventBus.EV_GAME_CHALK_EXHAUSTED, _on_chalk_exhausted)
     EventBus.off(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
 
 
 func _process(delta: float) -> void:
@@ -247,6 +267,10 @@ func _process(delta: float) -> void:
 ## Called when the second finger touches down while the first is held (draw gesture starts).
 ## payload: {entity_id: int, position: Vector2 (world-space), chalk_type: int}
 func _on_draw_start(payload: Dictionary) -> void:
+    # Defender sneak cap: no more sneak lines this defender phase (the slider
+    # limit means the mechanic can never be spammed forever).
+    if sneak_mode and _sneak_lines_used >= sneak_max_lines:
+        return
     if _chalk_exhausted or _match_time_exceeded:
         return
     if _active_lines.size() >= MAX_ACTIVE_LINES:
@@ -270,7 +294,7 @@ func _on_draw_start(payload: Dictionary) -> void:
     # zone - stroke samples are clamped into the zone rect (bounds blocking).
     # No clamp in other states, so the tutorial (match sub-state is SEARCHING)
     # keeps drawing exactly as before.
-    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+    if GameState.get_match_state() == GameState.MatchState.DRAWING or sneak_mode:
         pos = ZoneLayout.clamp_to_player_zone(pos)
     _raw_draw_points.append(pos)
     _raw_draw_widths.append(_compute_width(pos, pos, 0.016))  # initial width = base width
@@ -288,7 +312,7 @@ func _on_draw_update(payload: Dictionary) -> void:
         return
 
     var pos: Vector2 = payload.get("position", Vector2.ZERO)
-    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+    if GameState.get_match_state() == GameState.MatchState.DRAWING or sneak_mode:
         pos = ZoneLayout.clamp_to_player_zone(pos)
     var last_pos := _raw_draw_points[-1] if _raw_draw_points.size() > 0 else pos
 
@@ -392,6 +416,7 @@ func _finish_drawing() -> void:
     line.widths = smoothed_widths
     line.chalk_type = _current_chalk_type
     line.player_id = _drawing_entity_id
+    line.is_sneak = sneak_mode
     line.created_at = Time.get_ticks_msec()
     line.decay_duration = ChalkLine.DECAY_DURATIONS[_current_chalk_type]
     line.id = -1  # Will be assigned by server/host or locally
@@ -442,8 +467,18 @@ func _finish_drawing() -> void:
         "player_id": line.player_id,
         "chalk_type": line.chalk_type,
         "point_count": line.points.size(),
+        "is_sneak": line.is_sneak,
         "compressed_size": compressed_size,
     })
+
+    if line.is_sneak:
+        _sneak_lines_used += 1
+        EventBus.emit(EventBus.EV_GAME_SNEAK_LINE_DRAWN, {
+            "line_id": line.id,
+            "sneak_used": _sneak_lines_used,
+            "sneak_max": sneak_max_lines,
+        })
+        _emit_sneak_meter()
 
     _drawing_entity_id = -1
     print("DrawSystem: line %d drawn — %d pts, %d bytes compressed" % [line.id, smoothed.size(), compressed_size])
@@ -949,6 +984,52 @@ func _emit_chalk_meter_if_changed() -> void:
             "remaining_percent": pct,
             "remaining_chalk": _chalk_remaining,
         })
+
+
+# =============================================================================
+# DEFENDER SNEAK (slice 4)
+# =============================================================================
+
+## Search phase boundaries enable/disable the defender sneak window: when the
+## CPU is the active searcher in a solo match, the human defender may sneak
+## extra lines (tagged is_sneak, counted as surviving lines at scoring).
+func _on_search_phase_started(payload: Dictionary) -> void:
+    var searcher: int = payload.get("searcher", -1)
+    sneak_mode = GameState.solo_vs_cpu and searcher == 2
+    _sneak_lines_used = 0
+    _emit_sneak_meter()
+
+
+func _on_search_phase_ended(_payload: Dictionary) -> void:
+    sneak_mode = false
+    _sneak_lines_used = 0
+    _emit_sneak_meter()
+
+
+func _emit_sneak_meter() -> void:
+    EventBus.emit(EventBus.EV_GAME_SNEAK_METER_CHANGED, {
+        "used": _sneak_lines_used,
+        "max": sneak_max_lines,
+    })
+
+
+## Sneak lines drawn this defender phase (0..sneak_max_lines).
+func get_sneak_lines_used() -> int:
+    return _sneak_lines_used
+
+
+## Sneak line cap for the current defender phase.
+func get_sneak_max() -> int:
+    return sneak_max_lines
+
+
+## Active (unstruck) sneak lines - survivors feed the defender's scoring count.
+func get_sneak_lines() -> Array[ChalkLine]:
+    var result: Array[ChalkLine] = []
+    for line in _active_lines:
+        if line.is_sneak:
+            result.append(line)
+    return result
 
 
 # =============================================================================
