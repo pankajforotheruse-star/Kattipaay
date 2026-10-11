@@ -54,6 +54,8 @@ var _is_spectator: bool = false
 
 var _draw_warning_label: Label = null
 var _draw_warning_tween: Tween = null
+    var _search_warning_label: Label = null
+    var _search_warning_tween: Tween = null
 
 # --- Remaining-lines counter + search banner (slice 3, R6) ---
 
@@ -94,6 +96,8 @@ func _ready() -> void:
     EventBus.on(EventBus.EV_GAME_SNEAK_NOTICED, _on_sneak_noticed)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.on(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_TICK, _on_search_phase_tick)
+    EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_WARNING, _on_search_phase_warning)
     EventBus.on(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
 
     # --- Argument events ---
@@ -134,6 +138,7 @@ func _ready() -> void:
     _create_sloppy_count_banner()
     _create_score_label()
     _create_draw_warning_label()
+    _create_search_warning_label()
     _create_remaining_lines_label()
     _create_search_banner_label()
 
@@ -186,6 +191,8 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_SNEAK_NOTICED, _on_sneak_noticed)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_TICK, _on_draw_phase_tick)
     EventBus.off(EventBus.EV_GAME_DRAW_PHASE_WARNING, _on_draw_phase_warning)
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_TICK, _on_search_phase_tick)
+    EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_WARNING, _on_search_phase_warning)
     EventBus.off(EventBus.EV_GAME_CHALK_METER_CHANGED, _on_chalk_meter_changed)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_STARTED, _on_argument_started)
     EventBus.off(EventBus.EV_GAME_ARGUMENT_RESOLVED, _on_argument_resolved)
@@ -1201,3 +1208,56 @@ func _on_draw_phase_tick(payload: Dictionary) -> void:
 func _hide_draw_warning() -> void:
     if _draw_warning_label:
         _draw_warning_label.hide()
+
+func _create_search_warning_label() -> void:
+    _search_warning_label = Label.new()
+    _search_warning_label.name = "SearchWarningLabel"
+    _search_warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _search_warning_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    _search_warning_label.add_theme_font_size_override("font_size", 30)
+    _search_warning_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.25, 1.0))
+    _search_warning_label.anchors_preset = Control.PRESET_CENTER
+    _search_warning_label.offset_left = -320
+    _search_warning_label.offset_top = -60
+    _search_warning_label.offset_right = 320
+    _search_warning_label.offset_bottom = 0
+    _search_warning_label.hide()
+    add_child(_search_warning_label)
+
+## One-shot: a SEARCH phase entered its final 5 seconds - big visible banner
+## + red pulse, labeled by the player's role in that phase (strike vs defend,
+## matching the search_phase_started banner copy). The audible cue is played
+## by the SoloMatchDriver (same tone family as the DRAWING warning).
+func _on_search_phase_warning(payload: Dictionary) -> void:
+    if not _search_warning_label:
+        return
+    var remaining: int = payload.get("remaining_seconds", 5)
+    var searcher: int = payload.get("searcher", -1)
+    var role_copy := "YOUR SEARCH - strike the ghost lines!" if searcher == 1 else "DEFEND - CPU is sweeping your zone!"
+    _search_warning_label.text = "⏳ LAST 5 SECONDS!\n%s" % role_copy
+    _search_warning_label.show()
+    _search_warning_label.modulate = Color.WHITE
+    if _search_warning_tween and _search_warning_tween.is_valid():
+        _search_warning_tween.kill()
+    _search_warning_tween = create_tween()
+    _search_warning_tween.set_loops(0)
+    _search_warning_tween.tween_property(_search_warning_label, "scale", Vector2(1.08, 1.08), 0.5)
+    _search_warning_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+    _search_warning_tween.tween_property(_search_warning_label, "scale", Vector2(1.0, 1.0), 0.5)
+    _search_warning_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+## Per-second countdown label update during the last 5 seconds of a search phase.
+func _on_search_phase_tick(payload: Dictionary) -> void:
+    if not _search_warning_label:
+        return
+    if not _search_warning_label.visible:
+        return
+    var remaining: int = payload.get("remaining_seconds", -1)
+    if remaining <= 0:
+        _hide_search_warning()
+    else:
+        _search_warning_label.text = "⏳ %d!" % remaining
+
+func _hide_search_warning() -> void:
+    if _search_warning_label:
+        _search_warning_label.hide()

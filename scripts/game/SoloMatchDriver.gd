@@ -39,6 +39,7 @@ const GHOST_ENTITY_ID := 2
 const HUMAN_ENTITY_ID := 1
 
 const DRAW_PHASE_WARNING_SECONDS := 5.0
+const SEARCH_PHASE_WARNING_SECONDS := 5.0
 ## Face-off spots at the alley: a few px apart so BOTH characters are
 ## visible facing each other (owner decision #4), centered on the alley.
 const MEETING_PLAYER_POS := Vector2(1150.0, 885.0)
@@ -91,6 +92,9 @@ var defender: int = GHOST_ENTITY_ID
 ## Draw-phase clock state (visible + audible end-of-draw warning, last 5s).
 var _draw_warning_played: bool = false
 var _draw_phase_last_tick: int = -1
+## Search-phase clock state (visible + audible end-of-phase warning, last 5s).
+var _search_warning_played: bool = false
+var _search_phase_last_tick: int = -1
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -188,6 +192,7 @@ func _process(delta: float) -> void:
 		_tick_meeting_phase(delta)
 	elif ms == GameState.MatchState.SEARCHING:
 		_search_elapsed += delta
+		_tick_search_phase()
 		if _phase_end_pending:
 			_phase_end_grace_left -= delta
 			if _phase_end_grace_left <= 0.0:
@@ -225,7 +230,33 @@ func _tick_draw_phase() -> void:
 			"remaining_seconds": remaining,
 		})
 		AudioManager.play_draw_warning()
-
+## Emit per-second search-phase ticks, plus the one-shot end-of-phase warning
+## (visible + audible) when EITHER search phase enters its LAST 5 seconds.
+## The payload carries the phase number (1|2) and the searcher so the HUD can
+## label the warning by the player's role (strike vs defend). It cannot
+## double-fire within a phase (_search_warning_played) and is reset cleanly
+## between phases by _begin_search_phase (zone+role swap).
+func _tick_search_phase() -> void:
+	if not _search_phase_active:
+		return
+	var remaining_abs := _search_phase_seconds - _search_elapsed
+	var remaining := int(ceil(remaining_abs))
+	var searcher: int = active_searcher if _search_phase_index == 1 else _opponent(active_searcher)
+	if remaining != _search_phase_last_tick:
+		_search_phase_last_tick = remaining
+		EventBus.emit(EventBus.EV_GAME_SEARCH_PHASE_TICK, {
+			"phase": _search_phase_index,
+			"searcher": searcher,
+			"remaining_seconds": remaining,
+		})
+	if remaining_abs <= SEARCH_PHASE_WARNING_SECONDS and not _search_warning_played:
+		_search_warning_played = true
+		EventBus.emit(EventBus.EV_GAME_SEARCH_PHASE_WARNING, {
+			"phase": _search_phase_index,
+			"searcher": searcher,
+			"remaining_seconds": remaining,
+		})
+		AudioManager.play_search_warning()
 
 # ── Event handlers ────────────────────────────────────────────────────────────
 
@@ -392,6 +423,8 @@ func _begin_search_phase(phase_index: int) -> void:
 	_search_phase_active = true
 	_phase_end_pending = false
 	_phase_end_grace_left = 0.0
+	_search_warning_played = false
+	_search_phase_last_tick = -1
 
 	var searcher: int = active_searcher if phase_index == 1 else _opponent(active_searcher)
 	var pdef: int = _opponent(searcher)
