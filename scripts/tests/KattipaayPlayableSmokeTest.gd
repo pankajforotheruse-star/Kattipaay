@@ -97,6 +97,7 @@ var _seen_match_states: Dictionary = {}
 var _coin_searcher: int = -1
 var _coin_human_first: bool = false
 var _seen_phases: Array = []  # {phase:int, searcher:int, target_lines:int}
+var _search_warning_events: Array = []  # {phase:int, searcher:int, remaining_seconds:int}
 var _human_line_ids: Array = []  # ids of lines the test drew as the human
 var _saw_human_line_drawn := false
 var _saw_line_struck_human := false  # EV_GAME_LINE_STRUCK with is_ghost=false
@@ -150,6 +151,7 @@ func _run_test() -> void:
 	_event_bus.call("on", "match.state_changed", Callable(self, "_on_match_state_changed"))
 	_event_bus.call("on", "game.coin_decided", Callable(self, "_on_coin_decided"))
 	_event_bus.call("on", "game.search_phase_started", Callable(self, "_on_phase_started"))
+	_event_bus.call("on", "game.search_phase_warning", Callable(self, "_on_search_phase_warning"))
 	_event_bus.call("on", "game.line_drawn", Callable(self, "_on_line_drawn"))
 	_event_bus.call("on", "game.line_struck", Callable(self, "_on_line_struck"))
 	_event_bus.call("on", "game.defender_argue_started", Callable(self, "_on_defender_argue_started"))
@@ -362,6 +364,22 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			int(_game_state.get("solo_defender")), _opponent_of(int(p2["searcher"]))])
 		return
 	print("KATTIPAAY_SMOKE: SEARCH_PHASE_SWAP_OK searchers=%d->%d (CPU-first branch reachable)" % [int(p1["searcher"]), int(p2["searcher"])])
+
+	# Last-5s end-of-phase warning (REQUIREMENTS v1.1 #11): BOTH search phases
+	# must emit the one-shot warning. Phase pacing (5s) <= warning window (5s)
+	# makes the t-5s threshold cross on the FIRST tick of each phase, so the
+	# assertion never depends on timing luck - it only needs the phase to run.
+	var warned_phases: Array = []
+	for w in _search_warning_events:
+		warned_phases.append(int(w.get("phase", -1)))
+	if warned_phases.find(1) == -1 or warned_phases.find(2) == -1:
+		_fail("Search-phase last-5s warning missing for one/both phases: saw %s" % str(warned_phases))
+		return
+	for w in _search_warning_events:
+		if int(w.get("remaining_seconds", -1)) > 5:
+			_fail("Search-phase warning fired outside last-5s window: remaining=%d" % int(w.get("remaining_seconds", -1)))
+			return
+	print("KATTIPAAY_SMOKE: SEARCH_PHASE_WARNING_OK phases=%s (last-5s warning fired in BOTH search phases)" % str(warned_phases))
 
 	# The human's search phase must have real ghost lines to strike: the bot
 	# (NORMAL via its observation fallback, EASY via the audit MAJOR-2 fix)
@@ -837,6 +855,15 @@ func _on_phase_started(payload) -> void:
 		"searcher": int(payload.get("searcher", -1)),
 		"target_lines": int(payload.get("target_lines", -1)),
 	})
+func _on_search_phase_warning(payload) -> void:
+	_search_warning_events.append({
+		"phase": int(payload.get("phase", -1)),
+		"searcher": int(payload.get("searcher", -1)),
+		"remaining_seconds": int(payload.get("remaining_seconds", -1)),
+	})
+	print("KATTIPAAY_SMOKE: SEARCH_PHASE_WARNING phase=%d searcher=%d remaining=%d" % [
+		int(payload.get("phase", -1)), int(payload.get("searcher", -1)),
+		int(payload.get("remaining_seconds", -1))])
 
 
 func _on_line_drawn(payload) -> void:

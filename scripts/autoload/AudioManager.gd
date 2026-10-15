@@ -102,8 +102,9 @@ func play_timer_warning() -> void:
 
     _push_frames(frames)
 
-## End-of-draw warning: three quick high ticks (distinct from the two-tick
-## timer warning) - plays once when the DRAWING phase enters its last 5s.
+## End-of-phase warning: three quick high ticks (distinct from the two-tick
+## timer warning) - plays once when a phase enters its last 5s. This is the
+## SHARED cue for DRAWING and BOTH SEARCH phases (see play_search_warning).
 func play_draw_warning() -> void:
     var frames: Array[Vector2] = []
     var tick_duration := 0.04
@@ -123,6 +124,12 @@ func play_draw_warning() -> void:
             frames.append(Vector2.ZERO)
 
     _push_frames(frames)
+
+## Search-phase last-5s warning: REUSES the draw-warning cue so all
+## end-of-phase warnings (draw + search #1 + search #2) share ONE audible
+## tone family - the player hears the same sound before every phase ends.
+func play_search_warning() -> void:
+    play_draw_warning()
 
 ## Coin flip: three quick metallic pings (the coin turning over in the air).
 func play_coin_flip() -> void:
