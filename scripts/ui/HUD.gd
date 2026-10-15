@@ -54,8 +54,8 @@ var _is_spectator: bool = false
 
 var _draw_warning_label: Label = null
 var _draw_warning_tween: Tween = null
-    var _search_warning_label: Label = null
-    var _search_warning_tween: Tween = null
+var _search_warning_label: Label = null
+var _search_warning_tween: Tween = null
 
 # --- Remaining-lines counter + search banner (slice 3, R6) ---
 
