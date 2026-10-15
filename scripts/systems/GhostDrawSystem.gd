@@ -290,6 +290,27 @@ func strike_ghost_line(line_id: int) -> bool:
 
 # ── Event Handlers ─────────────────────────────────────────────────────────────
 
+## Commit A probe: the line reveal radius from the SINGLE shared HidingRules
+## source - identical for both sides (the smoke test asserts it matches the
+## CPU searcher's read of the same constants).
+func get_reveal_radius_for(wall_concealed: bool) -> float:
+	return HidingRules.reveal_radius_for(wall_concealed)
+
+## Commit A probes: expose the shared reveal predicate + nearest-point measure
+## so the smoke test can assert the exact R / R_occluded boundaries without
+## referencing the HidingRules class by type.
+func probe_reveal(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
+	return HidingRules.is_revealed(points, searcher_pos, wall_concealed)
+
+func probe_point_at_distance(points: Array, origin: Vector2, distance: float) -> Vector2:
+	var np: Vector2 = HidingRules.nearest_point_on_line(points, origin)
+	var dir: Vector2 = (origin - np).normalized() if origin != np else Vector2.UP
+	return np + dir * distance
+
+func probe_is_wall_concealed(points: Array) -> bool:
+	return HidingRules.is_wall_concealed(points)
+
+
 func _on_match_state_changed(payload: Dictionary) -> void:
 	var to_state: int = payload.get("to", -1)
 
@@ -328,6 +349,10 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 		line.ghost_owner_id = owner_id
 		line.chalk_type = ChalkLine.ChalkType.GHOST
 		line.decay_duration = ChalkLine.GHOST_DECAY_SENTINEL
+		# Commit A (hiding): keep the sender's wall-conceal classification (the
+		# single shared rule); fall back to a local re-classification for clients
+		# whose payload predates the "wc" field.
+		line.wall_concealed = bool(line_data.get("wc", HidingRules.is_wall_concealed(line.points)))
 
 		# Ensure line has an ID
 		if line.id < 0:
@@ -392,24 +417,20 @@ func _check_discovery() -> void:
 		for player_id in _vision_cache:
 			var vis: Dictionary = _vision_cache[player_id]
 			var center: Vector2 = vis["position"]
-			var radius: float = vis.get("radius", 200.0)
-
-			# Segment-circle intersection check
-			for i in range(line.points.size() - 1):
-				var a := line.points[i]
-				var b := line.points[i + 1]
-				if _segment_intersects_circle(a, b, center, radius):
-					discovered_ids.append(line.id)
-					# Penalty window is per line (its own placement timestamp).
-					# Networked lines (incl. the solo GhostBot mock peer) carry gp
-					# in their network dict; the old single _placed_at_time only
-					# ever reflected the local activation path.
-					if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
-						penalty_window_hit = true
-					line.is_discovered = true
-					break  # One hit per line is enough
-			if line.is_discovered:
-				break
+			# Commit A (hiding): the reveal radius comes from the SINGLE shared
+			# HidingRules source -- identical for both sides and constant across
+			# difficulties (owner Q2/Q3): R=160 open-ground, R_occluded=90
+			# wall-concealed. The fog-circle radius no longer gates discovery.
+			if HidingRules.is_revealed(line.points, center, line.wall_concealed):
+				discovered_ids.append(line.id)
+				# Penalty window is per line (its own placement timestamp).
+				# Networked lines (incl. the solo GhostBot mock peer) carry gp
+				# in their network dict; the old single _placed_at_time only
+				# ever reflected the local activation path.
+				if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
+					penalty_window_hit = true
+				line.is_discovered = true
+				break  # One hit per line is enough
 
 	if discovered_ids.is_empty():
 		return
@@ -530,6 +551,8 @@ func _build_ghost_line(start: Vector2, angle: float, length: float, owner_id: in
 	line.is_discovered = false
 	line.ghost_owner_id = owner_id
 	line.ghost_placed_at = Time.get_ticks_msec()
+	# Commit A (hiding): classify the stroke against the shared wall geometry.
+	line.wall_concealed = HidingRules.is_wall_concealed(line.points)
 
 	return line
 

@@ -413,6 +413,9 @@ func _finish_drawing() -> void:
     # --- Step 2: Create ChalkLine resource ---
     var line := ChalkLine.new()
     line.points = smoothed
+    # Commit A (hiding): classify the stroke against the shared wall geometry --
+    # wall-concealed lines reveal at the smaller radius to the searcher.
+    line.wall_concealed = HidingRules.is_wall_concealed(line.points)
     line.widths = smoothed_widths
     line.chalk_type = _current_chalk_type
     line.player_id = _drawing_entity_id
@@ -1075,6 +1078,12 @@ func get_chalk_remaining() -> float:
 
 
 ## Remove all active lines — used for scene teardown, match reset.
+## Commit A probe: wall-conceal classification (the single shared HidingRules
+## rule) -- exposed for the smoke test's occlusion assertions.
+func probe_is_wall_concealed(points: Array) -> bool:
+    return HidingRules.is_wall_concealed(points)
+
+
 func clear_all_lines() -> void:
     for line in _active_lines.duplicate():
         _remove_line(line, "clear")

@@ -66,6 +66,18 @@ const MIN_LINE_LENGTH := 100.0
 const MAX_LINE_LENGTH := 200.0
 const MIN_LINE_SEPARATION := 50.0
 const MAX_LINE_SEPARATION := 150.0
+
+# ------ Commit A hiding (owner Q3a): wall-conceal placement share ------------------------------------------------
+## Probability that a placed ghost line is anchored on/behind a wall instead of
+## open ground, per difficulty. AI-proposed tuning points (owner deviation #5):
+## higher difficulty hides MORE lines behind walls (fewer on open ground).
+## Placement bias ONLY - the reveal physics/radii never change (owner Q3).
+const WALL_CONCEAL_SHARE := {
+	Difficulty.EASY: 0.15,
+	Difficulty.NORMAL: 0.35,
+	Difficulty.HARD: 0.60,
+	Difficulty.NIGHTMARE: 0.85,
+}
 const WORLD_EDGE_MARGIN := 120.0
 ## Fallback world bounds when FogSystem is unavailable (its default size).
 const WORLD_BOUNDS_FALLBACK := Vector2(2400.0, 1800.0)
@@ -269,32 +281,45 @@ func _execute_placement() -> void:
 
 
 ## Build the exact ChalkLine network dictionaries a remote ghost client would
-## send (to_network_dict keys: id/ct/pid/t/dd/cn/pc/pd/wd/gh/go/gp/gd).
-func _build_line_dicts(anchor: Vector2) -> Array[Dictionary]:
+## send (to_network_dict keys: id/ct/pid/t/dd/cn/pc/pd/wd/gh/go/gp/gd/wc).
+## `rng` is injectable for deterministic smoke tests (null = the bot's RNG).
+func _build_line_dicts(anchor: Vector2, rng: RandomNumberGenerator = null) -> Array[Dictionary]:
+	var r := rng if rng != null else _rng
 	var dicts: Array[Dictionary] = []
-	var angle1 := _rng.randf_range(0.0, TAU)
-	var angle_offset := _rng.randf_range(PI / 3.0, 2.0 * PI / 3.0)
-	var angle2 := angle1 + angle_offset * (1.0 if _rng.randf() > 0.5 else -1.0)
-	var sep := _rng.randf_range(MIN_LINE_SEPARATION, MAX_LINE_SEPARATION)
+	var angle1 := r.randf_range(0.0, TAU)
+	var angle_offset := r.randf_range(PI / 3.0, 2.0 * PI / 3.0)
+	var angle2 := angle1 + angle_offset * (1.0 if r.randf() > 0.5 else -1.0)
+	var sep := r.randf_range(MIN_LINE_SEPARATION, MAX_LINE_SEPARATION)
 	var start1 := _clamp_to_cpu_zone(anchor)
 	var start2 := _clamp_to_cpu_zone(anchor + Vector2.RIGHT.rotated(angle1) * sep)
-	dicts.append(_build_one_line_dict(start1, angle1, _rng.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH)))
-	dicts.append(_build_one_line_dict(start2, angle2, _rng.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH)))
+	# Commit A hiding (owner Q3a): per-line wall-conceal roll from the
+	# difficulty-keyed share table - higher difficulty anchors MORE lines on
+	# walls (fewer on open ground). Placement only, never the reveal physics.
+	var share: float = WALL_CONCEAL_SHARE.get(difficulty, 0.35)
+	var s1: Vector2 = start1
+	var s2: Vector2 = start2
+	if r.randf() < share:
+		s1 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
+	if r.randf() < share:
+		s2 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
+	dicts.append(_build_one_line_dict(s1, angle1, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
+	dicts.append(_build_one_line_dict(s2, angle2, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
 	return dicts
 
 
-func _build_one_line_dict(start: Vector2, angle: float, length: float) -> Dictionary:
+func _build_one_line_dict(start: Vector2, angle: float, length: float, rng: RandomNumberGenerator) -> Dictionary:
+	var r := rng if rng != null else _rng
 	var line := ChalkLine.new()
 	var end := start + Vector2.RIGHT.rotated(angle) * length
 	var width := ChalkLine.BASE_WIDTHS[ChalkLine.ChalkType.GHOST]
-	if _rng.randf() > 0.5:
+	if r.randf() > 0.5:
 		line.points = [start, end]
 		line.widths = [width, width]
 	else:
 		# Slight curve via a perpendicular-perturbed midpoint (2–3 control pts).
 		var mid := (start + end) * 0.5
 		var perp := Vector2.RIGHT.rotated(angle + PI / 2.0)
-		mid += perp * _rng.randf_range(-length * 0.2, length * 0.2)
+		mid += perp * r.randf_range(-length * 0.2, length * 0.2)
 		line.points = [start, mid, end]
 		line.widths = [width, width, width]
 	# MVP zone lock: every ghost line vertex stays inside the CPU zone.
@@ -312,6 +337,9 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float) -> Dictio
 	line.is_discovered = false
 	line.ghost_owner_id = GHOST_ENTITY_ID
 	line.ghost_placed_at = Time.get_ticks_msec()
+	# Commit A hiding: classify the finished stroke against the shared wall
+	# geometry (single rule, both sides) - the flag travels in the dict as "wc".
+	line.wall_concealed = HidingRules.is_wall_concealed(line.points)
 	return line.to_network_dict()
 
 
