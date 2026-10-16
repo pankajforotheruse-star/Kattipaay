@@ -90,6 +90,20 @@ const DECAY_PROBE_DURATION := 8.6
 # whatever side of the zone the CPU starts from.
 const SNEAK_ANCHOR := Vector2(160.0, 130.0)
 
+# -- Commit A occlusion probes (Deviation Fix #3, owner Q1/Q2/Q3) --
+# Open-ground probe line: far from every wall (player-zone walls start at
+# y=480, CPU-zone walls at y>=1500), so the shared rule MUST classify it open.
+const OCCLUSION_OPEN_LINE: Array = [Vector2(120.0, 90.0), Vector2(200.0, 90.0)]
+# Wall-concealed probe line: both endpoints inside the player-zone compound
+# wall Rect2(640,480,500,24), so the shared rule MUST classify it concealed.
+const OCCLUSION_WALL_LINE: Array = [Vector2(700.0, 490.0), Vector2(760.0, 490.0)]
+# Probe origins: nearest point lands on the probe lines' right end, so placed
+# searchers sit exactly on the +x axis at the requested distance.
+const OCCLUSION_PROBE_ORIGIN := Vector2(1200.0, 90.0)
+const OCCLUSION_PROBE_ORIGIN_WALL := Vector2(1200.0, 490.0)
+# Bias probe: placements per difficulty (2 lines each) on one fixed seed.
+const OCCLUSION_BIAS_PLACEMENTS := 60
+const OCCLUSION_BIAS_SEED := 20261015
 var _failed := false
 var _game_state: Node = null
 var _event_bus: Node = null
@@ -264,6 +278,14 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		_fail("Systems/GhostDrawSystem not found in GameWorld")
 		return
 	print("KATTIPAAY_SMOKE: SYSTEMS_FOUND difficulty=%s cpu_sweep=%s" % [diff_label, "yes" if cpu_sweep != null else "no"])
+
+	# Commit A occlusion assertions (wall + ground hiding, Deviation Fix #3) -
+	# pure probe calls, NORMAL pass only: boundary reveals, shared radii, bias.
+	# No waits - the batch costs a few frames at most.
+	if draw_human_lines:
+		_run_occlusion_assertions(draw_sys, ghost_sys, cpu_sweep)
+		if _failed:
+			return
 
 	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
 	if _failed:
@@ -547,6 +569,111 @@ func _exercise_cpu_strike(draw_sys: Node) -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: CPU_SWEEP_STRIKE_OK target=%d active %d -> %d remaining_payload=%d" % [target_id, before, after, _last_struck_remaining])
+
+
+## Commit A occlusion assertions (Deviation Fix #3, owner Q1/Q2/Q3). All
+## checks run through the systems' own probes (GhostDrawSystem /
+## CpuSearchController / DrawSystem) so the test never re-derives the
+## shared HidingRules geometry itself. Runs in the NORMAL pass only.
+func _run_occlusion_assertions(draw_sys: Node, ghost_sys: Node, cpu_sweep: Node) -> void:
+	if cpu_sweep == null:
+		_fail("CpuSearchController missing - cannot assert shared occlusion rules")
+		return
+
+	# (a) GROUND REVEAL: the open-ground line reveals just inside R and does
+	# NOT reveal just beyond R (shared predicate via GhostDrawSystem.probe_reveal).
+	var open_points: Array = OCCLUSION_OPEN_LINE
+	if bool(draw_sys.call("probe_is_wall_concealed", open_points)):
+		_fail("Occlusion open probe line was classified wall-concealed (wall geometry moved?)")
+		return
+	var r_open: float = float(ghost_sys.call("get_reveal_radius_for", false))
+	var inside: Vector2 = cpu_sweep.call("probe_point_at_distance", open_points, OCCLUSION_PROBE_ORIGIN, r_open - 5.0)
+	var beyond: Vector2 = cpu_sweep.call("probe_point_at_distance", open_points, OCCLUSION_PROBE_ORIGIN, r_open + 5.0)
+	if not bool(ghost_sys.call("probe_reveal", open_points, inside, false)):
+		_fail("Open-ground line did NOT reveal just inside R=%.1f" % r_open)
+		return
+	if bool(ghost_sys.call("probe_reveal", open_points, beyond, false)):
+		_fail("Open-ground line revealed just beyond R=%.1f" % r_open)
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_GROUND_REVEAL_OK R=%.1f inside=%s beyond=%s" % [r_open, str(inside), str(beyond)])
+
+	# (b) WALL REVEAL: the wall-concealed line does NOT reveal at the OPEN
+	# radius, but DOES reveal inside R_occluded (and not just beyond) - the
+	# hiding tax. The line's classification is proven via the shared probe.
+	var wall_points: Array = OCCLUSION_WALL_LINE
+	if not bool(draw_sys.call("probe_is_wall_concealed", wall_points)):
+		_fail("Occlusion wall probe line was classified open-ground (wall geometry moved?)")
+		return
+	var r_occ: float = float(ghost_sys.call("get_reveal_radius_for", true))
+	var at_open: Vector2 = cpu_sweep.call("probe_point_at_distance", wall_points, OCCLUSION_PROBE_ORIGIN_WALL, r_open)
+	var at_occ_in: Vector2 = cpu_sweep.call("probe_point_at_distance", wall_points, OCCLUSION_PROBE_ORIGIN_WALL, r_occ - 0.5)
+	var at_occ_out: Vector2 = cpu_sweep.call("probe_point_at_distance", wall_points, OCCLUSION_PROBE_ORIGIN_WALL, r_occ + 0.5)
+	if bool(ghost_sys.call("probe_reveal", wall_points, at_open, true)):
+		_fail("Wall-concealed line revealed at the OPEN radius R=%.1f (hiding tax missing)" % r_open)
+		return
+	if not bool(ghost_sys.call("probe_reveal", wall_points, at_occ_in, true)):
+		_fail("Wall-concealed line did NOT reveal inside R_occluded=%.1f" % r_occ)
+		return
+	if bool(ghost_sys.call("probe_reveal", wall_points, at_occ_out, true)):
+		_fail("Wall-concealed line revealed just beyond R_occluded=%.1f" % r_occ)
+		return
+	if r_occ >= r_open:
+		_fail("R_occluded=%.1f is not strictly smaller than R=%.1f" % [r_occ, r_open])
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_WALL_REVEAL_OK R=%.1f R_occluded=%.1f (concealed hidden until inside the occluded radius)" % [r_open, r_occ])
+
+	# (c) SHARED RULES: both searchers read the SAME radii and predicate from
+	# the single HidingRules source (owner Q2), for concealed and open alike.
+	for concealed in [false, true]:
+		var ghost_r: float = float(ghost_sys.call("get_reveal_radius_for", concealed))
+		var cpu_r: float = float(cpu_sweep.call("get_reveal_radius_for", concealed))
+		if ghost_r != cpu_r:
+			_fail("Reveal radii differ for concealed=%s: ghost=%.1f cpu=%.1f (single HidingRules source broken)" % [str(concealed), ghost_r, cpu_r])
+			return
+	if bool(ghost_sys.call("probe_reveal", open_points, inside, false)) != bool(cpu_sweep.call("probe_reveal", open_points, inside, false)):
+		_fail("Shared reveal predicate differs between the human and CPU searchers")
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_SHARED_RULES_OK open=%.1f occluded=%.1f (CpuSearchController == GhostDrawSystem, both concealments)" % [r_open, r_occ])
+
+	# (d) BIAS: difficulty changes PLACEMENT only (owner Q3) - with the SAME
+	# seeded RNG, HARD and NIGHTMARE place STRICTLY more wall-concealed lines
+	# than EASY. Uses a fresh GhostBotController instance (never the live bot)
+	# and a fresh RandomNumberGenerator with the same seed per difficulty.
+	var bot: Node = load("res://scripts/bot/GhostBotController.gd").new()
+	var easy: Dictionary = _count_concealed_placements(bot, 0, OCCLUSION_BIAS_SEED)
+	var hard: Dictionary = _count_concealed_placements(bot, 2, OCCLUSION_BIAS_SEED)
+	var nightmare: Dictionary = _count_concealed_placements(bot, 3, OCCLUSION_BIAS_SEED)
+	bot.free()
+	var expected_total: int = OCCLUSION_BIAS_PLACEMENTS * 2
+	if int(easy["total"]) != expected_total or int(hard["total"]) != expected_total or int(nightmare["total"]) != expected_total:
+		_fail("GhostBot placement build produced an unexpected line count: easy=%s hard=%s nightmare=%s" % [str(easy["total"]), str(hard["total"]), str(nightmare["total"])])
+		return
+	if int(hard["concealed"]) <= int(easy["concealed"]) or int(nightmare["concealed"]) <= int(easy["concealed"]):
+		_fail("Difficulty conceal bias broken: easy=%d hard=%d nightmare=%d concealed of %d (strictly rising expected)" % [
+			int(easy["concealed"]), int(hard["concealed"]), int(nightmare["concealed"]), expected_total])
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_BIAS_OK concealed easy=%d/%d hard=%d/%d nightmare=%d/%d (same seed, strictly rising share)" % [
+		int(easy["concealed"]), int(easy["total"]), int(hard["concealed"]), int(hard["total"]),
+		int(nightmare["concealed"]), int(nightmare["total"])])
+
+
+## Deterministic GhostBot conceal share for one difficulty: OCCLUSION_BIAS_PLACEMENTS
+## calls to _build_line_dicts (2 lines each) on one freshly-seeded RNG, the same
+## seed for every difficulty so only the share table differs. Each returned dict
+## is classified by its network "wc" flag (written by the shared HidingRules rule).
+func _count_concealed_placements(bot: Node, difficulty: int, seed: int) -> Dictionary:
+	bot.set("difficulty", difficulty)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var concealed := 0
+	var total := 0
+	for i in range(OCCLUSION_BIAS_PLACEMENTS):
+		var dicts: Array = bot.call("_build_line_dicts", Vector2(1200.0, 1500.0), rng)
+		for d in dicts:
+			total += 1
+			if bool(d.get("wc", false)):
+				concealed += 1
+	return {"total": total, "concealed": concealed}
 
 
 ## True once the CPU's search phase has started (phase 1 searcher=2 while it
