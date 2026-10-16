@@ -103,7 +103,7 @@ static func nearest_point_on_line(points: Array, pos: Vector2) -> Vector2:
 		return pos
 	if points.size() == 1:
 		return points[0]
-	var best := points[0]
+	var best: Vector2 = points[0]
 	var best_d := INF
 	for i in range(points.size() - 1):
 		var p := _closest_point_on_segment(pos, points[i], points[i + 1])
