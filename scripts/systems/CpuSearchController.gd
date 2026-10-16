@@ -151,6 +151,21 @@ func _on_sneak_line_drawn(payload: Dictionary) -> void:
 
 # ── Sweep ────────────────────────────────────────────────────────────────────
 
+## Commit A probe: the reveal radius from the SINGLE shared HidingRules
+## source - identical to the human searcher's (the smoke test asserts it
+## against GhostDrawSystem).
+func get_reveal_radius_for(wall_concealed: bool) -> float:
+	return HidingRules.reveal_radius_for(wall_concealed)
+
+func probe_reveal(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
+	return HidingRules.is_revealed(points, searcher_pos, wall_concealed)
+
+func probe_point_at_distance(points: Array, origin: Vector2, distance: float) -> Vector2:
+	var np: Vector2 = HidingRules.nearest_point_on_line(points, origin)
+	var dir: Vector2 = (origin - np).normalized() if origin != np else Vector2.UP
+	return np + dir * distance
+
+
 func _process(delta: float) -> void:
 	if not _active or _npc == null or _draw_sys == null:
 		return
@@ -165,7 +180,14 @@ func _process(delta: float) -> void:
 	_check_sneak_notices()
 	var center := _center_of(_current_target.points)
 	_walk_to(center)
-	if _npc.global_position.distance_to(center) <= STRIKE_RADIUS:
+	# Commit A (hiding): the CPU may only reveal+strike a line once its searcher
+	# is inside the line's reveal radius (nearest point) - the SAME HidingRules
+	# radii as the human searcher (R=160px open-ground, R_occluded=90px
+	# wall-concealed). Both sides play by identical occlusion rules; difficulty
+	# never changes this geometry (owner Q3).
+	var line_dist: float = _npc.global_position.distance_to(
+		HidingRules.nearest_point_on_line(_current_target.points, _npc.global_position))
+	if line_dist <= HidingRules.reveal_radius_for(_current_target.wall_concealed):
 		var target: ChalkLine = _current_target
 		_current_target = null
 		if _draw_sys.strike_line(target.id):

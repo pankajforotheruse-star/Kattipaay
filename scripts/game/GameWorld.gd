@@ -19,6 +19,14 @@ func _ready() -> void:
 	# Find all entities in the scene and register them
 	_register_existing_entities()
 
+	# Commit A (hiding): static scenery (ground-tint surfaces + compound walls)
+	# drawn below entities. Geometry lives in HidingRules; this node only
+	# renders it, so both zones show the same village layout to both sides.
+	var scenery := SceneryLayer.new()
+	scenery.name = "Scenery"
+	add_child(scenery)
+	move_child(scenery, 0)
+
 	# The scene presets entity ids (Player=1, NPC1=2). Seed the allocator above
 	# the highest registered id so later-spawned entities never collide with
 	# preset scene entities (audit m12).

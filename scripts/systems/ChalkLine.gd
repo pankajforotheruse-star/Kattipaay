@@ -93,6 +93,12 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## lines auto-struck) or the sweep physically strikes them.
 @export var is_sneak: bool = false
 
+## Whether this line is wall-concealed (a drawn stroke intersecting a wall
+## object -- Commit A hiding). Concealed lines reveal to the searcher at
+## REVEAL_RADIUS_OCCLUDED instead of REVEAL_RADIUS_OPEN (HidingRules) --
+## identical rule for both sides.
+@export var wall_concealed: bool = false
+
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
 
@@ -211,6 +217,7 @@ func to_network_dict() -> Dictionary:
         "go": ghost_owner_id,       # ghost_owner_id
         "gp": int(ghost_placed_at), # ghost_placed_at (int msec)
         "gd": is_discovered,        # is_discovered
+        "wc": wall_concealed,       # wall_concealed (Commit A hiding)
     }
     # Estimated size: ~20 bytes overhead + (simplified_points * 4) + (simplified_points * 1)
     # For 10 simplified points: 20 + 40 + 10 = ~70 bytes. Well under 500.
@@ -232,6 +239,7 @@ func from_network_dict(data: Dictionary) -> void:
     ghost_owner_id = data.get("go", -1)
     ghost_placed_at = float(data.get("gp", 0))
     is_discovered = data.get("gd", false)
+    wall_concealed = bool(data.get("wc", false))
 
     # Decode positions
     points.clear()
