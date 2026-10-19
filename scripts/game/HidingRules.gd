@@ -34,10 +34,34 @@ const REVEAL_RADIUS_OPEN := 160.0
 ## searcher. STRICTLY smaller than REVEAL_RADIUS_OPEN (the hiding tax).
 const REVEAL_RADIUS_OCCLUDED := 90.0
 
+## Proximity radius (px) at which a TREE-SHADOW-concealed line reveals to the
+## searcher (Commit B). Strictly between open ground and walls:
+## REVEAL_RADIUS_OPEN (160) > REVEAL_RADIUS_SHADOW (110) > REVEAL_RADIUS_OCCLUDED (90).
+const REVEAL_RADIUS_SHADOW := 110.0
+
 ## Difficulty-independent, side-independent reveal radii for a line by its
 ## concealment flag. Asserted identical across both systems by the smoke test.
 static func reveal_radius_for(wall_concealed: bool) -> float:
 	return REVEAL_RADIUS_OCCLUDED if wall_concealed else REVEAL_RADIUS_OPEN
+
+## Commit B: reveal radius for a line carrying BOTH concealment flags. Wall
+## wins over shadow (a line hidden on/behind a wall face is the harder find).
+static func reveal_radius_for_flags(wall_concealed: bool, shadow_concealed: bool) -> float:
+	if wall_concealed:
+		return REVEAL_RADIUS_OCCLUDED
+	if shadow_concealed:
+		return REVEAL_RADIUS_SHADOW
+	return REVEAL_RADIUS_OPEN
+
+## Commit B: reveal predicate honouring both concealment flags (mirror of
+## is_revealed with reveal_radius_for_flags). The SINGLE rule both searchers
+## use (GhostDrawSystem for the human, CpuSearchController for the CPU) --
+## identical for both sides (owner Q2) and constant across difficulties (Q3).
+static func is_revealed_flags(points: Array, searcher_pos: Vector2, wall_concealed: bool, shadow_concealed: bool) -> bool:
+	if points.size() < 2:
+		return false
+	var np: Vector2 = nearest_point_on_line(points, searcher_pos)
+	return searcher_pos.distance_to(np) <= reveal_radius_for_flags(wall_concealed, shadow_concealed)
 
 # ── Scenery geometry ──────────────────────────────────────────────────────────
 
@@ -64,6 +88,83 @@ static func get_all_walls() -> Array:
 	var out: Array = []
 	out.append_array(get_zone_walls())
 	out.append_array(get_cpu_walls())
+	return out
+
+# ---- Tree geometry (Commit B) ----
+
+## The THREE trees of the player zone: trunk rect / canopy rect / ground
+## shadow rect (a line inside the shadow or under the canopy is
+## shadow-concealed). Placeholder art - the SceneryLayer renders them. All
+## clear of walls, the meeting point and the search-entry walkways so play is
+## never blocked.
+static func get_zone_trees() -> Array:
+	return [
+		{"trunk": Rect2(443.0, 243.0, 14.0, 14.0), "canopy": Rect2(380.0, 180.0, 140.0, 110.0), "shadow": Rect2(400.0, 280.0, 150.0, 80.0)},
+		{"trunk": Rect2(1493.0, 293.0, 14.0, 14.0), "canopy": Rect2(1430.0, 230.0, 140.0, 110.0), "shadow": Rect2(1450.0, 330.0, 150.0, 80.0)},
+		{"trunk": Rect2(993.0, 353.0, 14.0, 14.0), "canopy": Rect2(930.0, 290.0, 140.0, 110.0), "shadow": Rect2(950.0, 390.0, 150.0, 80.0)},
+	]
+
+## CPU-zone trees - the SAME layout as the player zone, offset by the CPU
+## zone's top edge so both halves are identical (owner Q2).
+static func get_cpu_trees() -> Array:
+	var out: Array = []
+	for t in get_zone_trees():
+		var entry := {}
+		for key in t:
+			var rect: Rect2 = t[key]
+			entry[key] = Rect2(rect.position + Vector2(0.0, ZoneLayout.CPU_ZONE.position.y), rect.size)
+		out.append(entry)
+	return out
+
+## Every tree in the world (both zones).
+static func get_all_trees() -> Array:
+	var out: Array = []
+	out.append_array(get_zone_trees())
+	out.append_array(get_cpu_trees())
+	return out
+
+## Commit B classification: any stroke segment intersecting a tree's SHADOW or
+## CANOPY rect counts as shadow-concealed (hidden in the tree's shade / under
+## the leaves). Pure geometry, no state - used by DrawSystem (human strokes),
+## GhostDrawSystem (ghost lines) and GhostBotController (CPU lines) alike,
+## identical for both sides.
+static func is_shadow_concealed(points: Array) -> bool:
+	if points.size() < 2:
+		return false
+	for t in get_all_trees():
+		var shadow: Rect2 = t["shadow"]
+		var canopy: Rect2 = t["canopy"]
+		for i in range(points.size() - 1):
+			if _segment_intersects_rect(points[i], points[i + 1], shadow) 					or _segment_intersects_rect(points[i], points[i + 1], canopy):
+				return true
+	return false
+
+## Random point INSIDE a shadow rect of the given zone (`cpu_zone` true = the
+## ghost's half). Used by GhostBotController to anchor a shadow-concealed line.
+static func random_shadow_anchor_for_zone(cpu_zone: bool, rng: RandomNumberGenerator) -> Vector2:
+	var trees := get_cpu_trees() if cpu_zone else get_zone_trees()
+	if trees.is_empty():
+		return ZoneLayout.MEETING_POINT if not cpu_zone else Vector2(1200.0, 1500.0)
+	var t: Dictionary = trees[rng.randi_range(0, trees.size() - 1)]
+	var shadow: Rect2 = t["shadow"]
+	return Vector2(
+		rng.randf_range(shadow.position.x, shadow.position.x + shadow.size.x),
+		rng.randf_range(shadow.position.y, shadow.position.y + shadow.size.y)
+	)
+
+## Commit B: the CPU searcher's tree-check points for one zone. Shadow centers
+## always; `thorough` (NIGHTMARE) also adds the canopy top/bottom edges so the
+## hardest CPU looks under the leaves too.
+static func get_tree_check_points(cpu_zone: bool, thorough: bool) -> Array[Vector2]:
+	var trees := get_cpu_trees() if cpu_zone else get_zone_trees()
+	var out: Array[Vector2] = []
+	for t in trees:
+		var shadow: Rect2 = t["shadow"]
+		out.append(shadow.get_center())
+		if thorough:
+			var canopy: Rect2 = t["canopy"]
+			out.append(Vector2(canopy.get_center().x, canopy.position.y))
+			out.append(Vector2(canopy.get_center().x, canopy.position.y + canopy.size.y))
 	return out
 
 ## Ground surfaces: the three playable strips (player zone / alley / CPU zone).

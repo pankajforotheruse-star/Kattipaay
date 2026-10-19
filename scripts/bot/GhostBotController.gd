@@ -78,6 +78,17 @@ const WALL_CONCEAL_SHARE := {
 	Difficulty.HARD: 0.60,
 	Difficulty.NIGHTMARE: 0.85,
 }
+## Commit B hiding (owner Q3a): per-difficulty share of ghost lines anchored in
+## a tree SHADOW instead of open ground. MUTUALLY EXCLUSIVE with the wall roll
+## (each line is anchored in a shadow, OR on a wall, OR on open ground) -
+## higher difficulty hides MORE lines in shadows. Placement bias ONLY - the
+## reveal physics/radii never change (owner Q3).
+const SHADOW_CONCEAL_SHARE := {
+	Difficulty.EASY: 0.10,
+	Difficulty.NORMAL: 0.25,
+	Difficulty.HARD: 0.45,
+	Difficulty.NIGHTMARE: 0.65,
+}
 const WORLD_EDGE_MARGIN := 120.0
 ## Fallback world bounds when FogSystem is unavailable (its default size).
 const WORLD_BOUNDS_FALLBACK := Vector2(2400.0, 1800.0)
@@ -292,15 +303,22 @@ func _build_line_dicts(anchor: Vector2, rng: RandomNumberGenerator = null) -> Ar
 	var sep := r.randf_range(MIN_LINE_SEPARATION, MAX_LINE_SEPARATION)
 	var start1 := _clamp_to_cpu_zone(anchor)
 	var start2 := _clamp_to_cpu_zone(anchor + Vector2.RIGHT.rotated(angle1) * sep)
-	# Commit A hiding (owner Q3a): per-line wall-conceal roll from the
-	# difficulty-keyed share table - higher difficulty anchors MORE lines on
-	# walls (fewer on open ground). Placement only, never the reveal physics.
-	var share: float = WALL_CONCEAL_SHARE.get(difficulty, 0.35)
+	# Commit A/B hiding (owner Q3a): per-line conceal roll from the
+	# difficulty-keyed share tables - higher difficulty anchors MORE lines on
+	# walls and in shadows (fewer on open ground). Shadow and wall are mutually
+	# exclusive per line (shadow OR wall OR open) - this preserves Commit A's
+	# wall-bias test validity. Placement only, never the reveal physics.
+	var wall_share: float = WALL_CONCEAL_SHARE.get(difficulty, 0.35)
+	var shadow_share: float = SHADOW_CONCEAL_SHARE.get(difficulty, 0.25)
 	var s1: Vector2 = start1
 	var s2: Vector2 = start2
-	if r.randf() < share:
+	if r.randf() < shadow_share:
+		s1 = _clamp_to_cpu_zone(HidingRules.random_shadow_anchor_for_zone(true, r))
+	elif r.randf() < wall_share:
 		s1 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
-	if r.randf() < share:
+	if r.randf() < shadow_share:
+		s2 = _clamp_to_cpu_zone(HidingRules.random_shadow_anchor_for_zone(true, r))
+	elif r.randf() < wall_share:
 		s2 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
 	dicts.append(_build_one_line_dict(s1, angle1, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
 	dicts.append(_build_one_line_dict(s2, angle2, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
@@ -340,6 +358,9 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float, rng: Rand
 	# Commit A hiding: classify the finished stroke against the shared wall
 	# geometry (single rule, both sides) - the flag travels in the dict as "wc".
 	line.wall_concealed = HidingRules.is_wall_concealed(line.points)
+	# Commit B hiding: classify against the shared tree shadow/canopy geometry -
+	# the flag travels in the dict as "sc".
+	line.shadow_concealed = HidingRules.is_shadow_concealed(line.points)
 	return line.to_network_dict()
 
 

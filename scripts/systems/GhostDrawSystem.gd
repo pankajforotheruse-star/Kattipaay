@@ -65,6 +65,19 @@ const REVEAL_FADE_DURATION := 0.5
 ## Red flash duration when penalty is applied (seconds), before normal reveal.
 const PENALTY_FLASH_DURATION := 0.3
 
+## Commit B (proximity reveal) alpha in/out fade duration (seconds).
+const PROXIMITY_FADE_DURATION := 0.35
+
+## Commit B proximity presentation state machine (per ghost line):
+##   PRESENT_HIDDEN    - outside every reveal radius: node hidden, alpha 0
+##   PRESENT_FADING_IN - inside a reveal radius: alpha fading 0 -> 1
+##   PRESENT_SHOWN     - fully visible while inside the radius
+##   PRESENT_FADING_OUT- left the radius: alpha fading 1 -> 0, then HIDDEN
+const PRESENT_HIDDEN := 0
+const PRESENT_FADING_IN := 1
+const PRESENT_SHOWN := 2
+const PRESENT_FADING_OUT := 3
+
 ## Maximum ghost lines stored (2 per activation, so tracking is capped).
 const MAX_GHOST_LINES := 4
 
@@ -110,6 +123,18 @@ var _ghost_line_pool: Pool = null
 
 ## Map from ChalkLine id → Tween for reveal fade-in animations.
 var _ghost_reveal_tweens: Dictionary = {}
+
+## Commit B: per-line proximity presentation state (line id -> PRESENT_* int).
+var _proximity_state: Dictionary = {}
+
+## Commit B: per-line current presentation alpha (line id -> float 0..1).
+var _proximity_alpha: Dictionary = {}
+
+## Commit B: per-line proximity alpha tweens (line id -> Tween).
+var _proximity_tweens: Dictionary = {}
+
+## Commit B: per-line "revealed color already applied" bookkeeping.
+var _proximity_color_set: Dictionary = {}
 
 ## Shader material for ghost line rendering (shared).
 var _ghost_material: ShaderMaterial = null
@@ -176,6 +201,7 @@ func _process(_delta: float) -> void:
 		return
 
 	_check_discovery()
+	_update_proximity_presentation(delta)
 
 
 func _exit_tree() -> void:
@@ -310,6 +336,67 @@ func probe_point_at_distance(points: Array, origin: Vector2, distance: float) ->
 func probe_is_wall_concealed(points: Array) -> bool:
 	return HidingRules.is_wall_concealed(points)
 
+## Commit B probes: shadow classification, flag-aware radius + predicate, and
+## the deterministic proximity state-machine probes used by the smoke test.
+func probe_is_shadow_concealed(points: Array) -> bool:
+	return HidingRules.is_shadow_concealed(points)
+
+func get_reveal_radius_for_flags(wall_concealed: bool, shadow_concealed: bool) -> float:
+	return HidingRules.reveal_radius_for_flags(wall_concealed, shadow_concealed)
+
+func probe_reveal_flags(points: Array, searcher_pos: Vector2, wall_concealed: bool, shadow_concealed: bool) -> bool:
+	return HidingRules.is_revealed_flags(points, searcher_pos, wall_concealed, shadow_concealed)
+
+## Register a throwaway ghost line for probe purposes. Returns its generated
+## id. The caller MUST finish with probe_unregister_line(id) so the probe line
+## never pollutes the live match's ghost-line set / scoring.
+func probe_register_line(points: Array, wall_concealed: bool, shadow_concealed: bool) -> int:
+	var line := ChalkLine.new()
+	line.id = _generate_line_id()
+	line.points = points
+	line.chalk_type = ChalkLine.ChalkType.GHOST
+	line.decay_duration = ChalkLine.GHOST_DECAY_SENTINEL
+	line.is_ghost = true
+	line.wall_concealed = wall_concealed
+	line.shadow_concealed = shadow_concealed
+	_active_ghost_lines.append(line)
+	_proximity_state[line.id] = PRESENT_HIDDEN
+	_proximity_alpha[line.id] = 0.0
+	return line.id
+
+## Deterministic proximity probe: advance the line's presentation state machine
+## against `pos` (pure state + in_radius, no timing/tween dependence).
+func probe_proximity(line_id: int, pos: Vector2) -> Dictionary:
+	var line := _find_ghost_line_by_id(line_id)
+	if line == null:
+		return {"in_radius": false, "state": PRESENT_HIDDEN, "state_name": "HIDDEN", "alpha": 0.0}
+	var in_radius := HidingRules.is_revealed_flags(line.points, pos, line.wall_concealed, line.shadow_concealed)
+	_set_proximity_in_radius(line_id, in_radius)
+	var state: int = _proximity_state.get(line_id, PRESENT_HIDDEN)
+	var alpha: float = _proximity_alpha.get(line_id, 0.0)
+	return {
+		"in_radius": in_radius,
+		"state": state,
+		"state_name": _proximity_state_name(state),
+		"alpha": alpha,
+	}
+
+## Unregister a probe ghost line (record + node + tween + state) so it can
+## never leak into the live match's ghost-line set or scoring.
+func probe_unregister_line(line_id: int) -> void:
+	var line := _find_ghost_line_by_id(line_id)
+	if line:
+		_active_ghost_lines.erase(line)
+	if _ghost_line_nodes.has(line_id):
+		var node: Line2D = _ghost_line_nodes[line_id]
+		if is_instance_valid(node):
+			_release_ghost_line_node(node)
+		_ghost_line_nodes.erase(line_id)
+	_kill_proximity_tween(line_id)
+	_proximity_state.erase(line_id)
+	_proximity_alpha.erase(line_id)
+	_proximity_color_set.erase(line_id)
+
 
 func _on_match_state_changed(payload: Dictionary) -> void:
 	var to_state: int = payload.get("to", -1)
@@ -353,6 +440,9 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 		# single shared rule); fall back to a local re-classification for clients
 		# whose payload predates the "wc" field.
 		line.wall_concealed = bool(line_data.get("wc", HidingRules.is_wall_concealed(line.points)))
+		# Commit B (hiding): keep the sender's shadow classification; fall back
+		# to a local re-classification for payloads predating the "sc" field.
+		line.shadow_concealed = bool(line_data.get("sc", HidingRules.is_shadow_concealed(line.points)))
 
 		# Ensure line has an ID
 		if line.id < 0:
@@ -407,30 +497,45 @@ func _check_discovery() -> void:
 	var discovered_ids: Array[int] = []
 	var penalty_window_hit := false
 
-	# Check each ghost line against each vision circle
+	# Check each ghost line against each vision circle. Struck lines are
+	# skipped; DISCOVERED lines are still evaluated so their proximity
+	# presentation can fade back OUT when the searcher leaves the radius. The
+	# one-shot discovery event stays sticky via is_discovered (fires ONCE per
+	# line, with its own placement-window penalty roll).
 	for line in _active_ghost_lines:
-		if line.is_discovered or line.is_struck:
+		if line.is_struck:
 			continue
 		if line.points.size() < 2:
 			continue
 
+		# Commit B: cheap AABB cull before the exact predicate - if no searcher
+		# is within R=160 of the line's bounding box it cannot be revealed.
+		if not _line_bbox_in_reach(line):
+			_set_proximity_in_radius(line.id, false)
+			continue
+
+		var revealed := false
 		for player_id in _vision_cache:
 			var vis: Dictionary = _vision_cache[player_id]
 			var center: Vector2 = vis["position"]
-			# Commit A (hiding): the reveal radius comes from the SINGLE shared
-			# HidingRules source -- identical for both sides and constant across
-			# difficulties (owner Q2/Q3): R=160 open-ground, R_occluded=90
-			# wall-concealed. The fog-circle radius no longer gates discovery.
-			if HidingRules.is_revealed(line.points, center, line.wall_concealed):
-				discovered_ids.append(line.id)
-				# Penalty window is per line (its own placement timestamp).
-				# Networked lines (incl. the solo GhostBot mock peer) carry gp
-				# in their network dict; the old single _placed_at_time only
-				# ever reflected the local activation path.
-				if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
-					penalty_window_hit = true
-				line.is_discovered = true
+			# Commit A/B (hiding): the reveal radius comes from the SINGLE
+			# shared HidingRules source -- identical for both sides and constant
+			# across difficulties (owner Q2/Q3): R=160 open-ground, R_shadow=110
+			# tree-shadow-concealed, R_occluded=90 wall-concealed. The fog-circle
+			# radius no longer gates discovery.
+			if HidingRules.is_revealed_flags(line.points, center, line.wall_concealed, line.shadow_concealed):
+				revealed = true
 				break  # One hit per line is enough
+		_set_proximity_in_radius(line.id, revealed)
+		if revealed and not line.is_discovered:
+			line.is_discovered = true
+			discovered_ids.append(line.id)
+			# Penalty window is per line (its own placement timestamp).
+			# Networked lines (incl. the solo GhostBot mock peer) carry gp
+			# in their network dict; the old single _placed_at_time only
+			# ever reflected the local activation path.
+			if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
+				penalty_window_hit = true
 
 	if discovered_ids.is_empty():
 		return
@@ -471,6 +576,143 @@ func _check_discovery() -> void:
 			_reveal_line_fade_in(line_id)
 
 	print("GhostDrawSystem: discovered lines %s (penalty: %s, within_window: %s)" % [discovered_ids, penalty_applied, penalty_window_hit])
+
+
+# ---- Commit B: proximity presentation state machine --------------------------------
+
+## Advance a line's presentation state from an in-radius reading. Transitions
+## are pure (state + in_radius -> state), so the smoke test's probe sequence
+## is fully deterministic and tween-free.
+func _set_proximity_in_radius(line_id: int, in_radius: bool) -> void:
+	var state := int(_proximity_state.get(line_id, PRESENT_HIDDEN))
+	var new_state := state
+	if in_radius and (state == PRESENT_HIDDEN or state == PRESENT_FADING_OUT):
+		new_state = PRESENT_FADING_IN
+		_kill_proximity_tween(line_id)
+		_switch_proximity_reveal_color(line_id)
+	elif not in_radius and (state == PRESENT_FADING_IN or state == PRESENT_SHOWN):
+		new_state = PRESENT_FADING_OUT
+		_kill_proximity_tween(line_id)
+	_proximity_state[line_id] = new_state
+
+
+## Frame driver: run each line's alpha fade per its state. The fade itself is
+## a normal Tween on node.modulate.a + shader alpha_mult over
+## PROXIMITY_FADE_DURATION; the state machine stays tween-free, so probes are
+## deterministic.
+func _update_proximity_presentation(_delta: float) -> void:
+	for line_id in _proximity_state.keys():
+		var line := _find_ghost_line_by_id(line_id)
+		if line == null or line.is_struck:
+			continue
+		var state: int = _proximity_state[line_id]
+		if state == PRESENT_HIDDEN:
+			_proximity_alpha[line_id] = 0.0
+			var node: Line2D = _ghost_line_nodes.get(line_id, null)
+			if node and is_instance_valid(node):
+				node.visible = false
+			continue
+		# FADING_IN / SHOWN / FADING_OUT: the searcher can see the line - make
+		# sure the visual exists and is visible.
+		var visual: Line2D = _ghost_line_nodes.get(line_id, null)
+		if visual == null or not is_instance_valid(visual):
+			_create_ghost_line_node(line)
+			visual = _ghost_line_nodes.get(line_id, null)
+			if visual == null:
+				continue
+		visual.visible = true
+		if state == PRESENT_FADING_IN and not _proximity_tweens.has(line_id):
+			_start_proximity_fade(line_id, 1.0)
+		elif state == PRESENT_FADING_OUT and not _proximity_tweens.has(line_id):
+			_start_proximity_fade(line_id, 0.0)
+
+
+func _start_proximity_fade(line_id: int, target_alpha: float) -> void:
+	_kill_proximity_tween(line_id)
+	var line := _find_ghost_line_by_id(line_id)
+	var node: Line2D = _ghost_line_nodes.get(line_id, null)
+	if line == null or node == null or not is_instance_valid(node):
+		return
+	var mat: ShaderMaterial = null
+	if node.material and node.material is ShaderMaterial:
+		mat = node.material as ShaderMaterial
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_LINEAR)
+	tween.tween_method(
+		func(a: float):
+			node.modulate.a = a
+			if mat:
+				mat.set_shader_parameter("alpha_mult", a)
+		,
+		node.modulate.a,
+		target_alpha,
+		PROXIMITY_FADE_DURATION
+	)
+	tween.tween_callback(func():
+		_proximity_tweens.erase(line_id)
+		if target_alpha >= 1.0:
+			_proximity_state[line_id] = PRESENT_SHOWN
+			_proximity_alpha[line_id] = 1.0
+		else:
+			_proximity_state[line_id] = PRESENT_HIDDEN
+			_proximity_alpha[line_id] = 0.0
+			if is_instance_valid(node):
+				node.visible = false
+	)
+	_proximity_tweens[line_id] = tween
+
+
+func _kill_proximity_tween(line_id: int) -> void:
+	if _proximity_tweens.has(line_id):
+		var tween: Tween = _proximity_tweens[line_id]
+		if tween.is_valid():
+			tween.kill()
+		_proximity_tweens.erase(line_id)
+
+
+## First time a line enters a reveal radius, switch its visual to the revealed
+## ghost color (the "found it" look). Applied once per line.
+func _switch_proximity_reveal_color(line_id: int) -> void:
+	if _proximity_color_set.has(line_id):
+		return
+	_proximity_color_set[line_id] = true
+	var node: Line2D = _ghost_line_nodes.get(line_id, null)
+	if node and is_instance_valid(node):
+		node.default_color = ChalkLine.GHOST_REVEALED_COLOR
+		if node.material and node.material is ShaderMaterial:
+			var mat := node.material as ShaderMaterial
+			mat.set_shader_parameter("chalk_color", ChalkLine.GHOST_REVEALED_COLOR)
+
+
+## Cheap AABB cull: is any searcher (vision circle center) within
+## REVEAL_RADIUS_OPEN of the line's bounding box? If not, the exact reveal
+## predicate cannot be true, so the frame skips it (and fades the line out).
+func _line_bbox_in_reach(line: ChalkLine) -> bool:
+	if line.points.is_empty():
+		return false
+	var mn := line.points[0]
+	var mx := line.points[0]
+	for p in line.points:
+		mn = Vector2(minf(mn.x, p.x), minf(mn.y, p.y))
+		mx = Vector2(maxf(mx.x, p.x), maxf(mx.y, p.y))
+	var aabb := Rect2(mn, mx - mn).grow(HidingRules.REVEAL_RADIUS_OPEN)
+	for player_id in _vision_cache:
+		var center: Vector2 = _vision_cache[player_id]["position"]
+		if aabb.has_point(center):
+			return true
+	return false
+
+
+func _proximity_state_name(state: int) -> String:
+	match state:
+		PRESENT_FADING_IN:
+			return "FADING_IN"
+		PRESENT_SHOWN:
+			return "SHOWN"
+		PRESENT_FADING_OUT:
+			return "FADING_OUT"
+		_:
+			return "HIDDEN"
 
 
 # ── Line Generation ────────────────────────────────────────────────────────────
@@ -553,6 +795,8 @@ func _build_ghost_line(start: Vector2, angle: float, length: float, owner_id: in
 	line.ghost_placed_at = Time.get_ticks_msec()
 	# Commit A (hiding): classify the stroke against the shared wall geometry.
 	line.wall_concealed = HidingRules.is_wall_concealed(line.points)
+	# Commit B (hiding): classify against the shared tree shadow/canopy geometry.
+	line.shadow_concealed = HidingRules.is_shadow_concealed(line.points)
 
 	return line
 
@@ -810,3 +1054,12 @@ func _clear_all_ghost_lines() -> void:
 	_ghost_line_nodes.clear()
 
 	_active_ghost_lines.clear()
+
+	# Commit B: reset the proximity presentation state.
+	for ptween in _proximity_tweens.values():
+		if ptween is Tween and ptween.is_valid():
+			ptween.kill()
+	_proximity_tweens.clear()
+	_proximity_state.clear()
+	_proximity_alpha.clear()
+	_proximity_color_set.clear()

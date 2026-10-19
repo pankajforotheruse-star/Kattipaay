@@ -416,6 +416,9 @@ func _finish_drawing() -> void:
     # Commit A (hiding): classify the stroke against the shared wall geometry --
     # wall-concealed lines reveal at the smaller radius to the searcher.
     line.wall_concealed = HidingRules.is_wall_concealed(line.points)
+    # Commit B (hiding): classify against the shared tree shadow/canopy geometry
+    # -- shadow-concealed lines reveal at R_shadow (between open and wall).
+    line.shadow_concealed = HidingRules.is_shadow_concealed(line.points)
     line.widths = smoothed_widths
     line.chalk_type = _current_chalk_type
     line.player_id = _drawing_entity_id
@@ -1082,6 +1085,11 @@ func get_chalk_remaining() -> float:
 ## rule) -- exposed for the smoke test's occlusion assertions.
 func probe_is_wall_concealed(points: Array) -> bool:
     return HidingRules.is_wall_concealed(points)
+
+## Commit B probe: tree shadow/canopy classification (the single shared
+## HidingRules rule) -- exposed for the smoke test's occlusion assertions.
+func probe_is_shadow_concealed(points: Array) -> bool:
+    return HidingRules.is_shadow_concealed(points)
 
 
 func clear_all_lines() -> void:

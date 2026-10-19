@@ -101,6 +101,13 @@ const OCCLUSION_WALL_LINE: Array = [Vector2(700.0, 490.0), Vector2(760.0, 490.0)
 # searchers sit exactly on the +x axis at the requested distance.
 const OCCLUSION_PROBE_ORIGIN := Vector2(1200.0, 90.0)
 const OCCLUSION_PROBE_ORIGIN_WALL := Vector2(1200.0, 490.0)
+# -- Commit B occlusion probes (tree shadow + proximity reveal, owner Q1/Q2/Q3) --
+# Shadow-concealed probe line: inside tree 1's shadow Rect2(400,280,150,80),
+# clear of every wall, so the shared rule MUST classify it shadow- (and NOT
+# wall-) concealed. The probe origin's nearest point is the line's right end
+# (520,310), so placed searchers sit exactly on the +x axis at the distance.
+const OCCLUSION_SHADOW_LINE: Array = [Vector2(430.0, 300.0), Vector2(520.0, 310.0)]
+const OCCLUSION_PROBE_ORIGIN_SHADOW := Vector2(1200.0, 310.0)
 # Bias probe: placements per difficulty (2 lines each) on one fixed seed.
 const OCCLUSION_BIAS_PLACEMENTS := 60
 const OCCLUSION_BIAS_SEED := 20261015
@@ -655,6 +662,99 @@ func _run_occlusion_assertions(draw_sys: Node, ghost_sys: Node, cpu_sweep: Node)
 	print("KATTIPAAY_SMOKE: OCCLUSION_BIAS_OK concealed easy=%d/%d hard=%d/%d nightmare=%d/%d (same seed, strictly rising share)" % [
 		int(easy["concealed"]), int(easy["total"]), int(hard["concealed"]), int(hard["total"]),
 		int(nightmare["concealed"]), int(nightmare["total"])])
+
+	# (e) SHADOW REVEAL (Commit B): the shadow-concealed line does NOT reveal
+	# at the open radius R, but DOES reveal inside R_shadow (and not just
+	# beyond) - the tree-shadow hiding tax, sized between open ground and
+	# walls. The line must be classified shadow-concealed and NOT wall-concealed.
+	var shadow_points: Array = OCCLUSION_SHADOW_LINE
+	if bool(draw_sys.call("probe_is_wall_concealed", shadow_points)):
+		_fail("Commit-B shadow probe line was classified wall-concealed (wall geometry moved?)")
+		return
+	if not bool(draw_sys.call("probe_is_shadow_concealed", shadow_points)):
+		_fail("Commit-B shadow probe line was NOT classified shadow-concealed (tree geometry moved?)")
+		return
+	var r_shadow: float = float(ghost_sys.call("get_reveal_radius_for_flags", false, true))
+	var at_open_shadow: Vector2 = cpu_sweep.call("probe_point_at_distance", shadow_points, OCCLUSION_PROBE_ORIGIN_SHADOW, r_open)
+	var at_shadow_in: Vector2 = cpu_sweep.call("probe_point_at_distance", shadow_points, OCCLUSION_PROBE_ORIGIN_SHADOW, r_shadow - 0.5)
+	var at_shadow_out: Vector2 = cpu_sweep.call("probe_point_at_distance", shadow_points, OCCLUSION_PROBE_ORIGIN_SHADOW, r_shadow + 0.5)
+	if bool(ghost_sys.call("probe_reveal_flags", shadow_points, at_open_shadow, false, true)):
+		_fail("Shadow-concealed line revealed at the OPEN radius R=%.1f (shadow hiding tax missing)" % r_open)
+		return
+	if not bool(ghost_sys.call("probe_reveal_flags", shadow_points, at_shadow_in, false, true)):
+		_fail("Shadow-concealed line did NOT reveal inside R_shadow=%.1f" % r_shadow)
+		return
+	if bool(ghost_sys.call("probe_reveal_flags", shadow_points, at_shadow_out, false, true)):
+		_fail("Shadow-concealed line revealed just beyond R_shadow=%.1f" % r_shadow)
+		return
+	if not (r_open > r_shadow and r_shadow > r_occ):
+		_fail("Radius ordering broken: R=%.1f R_shadow=%.1f R_occluded=%.1f (expect R > R_shadow > R_occluded)" % [r_open, r_shadow, r_occ])
+		return
+	print("KATTIPAAY_SMOKE: SHADOW_REVEAL_OK R=%.1f R_shadow=%.1f R_occluded=%.1f (shadow hidden until inside the shadow radius)" % [r_open, r_shadow, r_occ])
+
+	# (f) PROXIMITY FADE (Commit B): probe_register_line lands a throwaway
+	# shadow-concealed line in the live ghost set; probe_proximity drives the
+	# presentation state machine deterministically (no timing): far -> HIDDEN,
+	# inside -> FADING_IN, far again -> FADING_OUT. The probe line is ALWAYS
+	# unregistered afterwards (asserted back to the pre-probe count) so it can
+	# never pollute the live match's ghost-line set / scoring.
+	var ghost_count_before := int(ghost_sys.call("get_active_ghost_lines").size())
+	var probe_id: int = int(ghost_sys.call("probe_register_line", shadow_points, false, true))
+	if probe_id < 0:
+		_fail("probe_register_line returned an invalid id %d" % probe_id)
+		return
+	var st_far: Dictionary = ghost_sys.call("probe_proximity", probe_id, OCCLUSION_PROBE_ORIGIN_SHADOW)
+	var st_near: Dictionary = ghost_sys.call("probe_proximity", probe_id, at_shadow_in)
+	var st_far_again: Dictionary = ghost_sys.call("probe_proximity", probe_id, OCCLUSION_PROBE_ORIGIN_SHADOW)
+	ghost_sys.call("probe_unregister_line", probe_id)
+	var ghost_count_after := int(ghost_sys.call("get_active_ghost_lines").size())
+	if ghost_count_after != ghost_count_before:
+		_fail("Probe line leaked into the live ghost-line set (probe_unregister_line broken): %d -> %d" % [ghost_count_before, ghost_count_after])
+		return
+	if int(st_far["state"]) != 0 or int(st_near["state"]) != 1 or int(st_far_again["state"]) != 3:
+		_fail("Proximity fade states wrong: far=%s inside=%s far-again=%s (expected 0/1/3 HIDDEN/FADING_IN/FADING_OUT)" % [
+			str(st_far["state"]), str(st_near["state"]), str(st_far_again["state"])])
+		return
+	if bool(st_far["in_radius"]) or not bool(st_near["in_radius"]) or bool(st_far_again["in_radius"]):
+		_fail("Proximity in_radius readings wrong: far=%s inside=%s far-again=%s" % [
+			str(st_far["in_radius"]), str(st_near["in_radius"]), str(st_far_again["in_radius"])])
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_FADE_OK states %s(%d) -> %s(%d) -> %s(%d) (HIDDEN/FADING_IN/FADING_OUT, probe line released)" % [
+		st_far["state_name"], st_far["state"], st_near["state_name"], st_near["state"],
+		st_far_again["state_name"], st_far_again["state"]])
+
+	# (g) SHADOW SHARED RULES (Commit B): both searchers read the SAME R_shadow
+	# radius and the SAME flag predicate (owner Q2) - wall+shadow flags alike.
+	var ghost_r_shadow: float = float(ghost_sys.call("get_reveal_radius_for_flags", false, true))
+	var cpu_r_shadow: float = float(cpu_sweep.call("get_reveal_radius_for_flags", false, true))
+	if ghost_r_shadow != cpu_r_shadow:
+		_fail("R_shadow differs between searchers: ghost=%.1f cpu=%.1f (single HidingRules source broken)" % [ghost_r_shadow, cpu_r_shadow])
+		return
+	var ghost_pred: bool = bool(ghost_sys.call("probe_reveal_flags", shadow_points, at_shadow_in, false, true))
+	var cpu_pred: bool = bool(cpu_sweep.call("probe_reveal_flags", shadow_points, at_shadow_in, false, true))
+	if ghost_pred != cpu_pred:
+		_fail("Shared flag reveal predicate differs between searchers (shadow flag)")
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_SHADOW_SHARED_OK R_shadow=%.1f predicate=%s (CpuSearchController == GhostDrawSystem, sc flag)" % [cpu_r_shadow, str(cpu_pred)])
+
+	# (h) SHADOW BIAS (Commit B): with the SAME seeded RNG, HARD and NIGHTMARE
+	# place STRICTLY more shadow-concealed lines than EASY (difficulty changes
+	# PLACEMENT only - owner Q3). Fresh bot instance, never the live one.
+	var shadow_bot: Node = load("res://scripts/bot/GhostBotController.gd").new()
+	var easy_shadow: Dictionary = _count_shadow_placements(shadow_bot, 0, OCCLUSION_BIAS_SEED)
+	var hard_shadow: Dictionary = _count_shadow_placements(shadow_bot, 2, OCCLUSION_BIAS_SEED)
+	var nightmare_shadow: Dictionary = _count_shadow_placements(shadow_bot, 3, OCCLUSION_BIAS_SEED)
+	shadow_bot.free()
+	if int(easy_shadow["total"]) != expected_total or int(hard_shadow["total"]) != expected_total or int(nightmare_shadow["total"]) != expected_total:
+		_fail("Commit-B shadow placement build produced an unexpected line count: easy=%s hard=%s nightmare=%s" % [str(easy_shadow["total"]), str(hard_shadow["total"]), str(nightmare_shadow["total"])])
+		return
+	if int(hard_shadow["concealed"]) <= int(easy_shadow["concealed"]) or int(nightmare_shadow["concealed"]) <= int(easy_shadow["concealed"]):
+		_fail("Difficulty shadow bias broken: easy=%d hard=%d nightmare=%d concealed of %d (strictly rising expected)" % [
+			int(easy_shadow["concealed"]), int(hard_shadow["concealed"]), int(nightmare_shadow["concealed"]), expected_total])
+		return
+	print("KATTIPAAY_SMOKE: OCCLUSION_SHADOW_BIAS_OK concealed easy=%d/%d hard=%d/%d nightmare=%d/%d (same seed, strictly rising share)" % [
+		int(easy_shadow["concealed"]), int(easy_shadow["total"]), int(hard_shadow["concealed"]), int(hard_shadow["total"]),
+		int(nightmare_shadow["concealed"]), int(nightmare_shadow["total"])])
 
 
 ## Deterministic GhostBot conceal share for one difficulty: OCCLUSION_BIAS_PLACEMENTS

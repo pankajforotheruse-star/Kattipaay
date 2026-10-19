@@ -99,6 +99,12 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## identical rule for both sides.
 @export var wall_concealed: bool = false
 
+## Whether this line is tree-shadow-concealed (a drawn stroke intersecting a
+## tree's shadow or canopy -- Commit B hiding). Shadow-concealed lines reveal
+## at REVEAL_RADIUS_SHADOW (between open ground and walls) -- identical rule
+## for both sides.
+@export var shadow_concealed: bool = false
+
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
 
@@ -218,6 +224,7 @@ func to_network_dict() -> Dictionary:
         "gp": int(ghost_placed_at), # ghost_placed_at (int msec)
         "gd": is_discovered,        # is_discovered
         "wc": wall_concealed,       # wall_concealed (Commit A hiding)
+        "sc": shadow_concealed,     # shadow_concealed (Commit B hiding)
     }
     # Estimated size: ~20 bytes overhead + (simplified_points * 4) + (simplified_points * 1)
     # For 10 simplified points: 20 + 40 + 10 = ~70 bytes. Well under 500.
@@ -240,6 +247,7 @@ func from_network_dict(data: Dictionary) -> void:
     ghost_placed_at = float(data.get("gp", 0))
     is_discovered = data.get("gd", false)
     wall_concealed = bool(data.get("wc", false))
+    shadow_concealed = bool(data.get("sc", false))
 
     # Decode positions
     points.clear()

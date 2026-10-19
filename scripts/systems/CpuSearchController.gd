@@ -55,6 +55,16 @@ const DIFFICULTY_NOTICE := {
 	3: 0.85,  # NIGHTMARE — almost always catches them
 }
 
+## Commit B tree pass: only HARD (2) and NIGHTMARE (3) bother checking under
+## the trees; EASY/NORMAL sweep the open lines only (difficulty changes CPU
+## behavior only - owner Q3).
+const TREE_CHECK_MIN_DIFFICULTY := 2
+## Sentinel for "no tree-check point active".
+const TREE_CHECK_SENTINEL := Vector2(-100000.0, -100000.0)
+## Pause while the CPU stands within STRIKE_RADIUS of a tree-check point
+## (searching under the tree) before it moves on to the next one.
+const TREE_CHECK_PAUSE_SECONDS := 0.35
+
 var _active: bool = false
 var _npc: CharacterBody2D = null
 var _draw_sys: DrawSystem = null
@@ -65,6 +75,10 @@ var _sweep_speed: float = DEFAULT_SWEEP_SPEED
 var _unresolved_sneaks: Dictionary = {}
 ## Per-difficulty notice chance cached at phase start (live override wins).
 var _sneak_notice_chance: float = -1.0
+## Commit B: tree-check queue (HARD: shadow centers; NIGHTMARE: + canopy
+## edges) and the current point being checked.
+var _tree_check_queue: Array = []
+var _tree_check_current: Vector2 = TREE_CHECK_SENTINEL
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -113,9 +127,16 @@ func _on_search_phase_started(payload: Dictionary) -> void:
 	_current_target = null
 	_pause_timer = 0.0
 	_unresolved_sneaks.clear()
+	_tree_check_queue.clear()
+	_tree_check_current = TREE_CHECK_SENTINEL
 	if not _active:
 		return
 	_read_settings()
+	if GameState.cpu_difficulty >= TREE_CHECK_MIN_DIFFICULTY:
+		# HARD: shadow centers; NIGHTMARE: thorough (+ canopy edges). The CPU
+		# searches the PLAYER zone, so it checks the player-zone trees.
+		var thorough: bool = GameState.cpu_difficulty >= 3
+		_tree_check_queue = HidingRules.get_tree_check_points(false, thorough)
 	for line in _draw_sys.get_active_lines() if _draw_sys else []:
 		if line.is_sneak and not line.is_struck:
 			_unresolved_sneaks[line.id] = true
@@ -125,6 +146,8 @@ func _on_search_phase_ended(_payload: Dictionary) -> void:
 	_active = false
 	_current_target = null
 	_unresolved_sneaks.clear()
+	_tree_check_queue.clear()
+	_tree_check_current = TREE_CHECK_SENTINEL
 
 
 ## The defender argues (distract): the CPU's sweep freezes for stall_seconds.
@@ -165,6 +188,14 @@ func probe_point_at_distance(points: Array, origin: Vector2, distance: float) ->
 	var dir: Vector2 = (origin - np).normalized() if origin != np else Vector2.UP
 	return np + dir * distance
 
+## Commit B probes: flag-aware radius + predicate (single shared HidingRules
+## source, asserted identical to GhostDrawSystem's by the smoke test).
+func get_reveal_radius_for_flags(wall_concealed: bool, shadow_concealed: bool) -> float:
+	return HidingRules.reveal_radius_for_flags(wall_concealed, shadow_concealed)
+
+func probe_reveal_flags(points: Array, searcher_pos: Vector2, wall_concealed: bool, shadow_concealed: bool) -> bool:
+	return HidingRules.is_revealed_flags(points, searcher_pos, wall_concealed, shadow_concealed)
+
 
 func _process(delta: float) -> void:
 	if not _active or _npc == null or _draw_sys == null:
@@ -175,7 +206,9 @@ func _process(delta: float) -> void:
 	if _current_target == null or not is_instance_valid(_current_target):
 		_pick_target()
 		if _current_target == null:
-			_check_leftover_sneaks()
+			_walk_tree_check_point()
+			if _tree_check_current == TREE_CHECK_SENTINEL:
+				_check_leftover_sneaks()
 			return  # no lines left — the driver's early-exit / timer ends the phase
 	_check_sneak_notices()
 	var center := _center_of(_current_target.points)
@@ -187,7 +220,10 @@ func _process(delta: float) -> void:
 	# never changes this geometry (owner Q3).
 	var line_dist: float = _npc.global_position.distance_to(
 		HidingRules.nearest_point_on_line(_current_target.points, _npc.global_position))
-	if line_dist <= HidingRules.reveal_radius_for(_current_target.wall_concealed):
+	# Commit B: the strike gate honours BOTH concealment flags via the single
+	# shared rule (R_open=160 / R_shadow=110 / R_occluded=90) - identical to
+	# the human searcher's reveal predicate (owner Q2/Q3).
+	if line_dist <= HidingRules.reveal_radius_for_flags(_current_target.wall_concealed, _current_target.shadow_concealed):
 		var target: ChalkLine = _current_target
 		_current_target = null
 		if _draw_sys.strike_line(target.id):
@@ -210,6 +246,23 @@ func _pick_target() -> void:
 			best_d = d
 			best = line
 	_current_target = best
+
+
+## Commit B tree pass: with no lines left, the CPU walks the tree shadow check
+## points (HARD: shadow centers; NIGHTMARE: + canopy edges) to "search under
+## the trees". Stands TREE_CHECK_PAUSE_SECONDS within STRIKE_RADIUS of each
+## point, then moves on. Lines stay prioritized: _pick_target runs FIRST every
+## frame, so a remaining/newly-drawn line always wins over the next tree point.
+func _walk_tree_check_point() -> void:
+	if _tree_check_current == TREE_CHECK_SENTINEL:
+		if _tree_check_queue.is_empty():
+			return
+		_tree_check_current = _tree_check_queue.pop_front()
+	if _npc.global_position.distance_to(_tree_check_current) <= STRIKE_RADIUS:
+		_pause_timer = TREE_CHECK_PAUSE_SECONDS
+		_tree_check_current = TREE_CHECK_SENTINEL
+		return
+	_walk_to(_tree_check_current)
 
 
 ## One notice roll per unresolved sneak line, rolled the FIRST time the sweep

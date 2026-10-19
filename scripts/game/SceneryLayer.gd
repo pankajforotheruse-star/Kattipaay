@@ -17,6 +17,10 @@ const GROUND_TINT := Color(0.30, 0.26, 0.20, 0.22)
 const ALLEY_TINT := Color(0.42, 0.36, 0.26, 0.26)
 const WALL_COLOR := Color(0.62, 0.50, 0.34, 1.0)
 const WALL_EDGE_COLOR := Color(0.38, 0.30, 0.20, 1.0)
+# Commit B: tree placeholder art (trunk / canopy / ground shadow tint).
+const TRUNK_COLOR := Color(0.45, 0.30, 0.18, 1.0)
+const CANOPY_COLOR := Color(0.20, 0.40, 0.16, 0.85)
+const SHADOW_TINT := Color(0.05, 0.05, 0.08, 0.30)
 
 func _draw() -> void:
 	# Ground surfaces (identical data for both sides).
@@ -29,3 +33,11 @@ func _draw() -> void:
 		var wall: Rect2 = w
 		draw_rect(wall, WALL_COLOR, true)
 		draw_rect(wall, WALL_EDGE_COLOR, false, 3.0)
+	# Trees (both zones, Commit B): ground shadow, trunk, round canopy.
+	for t in HidingRules.get_all_trees():
+		var shadow: Rect2 = t["shadow"]
+		var trunk: Rect2 = t["trunk"]
+		var canopy: Rect2 = t["canopy"]
+		draw_rect(shadow, SHADOW_TINT, true)
+		draw_rect(trunk, TRUNK_COLOR, true)
+		draw_circle(canopy.get_center(), minf(canopy.size.x, canopy.size.y) * 0.5, CANOPY_COLOR)
