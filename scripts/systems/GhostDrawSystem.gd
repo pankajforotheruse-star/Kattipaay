@@ -190,6 +190,8 @@ func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_FOG_REVEALED, _on_fog_revealed)
 	EventBus.off(EventBus.EV_NETWORK_GHOST_LINES_PLACED, _on_network_ghost_lines_placed)
 	EventBus.off(EventBus.EV_NETWORK_GHOST_LINES_REVEALED, _on_network_ghost_lines_revealed)
+	if _ghost_line_pool:
+		_ghost_line_pool.dispose()
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
