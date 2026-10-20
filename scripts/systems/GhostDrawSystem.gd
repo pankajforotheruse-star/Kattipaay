@@ -66,7 +66,7 @@ const REVEAL_FADE_DURATION := 0.5
 const PENALTY_FLASH_DURATION := 0.3
 
 ## Maximum ghost lines stored (2 per activation, so tracking is capped).
-const MAX_GHOST_LINES := 4
+const MAX_GHOST_LINES := 50
 
 ## Base of the ghost-line ID namespace. Ghost line IDs are handed out by a
 ## monotonic counter starting here so they are (a) never negative — the -1
@@ -92,6 +92,8 @@ var _placed_at_time: float = 0.0
 ## Cached vision circle positions for discovery checking.
 ## { player_id: { "position": Vector2, "radius": float } }
 var _vision_cache: Dictionary = {}
+## The human gets only one proximity notice per sneaked CPU line.
+var _cpu_sneak_notice_checked: Dictionary = {}
 
 ## Reference to FogSystem sibling for vision circle queries.
 var _fog_system: Node = null
@@ -179,6 +181,7 @@ func _process(_delta: float) -> void:
 			or GameState.solo_active_searcher != 1):
 		return
 
+	_check_cpu_sneak_notices()
 	_check_discovery()
 
 
@@ -248,6 +251,7 @@ func reset_for_new_round() -> void:
 	_is_local_ghost = false
 	_local_ghost_owner_id = -1
 	_vision_cache.clear()
+	_cpu_sneak_notice_checked.clear()
 	print("GhostDrawSystem: reset for new round")
 
 ## Container holding this system's Line2D chalk visuals (the WipeEffect
@@ -323,6 +327,7 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		reset_for_new_round()
 	elif to_state == GameState.MatchState.SEARCHING:
 		_vision_cache.clear()
+		_cpu_sneak_notice_checked.clear()
 
 
 ## Cache vision circle positions from FogSystem for discovery checking.
@@ -355,6 +360,8 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 		return
 
 	for line_data in lines_data:
+		if _active_ghost_lines.size() >= MAX_GHOST_LINES:
+			break
 		var line := ChalkLine.new()
 		line.from_network_dict(line_data)
 		line.is_ghost = true
@@ -408,6 +415,57 @@ func _on_network_ghost_lines_revealed(payload: Dictionary) -> void:
 
 # ── Discovery Check ────────────────────────────────────────────────────────────
 
+## A newly sneaked CPU line is NOT an ordinary discoverable line. The human
+## catches it only by actually arriving at the location. On capture, remove
+## that exact line plus up to two nearby existing CPU lines. Sneaks beyond
+## the human's route survive and count toward the final score.
+func _check_cpu_sneak_notices() -> void:
+	if not GameState.solo_vs_cpu or GameState.solo_active_searcher != 1:
+		return
+	if not _game_world or not _game_world.has_method("get_entity"):
+		return
+	var searcher := _game_world.get_entity(1) as Node2D
+	if searcher == null:
+		return
+	for sneak_line in _active_ghost_lines.duplicate():
+		if not sneak_line.is_sneak or sneak_line.is_struck \
+				or _cpu_sneak_notice_checked.has(sneak_line.id):
+			continue
+		if sneak_line.points.size() < 2:
+			continue
+		var dist := searcher.global_position.distance_to(
+			HidingRules.nearest_point_on_line(sneak_line.points, searcher.global_position))
+		if dist > 170.0:
+			continue
+		_cpu_sneak_notice_checked[sneak_line.id] = true
+		var location := ChalkLine.compute_center(sneak_line.points)
+		var penalized: Array[int] = []
+		if strike_ghost_line(sneak_line.id):
+			penalized.append(sneak_line.id)
+		var nearby: Array[ChalkLine] = []
+		for candidate in _active_ghost_lines:
+			if candidate.is_sneak or candidate.is_struck:
+				continue
+			if ChalkLine.compute_center(candidate.points).distance_to(location) <= 240.0:
+				nearby.append(candidate)
+		nearby.sort_custom(func(a: ChalkLine, b: ChalkLine) -> bool:
+			return ChalkLine.compute_center(a.points).distance_squared_to(location) \
+					< ChalkLine.compute_center(b.points).distance_squared_to(location))
+		for i in range(mini(2, nearby.size())):
+			if strike_ghost_line(nearby[i].id):
+				penalized.append(nearby[i].id)
+		EventBus.emit(EventBus.EV_GAME_SNEAK_NOTICED, {
+			"line_id": sneak_line.id,
+			"position": location,
+			"defender": "cpu",
+			"penalty_line_ids": penalized,
+		})
+		print("GhostDrawSystem: human caught CPU sneak %d; removed %s" % [
+			sneak_line.id, str(penalized)])
+
+
+
+
 ## Check all active ghost lines against cached vision circles.
 ## Called every frame during DRAWING and SEARCHING states.
 func _check_discovery() -> void:
@@ -422,7 +480,7 @@ func _check_discovery() -> void:
 
 	# Check each ghost line against each vision circle
 	for line in _active_ghost_lines:
-		if line.is_discovered or line.is_struck:
+		if line.is_discovered or line.is_struck or line.is_sneak:
 			continue
 		if line.points.size() < 2:
 			continue
