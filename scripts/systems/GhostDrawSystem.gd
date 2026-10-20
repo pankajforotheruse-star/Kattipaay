@@ -325,7 +325,9 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	var to_state: int = payload.get("to", -1)
 
 	# Reset availability when entering a new DRAWING state (new wave)
-	if to_state == GameState.MatchState.DRAWING:
+	# A paused drawing round has existing CPU marks; a resume is NOT a
+	# fresh drawing phase and must never wipe that hidden-line store.
+	if to_state == GameState.MatchState.DRAWING and int(payload.get("from", -1)) != GameState.MatchState.PAUSED:
 		reset_for_new_round()
 	elif to_state == GameState.MatchState.SEARCHING:
 		_vision_cache.clear()
