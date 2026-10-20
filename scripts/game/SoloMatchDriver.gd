@@ -53,6 +53,10 @@ var _search_phase_seconds: float = 30.0
 var _early_exit_grace: float = 1.0
 var _empty_phase_grace: float = 1.0
 var _winner_hold_seconds: float = 3.0
+## Real, visible reveal/score holds, not single-frame overlay flashes.
+var _reveal_hold_seconds: float = 1.0
+var _scoring_hold_seconds: float = 1.8
+var _result_step_elapsed: float = 0.0
 
 var _match_machine: MatchStateMachine = null
 var _bot: GhostBotController = null
@@ -112,6 +116,8 @@ func _ready() -> void:
 	_early_exit_grace = float(ProjectSettings.get_setting("chalk_gaon/solo_early_exit_grace_seconds", 1.0))
 	_empty_phase_grace = float(ProjectSettings.get_setting("chalk_gaon/solo_empty_phase_grace_seconds", 1.0))
 	_winner_hold_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_winner_hold_seconds", 3.0))
+	_reveal_hold_seconds = maxf(float(ProjectSettings.get_setting("chalk_gaon/solo_reveal_hold_seconds", 1.0)), 0.1)
+	_scoring_hold_seconds = maxf(float(ProjectSettings.get_setting("chalk_gaon/solo_scoring_hold_seconds", 1.8)), 0.1)
 
 	# Ensure the top-level PLAYING state (GameWorld normally does this first;
 	# this guards direct scene loads).
@@ -167,7 +173,22 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Top-level pause must freeze result holds as well as drawing/search.
+	if GameState.current == GameState.State.PAUSED:
+		return
 	var ms := GameState.get_match_state()
+	if _ending and ms == GameState.MatchState.REVEAL:
+		_result_step_elapsed += delta
+		if _result_step_elapsed >= _reveal_hold_seconds:
+			_result_step_elapsed = 0.0
+			_match_machine.transition_to(GameState.MatchState.SCORING)
+		return
+	if _ending and ms == GameState.MatchState.SCORING:
+		_result_step_elapsed += delta
+		if _result_step_elapsed >= _scoring_hold_seconds:
+			_result_step_elapsed = 0.0
+			_match_machine.transition_to(GameState.MatchState.WINNER)
+		return
 
 	# WINNER hold: the banner is shown for its hold time, then home. This runs
 	# even after _ending so the round always resolves.
@@ -537,9 +558,8 @@ func _request_early_exit(grace: float) -> void:
 # ── Round end ────────────────────────────────────────────────────────────────
 
 ## Both searches done: count surviving (unstruck) hidden lines per side and
-## resolve the winner (the side with MORE surviving lines wins; a tie,
-## including both-empty, resolves to the human so the round always produces a
-## winner). Then WINNER (banner + hold) -> RETURN_TO_LOBBY -> MAIN_MENU.
+## resolve the winner (the side with MORE surviving lines wins, a tie
+## is shown as a draw). Then WINNER (banner + hold) -> RETURN_TO_LOBBY -> MAIN_MENU.
 func _finish_round() -> void:
 	if _ending:
 		return
@@ -550,11 +570,10 @@ func _finish_round() -> void:
 	var cpu_surviving := _ghost_sys.get_active_ghost_lines().size() if _ghost_sys else 0
 	print("SoloMatchDriver: round finished - surviving lines: human=%d cpu=%d" % [human_surviving, cpu_surviving])
 	ScoringManager.set_survivors(human_surviving, cpu_surviving)
-	# SEARCHING -> REVEAL (fog clear) -> SCORING (survivors break down) ->
-	# WINNER (winner decided + banner) -> [hold] -> RETURN_TO_LOBBY -> home.
+	# SEARCHING -> REVEAL -> SCORING -> WINNER, each actually visible.
+	# Advance subsequent states from _process using timed holds.
+	_result_step_elapsed = 0.0
 	_match_machine.transition_to(GameState.MatchState.REVEAL)
-	_match_machine.transition_to(GameState.MatchState.SCORING)
-	_match_machine.transition_to(GameState.MatchState.WINNER)
 	_winner_hold = 0.0
 
 
