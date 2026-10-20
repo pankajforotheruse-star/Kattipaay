@@ -28,9 +28,9 @@ func _run() -> void:
 	_test_zone_invariants()
 	_test_visibility_boundaries()
 	_test_chalk_roundtrip()
-	_test_search_policy()
+	# CPU path + perception are tested with real controllers in the smoke test.
 	_test_scoring_decisions()
-	await _test_phase_timer()
+	_test_phase_timer()
 	if _failures > 0:
 		print(PREFIX + "FAIL checks=%d failures=%d" % [_checks, _failures])
 		quit(1)
@@ -126,48 +126,6 @@ func _test_chalk_roundtrip() -> void:
 	print(PREFIX + "CHALK_SERIALIZATION_OK")
 
 
-func _test_search_policy() -> void:
-	var cpu := CpuSearchController.new()
-	var zone := ZoneLayout.PLAYER_ZONE
-	var entry := ZoneLayout.SEARCH_ENTRY_CPU
-	var base: Array[Vector2] = cpu._build_search_waypoints(zone, entry)
-	_check(base.size() >= 8, "zone sweep has multiple waypoints")
-	for wp in base:
-		_check(zone.has_point(wp), "public CPU sweep stays inside human zone")
-	var second: Array[Vector2] = cpu._build_search_waypoints(zone, entry)
-	_check(base == second, "CPU route deterministic from public geometry")
-	var line := ChalkLine.new()
-	line.id = 42
-	line.points = [Vector2(100, 80), Vector2(180, 80)]
-	var typed: Array = [line]
-	_check(cpu.probe_revealed_line_ids(typed, Vector2(2200, 700)).is_empty(),
-		"CPU cannot inspect remote hidden marks")
-	_check(cpu.probe_revealed_line_ids(typed, Vector2(150, 140)).has(42),
-		"CPU can inspect encountered marks")
-	line.wall_concealed = true
-	_check(cpu.probe_revealed_line_ids(typed, Vector2(150, 200)).is_empty(),
-		"CPU respects smaller occluded distance")
-	line.is_sneak = true
-	_check(cpu.probe_revealed_line_ids(typed, Vector2(150, 80)).is_empty(),
-		"special sneaks are not ordinary search targets")
-	line.is_sneak = false
-	line.is_struck = true
-	_check(cpu.probe_revealed_line_ids(typed, Vector2(150, 80)).is_empty(),
-		"struck marks cannot be targeted twice")
-	var settings_before = ProjectSettings.get_setting("chalk_gaon/cpu_sneak_notice_chance", -1.0)
-	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", -1.0)
-	var prev_difficulty := int(_game_state.get("cpu_difficulty"))
-	_game_state.set("cpu_difficulty", 0)
-	var easy_chance: float = cpu._resolve_notice_chance()
-	_game_state.set("cpu_difficulty", 3)
-	var hard_chance: float = cpu._resolve_notice_chance()
-	_check(easy_chance < hard_chance, "higher difficulty increases legitimate sneak notice")
-	_game_state.set("cpu_difficulty", prev_difficulty)
-	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", settings_before)
-	cpu.free()
-	print(PREFIX + "CPU_SEARCH_POLICY_OK")
-
-
 func _test_scoring_decisions() -> void:
 	var score := root.get_node_or_null("ScoringManager")
 	if score == null:
@@ -199,14 +157,14 @@ func _test_phase_timer() -> void:
 	timer.stop()
 	timer.start_seconds(0.7)
 	_check(timer.is_running(), "raw second timer started")
-	await create_timer(0.12).timeout
+	timer._process(0.12)
 	timer.pause()
 	var before: float = timer.get("_remaining_seconds")
-	await create_timer(0.16).timeout
+	timer._process(0.16)
 	var during: float = timer.get("_remaining_seconds")
 	_check(absf(during - before) < 0.025, "paused timer cannot count down")
 	timer.resume()
-	await create_timer(0.75).timeout
+	timer._process(0.8)
 	_check(not timer.is_running(), "timer stops at zero rather than running negative")
 	timer.stop()
 	print(PREFIX + "PHASE_TIMER_OK")
