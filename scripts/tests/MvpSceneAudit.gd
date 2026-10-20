@@ -42,6 +42,12 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	_scan("res://scenes")
+	# SceneManager and Bootstrap may schedule a deferred splash-screen swap.
+	# Let Godot flush the pending message/scene queue BEFORE process exit;
+	# otherwise even successfully freed PackedScene probes cause a false
+	# positive 'ObjectDB instances leaked' warning at shutdown.
+	for _i in range(8):
+		await process_frame
 	if _seen < 12:
 		_failures += 1
 		push_error("KATTIPAAY_SCENES: FAIL unexpectedly few scene files: %d" % _seen)
