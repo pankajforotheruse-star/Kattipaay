@@ -74,9 +74,9 @@ func _ready() -> void:
 	# lifted during MEETING could leave a stale drawing/anchor index).
 	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_phase_changed)
 	# Check accelerometer availability
-	_has_accelerometer = not Input.get_accelerometer().is_zero_approx() or true
-	# In practice: Input.get_accelerometer() returns (0,0,0) on desktop.
-	# We try to use it; shake detection gracefully handles unavailable sensor.
+	_has_accelerometer = OS.has_feature("mobile")
+	# Do not poll the accelerometer on every desktop frame. On Android,
+	# a zero reading is handled by _poll_accelerometer's early return.
 
 	# Start accelerometer polling if available
 	if _has_accelerometer:
