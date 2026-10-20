@@ -526,6 +526,9 @@ func _is_explored(p: Vector2) -> bool:
 # ── Accusation (Guilt Confidence utility scoring) ────────────────────────────
 
 func _maybe_accuse() -> void:
+	# Legacy hidden-role accusation is never a Play VS CPU action.
+	if GameState.solo_vs_cpu:
+		return
 	if _accused_this_round:
 		return
 	# Respect ArgumentSystem's per-round limit (one accusation per accuser).
@@ -554,6 +557,8 @@ func _accuse_threshold() -> float:
 
 ## NIGHTMARE game-theoretic false accusation (confidence forced to 1.0).
 func _forced_accuse() -> void:
+	if GameState.solo_vs_cpu:
+		return
 	if _accused_this_round:
 		return
 	_guilt = 1.0
@@ -561,6 +566,8 @@ func _forced_accuse() -> void:
 
 
 func _try_accuse() -> void:
+	if GameState.solo_vs_cpu:
+		return
 	_accused_this_round = true
 	EventBus.emit(EventBus.EV_NETWORK_RPC_ARGUMENT_STARTED, {
 		"accuser_id": GHOST_ENTITY_ID,
