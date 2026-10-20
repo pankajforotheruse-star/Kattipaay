@@ -366,6 +366,9 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 	for line_data in lines_data:
 		if _active_ghost_lines.size() >= MAX_GHOST_LINES:
 			break
+		if not line_data is Dictionary or not ChalkLine.is_valid_network_payload(line_data):
+			push_warning("GhostDrawSystem: rejected malformed ghost-line payload")
+			continue
 		var line := ChalkLine.new()
 		line.from_network_dict(line_data)
 		line.is_ghost = true
