@@ -88,7 +88,9 @@ func _on_input_move_start(payload: Dictionary) -> void:
 func _process(delta: float) -> void:
 	if _argue_muffled > 0.0:
 		_argue_muffled = maxf(_argue_muffled - delta, 0.0)
-	if not _active or _human_is_searcher or _cpu_argue_checked:
+	# The CPU may argue only while defending (HUMAN searching), never
+	# during its own sweep of the human's marks.
+	if not _active or not _human_is_searcher or _cpu_argue_checked:
 		return
 	_cpu_argue_checked = true
 	if _arg_sys == null or _arg_sys.has_argued(2):
