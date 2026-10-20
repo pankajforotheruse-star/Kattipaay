@@ -1,49 +1,35 @@
-# Chalk Gaon: Ghost Lines — Prototype
+# Kattipaay — Play vs CPU (Godot 4.4 stable)
 
-Godot 4 prototype proving the core architecture patterns:
-- **EventBus**: decoupled pub/sub communication
-- **State Machine**: idle/walking transitions per entity
-- **Click-to-Move**: touch → EventBus → MovementSystem → state machine → movement
-- **Multi-entity**: player-controlled (red) + AI patrol (blue)
+Kattipaay is a top-down, mobile-first **draw-and-hide** game inspired by a childhood game. **Play vs CPU** is the development priority. Multiplayer code exists but is not required for the current MVP.
 
-## Quick Start
+## How to play
 
-1. Open `project.godot` in **Godot 4.3+**
-2. Press **F5** to run
-3. **Tap/click** anywhere to move the red player
-4. The **blue NPC** patrols automatically
+1. From Home, select **Play vs CPU** and a difficulty.
+2. **Draw (40 seconds):** drag a finger on Android (or hold the left mouse button on desktop) to leave chalk marks in your half of the village. Lines placed along the rendered compound walls are harder to discover.
+3. **Meet and toss:** both sides meet at the alley; call heads or tails to determine who searches first.
+4. **Search (30 seconds per side):** tap to move your character through the CPU's territory. A mark reveals only when your character reaches its reveal radius. Tap a **discovered** mark nearby to strike it out.
+5. **Defend:** while the CPU searches your territory, you may argue to distract it and sneak up to three extra lines. A detected sneak costs that attempt and up to two nearby existing marks. The CPU may also sneak when defending.
+6. **Score:** the winner is the side with **more surviving, unstruck lines** after both searches. Equal counts are a draw.
 
-## What You'll See
+The CPU explores public map geometry rather than seeing the positions of concealed human marks.
 
-- Dark background with a debug grid (100px squares)
-- Red square = your player (tap to move)
-- Blue square = AI NPC (auto-patrol)
-- HUD showing current game state and player state
-- State transitions: "idle" ↔ "walking" as players move/stop
+## Open and test
 
-## Architecture at a Glance
+- Use **Godot 4.4 stable**, not Godot 4.3.
+- Open `project.godot` and run the main scene (F5).
+- The repository's GitHub Actions **Kattipaay CI — Godot 4.4** workflow imports/parses the project, executes the accelerated end-to-end Play vs CPU smoke test, and gates the regression result.
+- Smoke tests cover Normal/Easy rounds, survivor scoring, drawing-phase and search-phase pause/resume, line detection, attempted remote strikes, and human/CPU sneak catches.
 
-```
-Tap screen
-  → InputManager emits "input.move_start"
-    → Player._on_move_command: sets target, emits "input.move_command_world"
-      → MovementSystem._on_move_command: applies target to entity
-    → Player state machine: idle → walking
-      → PlayerWalking.physics_update: move_and_slide toward target
-      → On arrival: walking → idle
-```
+The canonical game rules and remaining acceptance work are in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md). In particular, **tree shadow, movable leaf/brick cover, final Android device testing, and full multiplayer verification are still pending** and should not be inferred complete from green headless CI.
 
-Every mechanic can be added the same way: subscribe to events, never modify existing code.
+## Project structure
 
-## Project Structure
+- `scenes/game/game_world.tscn` — playable world, characters, village props
+- `scripts/game/SoloMatchDriver.gd` — draw, meeting, toss, dual searches, reveal, scores and winner state machine
+- `scripts/game/HidingRules.gd` — shared wall concealment and discovery distances
+- `scripts/systems/DrawSystem.gd` and `GhostDrawSystem.gd` — human and CPU chalk stores
+- `scripts/systems/CpuSearchController.gd` — map-based, proximity-gated CPU search
+- `scripts/bot/GhostBotController.gd` — CPU line drawing and defending behavior
+- `scripts/tests/KattipaayPlayableSmokeTest.gd` — real-scene accelerated end-to-end regression
 
-```
-scripts/autoload/          — Singletons (EventBus, GameState, InputManager, etc.)
-scripts/game/state_machines/ — Base State and StateMachine classes
-scripts/entities/           — Entity, Player, NPC + state machines
-scripts/systems/            — Pluggable gameplay systems (MovementSystem)
-scripts/ui/                 — HUD
-scenes/                     — .tscn scene files
-```
-
-See `/home/team/shared/architecture.md` for the full architecture document.
+The older PvE/ghost-accusation designs are not the Play vs CPU game rules.
