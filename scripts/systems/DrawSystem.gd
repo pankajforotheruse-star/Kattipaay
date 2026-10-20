@@ -229,6 +229,8 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
+    if _line_pool:
+        _line_pool.dispose()
 
 
 func _process(delta: float) -> void:
