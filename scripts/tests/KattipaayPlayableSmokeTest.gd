@@ -275,6 +275,11 @@ func _assert_home_mvp_ui() -> void:
 	if skip:
 		skip.pressed.emit()
 	await _settle_frames()
+	var fake_level := home.get_node_or_null("%XPLabel") as Label
+	var fake_xp_bar := home.get_node_or_null("%XPBar") as ProgressBar
+	if fake_level == null or fake_level.visible or fake_xp_bar == null or fake_xp_bar.visible:
+		_fail("Unimplemented static XP and progression chrome still visible")
+		return
 	print("KATTIPAAY_SMOKE: MVP_HOME_TUTORIAL_OK")
 
 
@@ -637,6 +642,11 @@ func _assert_solo_pause_resume(world: Node, draw_sys: Node, ghost_sys: Node, pha
 	if int(timer.call("get_remaining_seconds")) > time_before:
 		_fail("Resuming %s reset countdown to full duration" % phase_name)
 		return
+	if phase_name == "SEARCHING":
+		var remaining_label := world.get_node_or_null("HUD/RemainingLinesLabel") as Label
+		if remaining_label == null or not remaining_label.visible:
+			_fail("Pausing SEARCHING hid the remaining-lines HUD without restoring it")
+			return
 	print("KATTIPAAY_SMOKE: %s_PAUSE_RESUME_OK" % phase_name)
 
 
