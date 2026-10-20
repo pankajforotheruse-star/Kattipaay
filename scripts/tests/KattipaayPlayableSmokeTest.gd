@@ -147,6 +147,8 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_reveal_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_scoring_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_argue_stall_seconds", 1.0)
+	# Deterministically cover CPU's LEGAL defender-argue path.
+	ProjectSettings.set_setting("chalk_gaon/cpu_argue_chance", 1.0)
 	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=5 winner_hold=1 argue_stall=1")
 
 	if change_scene_to_file(MAIN_SCENE) != OK:
@@ -785,6 +787,21 @@ func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
 	if _failed:
 		return
 	var striker: Node = world.get_node_or_null("SoloMatchDriver/StrikeSystem")
+	var arg_sys: Node = world.get_node_or_null("Systems/ArgumentSystem")
+	if arg_sys == null:
+		_fail("Missing ArgumentSystem during human search")
+		return
+	await _wait_until(func() -> bool: return bool(arg_sys.call("has_argued", GHOST_ID)),
+			2.0, "CPU_DEFENDER_ARGUE")
+	if _failed:
+		return
+	if float(striker.get("_argue_muffled")) <= 0.0:
+		_fail("CPU defender ARGUE did not apply searcher muffle")
+		return
+	print("KATTIPAAY_SMOKE: CPU_DEFENDER_ARGUE_OK")
+	# Now test the remote-strike security rule independently of the temporary
+	# argument stall (otherwise muffling could mask an insecure strike path).
+	striker.set("_argue_muffled", 0.0)
 	var player := world.call("get_entity", HUMAN_ID) as Node2D
 	if striker == null or player == null:
 		_fail("Missing striker or human character for remote-strike test")
