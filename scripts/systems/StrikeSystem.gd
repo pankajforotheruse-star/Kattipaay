@@ -126,9 +126,18 @@ func get_remaining_lines() -> int:
 func try_strike_at(world_pos: Vector2, radius: float) -> bool:
 	if not _active or not _human_is_searcher or not _ghost_sys:
 		return false
+	var searcher := _game_world.get_entity(1) as Node2D if _game_world else null
+	if searcher == null:
+		return false
 	var best: ChalkLine = null
 	var best_d := radius * radius
 	for line in _ghost_sys.get_active_ghost_lines():
+		# A tap is an attempted strike, not a remote scan. The mark must
+		# already have been discovered AND be within actual avatar reach.
+		if not line.is_discovered or line.is_struck:
+			continue
+		if not HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed):
+			continue
 		var d := _point_segment_distance_sq(world_pos, line.points)
 		if d <= best_d:
 			best_d = d
@@ -142,6 +151,22 @@ func try_strike_at(world_pos: Vector2, radius: float) -> bool:
 func strike_ghost_line(line_id: int) -> bool:
 	if not _ghost_sys:
 		return false
+	# Guard even the direct-by-ID path; UI/automation must not bypass
+	# the same visibility + physical proximity checks as a tap.
+	if GameState.solo_vs_cpu:
+		if not _active or not _human_is_searcher or _argue_muffled > 0.0:
+			return false
+		var searcher := _game_world.get_entity(1) as Node2D if _game_world else null
+		if searcher == null:
+			return false
+		var eligible := false
+		for line in _ghost_sys.get_active_ghost_lines():
+			if line.id == line_id and line.is_discovered and not line.is_struck \
+					and HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed):
+				eligible = true
+				break
+		if not eligible:
+			return false
 	var ok := _ghost_sys.strike_ghost_line(line_id)
 	if ok:
 		EventBus.emit(EventBus.EV_NETWORK_CHALK_LINE_STRUCK, {
