@@ -185,6 +185,14 @@ func _run_test() -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: HOME_READY")
+	await _assert_home_mvp_ui()
+	if _failed:
+		quit(1)
+		return
+	_assert_android_minimal_permissions()
+	if _failed:
+		quit(1)
+		return
 
 	# Equal survivor counts must be an explicit draw; reset state before
 	# starting real matches so this isolated regression doesn't affect them.
@@ -226,6 +234,62 @@ func _run_test() -> void:
 
 	print("KATTIPAAY_SMOKE: PASS")
 	quit(0)
+
+
+## The legacy prototype home/tutorial previously advertised unavailable PvE,
+## shop and multiplayer flows instead of the playable MVP.
+func _assert_home_mvp_ui() -> void:
+	var home := current_scene
+	if home == null or home.name != "HomeScreen":
+		_fail("Home-screen MVP UI probe has no HomeScreen")
+		return
+	for button_name in ["PlayOnlineButton", "OfflinePlayButton", "ShopButton",
+			"BattlePassButton", "CollectionButton", "DailyRewardButton", "SettingsButton"]:
+		var button := home.get_node_or_null("%" + button_name) as Button
+		if button == null or button.visible:
+			_fail("Unavailable home-screen feature was still advertised: %s" % button_name)
+			return
+	var play := home.get_node_or_null("%PlayVsCPUButton") as Button
+	var tutorial_btn := home.get_node_or_null("%TutorialButton") as Button
+	if play == null or not play.visible or tutorial_btn == null or not tutorial_btn.visible:
+		_fail("Play vs CPU or tutorial button missing from MVP home")
+		return
+	tutorial_btn.pressed.emit()
+	await _settle_frames()
+	var overlay: Node = home.get_node_or_null("TutorialOverlay")
+	if overlay == null:
+		_fail("Tutorial did not open the correct 5-step overlay")
+		return
+	var body := overlay.get_node_or_null("%StepBodyLabel") as Label
+	var heading := overlay.get_node_or_null("%StepTitleLabel") as Label
+	var next_btn := overlay.get_node_or_null("%NextButton") as Button
+	if body == null or not body.text.contains("40 seconds") or heading == null or next_btn == null:
+		_fail("Tutorial still teaches an obsolete drawing mechanic")
+		return
+	for expected in ["HIDE", "TOSS", "SEARCH", "DEFEND"]:
+		next_btn.pressed.emit()
+		if not heading.text.contains(expected):
+			_fail("Tutorial step missing actual MVP rule: %s" % expected)
+			return
+	var skip := overlay.get_node_or_null("%SkipButton") as Button
+	if skip:
+		skip.pressed.emit()
+	await _settle_frames()
+	print("KATTIPAAY_SMOKE: MVP_HOME_TUTORIAL_OK")
+
+
+## Android export must not request location/Wi-Fi control for this local MVP.
+func _assert_android_minimal_permissions() -> void:
+	var preset := FileAccess.get_file_as_string("res://export_presets.cfg")
+	if preset.is_empty():
+		_fail("Android export preset not readable")
+		return
+	for permission in ["access_fine_location", "change_wifi_state", "change_network_state",
+			"nearby_wifi_devices", "access_wifi_state"]:
+		if not preset.contains("permissions/" + permission + "=false"):
+			_fail("Unnecessary Android permission still enabled: %s" % permission)
+			return
+	print("KATTIPAAY_SMOKE: ANDROID_PERMISSIONS_OK")
 
 
 ## Launch one full short-paced VS CPU match at the given difficulty and run
@@ -305,6 +369,9 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		if _failed:
 			return
 		_run_cpu_fair_search_assertions(cpu_sweep)
+		if _failed:
+			return
+		_assert_visual_walls(world)
 		if _failed:
 			return
 
@@ -753,6 +820,33 @@ func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
 			_fail("Human failed to catch CPU sneak at actual avatar location")
 			return
 	print("KATTIPAAY_SMOKE: CPU_SNEAK_CAUGHT_OK sneak=%d" % sneak_id)
+
+
+## All displayed compound-wall sprites should occupy the exact Rect2 cells
+## used by HidingRules for actual chalk concealment, including the mirrored CPU
+## half. Historical sprites were hundreds of pixels away from those cells.
+func _assert_visual_walls(world: Node) -> void:
+	var expected := [
+		{"path": "Props/PlayerZoneProps/WallA", "center": Vector2(890, 492), "size": Vector2(500, 24)},
+		{"path": "Props/PlayerZoneProps/WallB", "center": Vector2(1572, 670), "size": Vector2(24, 220)},
+		{"path": "Props/PlayerZoneProps/WallC", "center": Vector2(1030, 661), "size": Vector2(260, 22)},
+		{"path": "Props/CpuZoneProps/WallA", "center": Vector2(890, 1512), "size": Vector2(500, 24)},
+		{"path": "Props/CpuZoneProps/WallB", "center": Vector2(1572, 1690), "size": Vector2(24, 220)},
+		{"path": "Props/CpuZoneProps/WallC", "center": Vector2(1030, 1681), "size": Vector2(260, 22)}
+	]
+	for cell in expected:
+		var sprite := world.get_node_or_null(cell["path"]) as Sprite2D
+		if sprite == null or sprite.texture == null:
+			_fail("Visual wall absent: %s" % cell["path"])
+			return
+		if sprite.global_position.distance_to(cell["center"]) > 0.1:
+			_fail("Wall art doesn't match HidingRules coordinates: %s" % cell["path"])
+			return
+		var current_size := sprite.scale * Vector2(sprite.texture.get_size())
+		if current_size.distance_to(cell["size"]) > 0.1:
+			_fail("Wall sprite dimensions don't match concealment Rect2: %s" % cell["path"])
+			return
+	print("KATTIPAAY_SMOKE: VISUAL_WALL_GEOMETRY_OK all=6")
 
 
 ## The CPU must NOT see a faraway hidden line or use its coordinates as
