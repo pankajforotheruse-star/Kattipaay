@@ -47,18 +47,30 @@ jobs:
             echo "Static / Parse Check FAILED: Godot process exited non-zero."
             exit 1
           fi
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-static-check.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-static-check.log; then
             echo "Static / Parse Check FAILED: Godot reported a script/runtime initialization error."
             exit 1
           fi
           echo "Static / Parse Check PASSED."
+
+      - name: Audit every scene resource and instantiate it
+        run: |
+          set -euo pipefail
+          timeout 80s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpSceneAudit.gd --log-file godot-scene-audit.log
+          cat godot-scene-audit.log
+          grep -q "KATTIPAAY_SCENES: PASS" godot-scene-audit.log
+          if grep -E -q "KATTIPAAY_SCENES: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-scene-audit.log; then
+            exit 1
+          fi
 
       - name: Upload static-check log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: godot-static-check-log
-          path: godot-static-check.log
+          path: |
+            godot-static-check.log
+            godot-scene-audit.log
           if-no-files-found: ignore
 
   playable-smoke-test:
@@ -94,7 +106,7 @@ jobs:
             echo "Import project FAILED: Godot process exited non-zero."
             exit 1
           fi
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-import.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-import.log; then
             echo "Import project FAILED: Godot reported a script/runtime initialization error."
             exit 1
           fi
@@ -117,7 +129,7 @@ jobs:
             echo "Kattipaay Playable Smoke Test FAILED: PASS marker not found."
             exit 1
           fi
-          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-playable-smoke.log; then
+          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-playable-smoke.log; then
             echo "Kattipaay Playable Smoke Test FAILED: runtime/script error detected."
             exit 1
           fi
@@ -150,7 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           "$GODOT_BIN" --headless --path . --editor --quit --log-file godot-unit-import.log
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault" godot-unit-import.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-unit-import.log; then
             cat godot-unit-import.log
             exit 1
           fi
@@ -160,7 +172,7 @@ jobs:
           timeout 90s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpUnitSuite.gd --log-file godot-unit.log
           cat godot-unit.log
           grep -q "KATTIPAAY_UNIT: PASS" godot-unit.log
-          if grep -E -q "KATTIPAAY_UNIT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault" godot-unit.log; then
+          if grep -E -q "KATTIPAAY_UNIT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-unit.log; then
             exit 1
           fi
       - name: Upload unit logs
@@ -191,7 +203,7 @@ jobs:
         run: |
           set -euo pipefail
           "$GODOT_BIN" --headless --path . --editor --quit --log-file godot-component-import.log
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault" godot-component-import.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-component-import.log; then
             cat godot-component-import.log
             exit 1
           fi
@@ -201,7 +213,7 @@ jobs:
           timeout 100s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpComponentSuite.gd --log-file godot-component.log
           cat godot-component.log
           grep -q "KATTIPAAY_COMPONENT: PASS" godot-component.log
-          if grep -E -q "KATTIPAAY_COMPONENT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault" godot-component.log; then
+          if grep -E -q "KATTIPAAY_COMPONENT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-component.log; then
             exit 1
           fi
       - name: Upload component logs
