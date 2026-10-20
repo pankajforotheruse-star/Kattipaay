@@ -34,7 +34,6 @@
 class_name SoloMatchDriver
 extends Node
 
-const SOLO_TIMER_KEY := "quick"         # whole-round safety clock (180s)
 const GHOST_ENTITY_ID := 2
 const HUMAN_ENTITY_ID := 1
 
@@ -160,7 +159,8 @@ func _ready() -> void:
 	# Kick off the flow: NONE -> LOBBY (prototype bootstrap) -> DRAWING.
 	_match_machine.transition_to(GameState.MatchState.LOBBY)
 	_match_machine.transition_to(GameState.MatchState.DRAWING)
-	MatchTimer.start(SOLO_TIMER_KEY)
+	# A solo round has phase clocks, not the legacy 180s quick-game clock.
+	MatchTimer.start_seconds(_drawing_seconds)
 	print("SoloMatchDriver: round started — drawing %.0fs, search %.0fs, difficulty %d" % [
 		_drawing_seconds, _search_phase_seconds, GameState.cpu_difficulty
 	])
@@ -264,6 +264,9 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	var from_state: int = payload.get("from", -1)
 	var to_state: int = payload.get("to", -1)
 
+	# Argument/pause resume must NOT recreate either search phase or clock.
+	if from_state == GameState.MatchState.PAUSED:
+		return
 	if to_state == GameState.MatchState.DRAWING:
 		_drawing_elapsed = 0.0
 		_draw_warning_played = false
@@ -273,6 +276,7 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_phase_end_pending = false
 		_winner_hold = 0.0
 	elif to_state == GameState.MatchState.MEETING:
+		MatchTimer.stop()
 		_meeting_elapsed = 0.0
 		_meeting_call_made = false
 		_meeting_resolved = false
@@ -282,18 +286,17 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	elif to_state == GameState.MatchState.SEARCHING:
 		_free_coin_overlay()
 		_begin_search_phase(1)
-	elif from_state == GameState.MatchState.PAUSED:
-		# An argument just resolved and resumed the match. Search phases are
-		# clock-driven, so nothing deferred here; the clocks simply continue.
-		pass
-
+ 
 
 func _on_timer_expired(_payload: Dictionary) -> void:
 	# The active phase clock (MatchTimer.start_seconds) firing = phase timeout.
+	if _ending:
+		return
 	if _search_phase_active and GameState.get_match_state() == GameState.MatchState.SEARCHING:
 		_end_search_phase()
-	else:
-		_end_round()  # whole-round safety clock (e.g. during DRAWING/MEETING)
+	elif GameState.get_match_state() == GameState.MatchState.DRAWING:
+		_match_machine.transition_to(GameState.MatchState.MEETING)
+	# The meeting phase has no ticking legacy clock; never end the match here.
 
 
 func _on_coin_decided(payload: Dictionary) -> void:
