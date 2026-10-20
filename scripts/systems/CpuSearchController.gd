@@ -10,6 +10,7 @@ extends Node
 const GHOST_ENTITY_ID := 2
 const DEFAULT_SWEEP_SPEED := 420.0
 ## Strike radius around each line's center (world pixels).
+const STRIKE_PAUSE_SECONDS := 0.8
 const WAYPOINT_REACHED_RADIUS := 28.0
 const SWEEP_EDGE_MARGIN := 115.0
 const SWEEP_LANE_SPACING := 170.0
