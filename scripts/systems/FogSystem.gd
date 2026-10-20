@@ -98,6 +98,8 @@ var _reveal_drawer: RevealDrawer = null
 
 var _is_active: bool = false
 var _is_paused: bool = false
+## Last actual-searcher position broadcast to the line-discovery system.
+var _last_physical_reveal := Vector2(INF, INF)
 var _redraw_timer: float = 0.0
 var _redraw_needed: bool = false
 
@@ -138,7 +140,11 @@ func _process(delta: float) -> void:
 	if not _is_active or _is_paused:
 		return
 
-	# Smooth vision circle lerp toward target touch positions
+	# The solo human's vision follows their actual avatar, NEVER a remote tap.
+	# Repeating MOVE_START while walking must not teleport the sensing circle.
+	if GameState.solo_vs_cpu and GameState.get_match_state() == GameState.MatchState.SEARCHING \
+			and GameState.solo_active_searcher == 1:
+		_reveal_at_actual_searcher_position()
 	_update_vision_circles(delta)
 
 	# Decay pulse strengths
@@ -392,6 +398,10 @@ func _on_input_move_start(payload: Dictionary) -> void:
 	if GameState.get_match_state() != GameState.MatchState.SEARCHING:
 		return
 
+	# In solo mode, input is a movement destination, not proof the
+	# searcher has travelled there. The per-frame avatar tracker owns vision.
+	if GameState.solo_vs_cpu:
+		return
 	var screen_pos: Vector2 = payload.get("screen_position", Vector2.ZERO)
 	var world_pos := InputManager.screen_to_world(screen_pos)
 	var player_id: int = payload.get("entity_id", 1)
@@ -403,6 +413,25 @@ func _on_input_move_start(payload: Dictionary) -> void:
 		"position": world_pos,
 		"radius": VISION_RADIUS,
 	})
+
+
+## Ground-truth avatar sensing; the only solo producer of reveal events.
+func _reveal_at_actual_searcher_position() -> void:
+	var world := get_tree().current_scene
+	if world == null or not world.has_method("get_entity"):
+		return
+	var player := world.get_entity(1) as Node2D
+	if player == null:
+		return
+	var position := player.global_position
+	add_vision_circle(1, position, VISION_RADIUS)
+	if position.distance_squared_to(_last_physical_reveal) >= MIN_REDRAW_DISTANCE * MIN_REDRAW_DISTANCE:
+		_last_physical_reveal = position
+		EventBus.emit(EventBus.EV_GAME_FOG_REVEALED, {
+			"player_id": 1,
+			"position": position,
+			"radius": VISION_RADIUS,
+		})
 
 
 func _on_line_drawn(payload: Dictionary) -> void:
@@ -423,6 +452,7 @@ func activate() -> void:
 
 	_is_active = true
 	_is_paused = false
+	_last_physical_reveal = Vector2(INF, INF)
 
 	_fog_rect.visible = true
 	_fog_rect.modulate.a = 0.0
@@ -495,6 +525,7 @@ func _smooth_fade_out(duration: float) -> void:
 ## Clear all fog state — explored areas, vision circles, pulses, line reveals.
 func clear_all_fog() -> void:
 	_vision_circles.clear()
+	_last_physical_reveal = Vector2(INF, INF)
 	_explored_areas.clear()
 	_pulses.clear()
 	_revealed_line_ids.clear()
