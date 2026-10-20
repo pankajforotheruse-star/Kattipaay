@@ -906,6 +906,9 @@ static func _compute_polygon_radius(points: Array[Vector2], center: Vector2) -> 
 ## Received from server/host: a new line was drawn by another player.
 ## payload: compressed line Dictionary from ChalkLine.to_network_dict()
 func _on_network_line_drawn(payload: Dictionary) -> void:
+    if not ChalkLine.is_valid_network_payload(payload):
+        push_warning("DrawSystem: rejected malformed remote chalk packet")
+        return
     # Check if we already have this line (might have been predicted)
     var line_id: int = payload.get("id", -1)
     var existing := _find_line_by_id(line_id)
@@ -941,8 +944,16 @@ func _on_network_line_rejected(payload: Dictionary) -> void:
 ## Batch sync of all active lines when a new player joins mid-match.
 ## payload: {lines: Array[Dictionary]} — each dict from ChalkLine.to_network_dict()
 func _on_network_line_sync_batch(payload: Dictionary) -> void:
-    var lines_data: Array = payload.get("lines", [])
-    # Clear existing lines first (fresh slate from server)
+    var lines_data = payload.get("lines", [])
+    if not lines_data is Array or lines_data.size() > MAX_ACTIVE_LINES:
+        push_warning("DrawSystem: refused malformed/oversized line sync")
+        return
+    # Validate the ENTIRE sync before clearing existing lines: a malformed
+    # payload must never erase the current game state.
+    for candidate in lines_data:
+        if not candidate is Dictionary or not ChalkLine.is_valid_network_payload(candidate):
+            push_warning("DrawSystem: refused invalid line in sync batch")
+            return
     clear_all_lines()
 
     for line_data in lines_data:
