@@ -224,9 +224,41 @@ func to_network_dict() -> Dictionary:
     # For 10 simplified points: 20 + 40 + 10 = ~70 bytes. Well under 500.
 
 
+## Treat chalk bytes as untrusted network input. A malicious packet must not
+## make the client allocate an unbounded array, crash on an invalid chalk type
+## or put a one-point/empty line into the live game.
+## This bounds resource use; server-side authorization is STILL required.
+static func is_valid_network_payload(data: Dictionary) -> bool:
+    var pc = data.get("pc", null)
+    var pd = data.get("pd", null)
+    var wd = data.get("wd", null)
+    var ct = data.get("ct", ChalkType.WHITE)
+    var packet_id = data.get("id", -1)
+    if typeof(pc) != TYPE_INT or pc < 2 or pc > 512:
+        return false
+    if typeof(pd) != TYPE_PACKED_BYTE_ARRAY or pd.size() != pc * 4:
+        return false
+    if typeof(wd) != TYPE_PACKED_BYTE_ARRAY:
+        return false
+    if wd.size() != 0 and wd.size() != pc:
+        return false
+    if typeof(ct) != TYPE_INT or not DECAY_DURATIONS.has(ct):
+        return false
+    if typeof(packet_id) != TYPE_INT or packet_id < -1 or packet_id > 999999999:
+        return false
+    if typeof(data.get("pid", -1)) != TYPE_INT:
+        return false
+    return true
+
+
 ## Reconstruct a ChalkLine from a network dictionary (called on remote clients).
 ## Returns a fully populated ChalkLine resource.
 func from_network_dict(data: Dictionary) -> void:
+    if not is_valid_network_payload(data):
+        id = -1
+        points.clear()
+        widths.clear()
+        return
     id = data.get("id", -1)
     chalk_type = data.get("ct", ChalkType.WHITE)
     player_id = data.get("pid", -1)
