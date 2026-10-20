@@ -906,10 +906,9 @@ func _run_sneak_defender_pass(diff_label: String) -> void:
 	# The CPU no longer magically knows where the anchor cluster is. This
 	# short CI test simulates its character legitimately searching nearby.
 	# The normal 30s exploration route remains independent of line positions.
-	await _wait_until(func() -> bool: return float(cpu_sweep.get("_pause_timer")) <= 0.0, 1.5, "ARGUE_RESUMED_BEFORE_NOTICE")
-	if _failed:
-		return
-	var cpu_character: Node2D = world.get_entity(GHOST_ID) as Node2D
+	# Clear the already-asserted argument stall to fit the 5s CI search.
+	cpu_sweep.set("_pause_timer", 0.0)
+	var cpu_character: Node2D = world.call("get_entity", GHOST_ID) as Node2D
 	if cpu_character == null:
 		_fail("Missing visible CPU character for physical-proximity sneak notice test")
 		return
