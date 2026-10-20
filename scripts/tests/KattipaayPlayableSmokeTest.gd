@@ -286,6 +286,9 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		_run_occlusion_assertions(draw_sys, ghost_sys, cpu_sweep)
 		if _failed:
 			return
+		_run_cpu_fair_search_assertions(cpu_sweep)
+		if _failed:
+			return
 
 	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
 	if _failed:
@@ -569,6 +572,51 @@ func _exercise_cpu_strike(draw_sys: Node) -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: CPU_SWEEP_STRIKE_OK target=%d active %d -> %d remaining_payload=%d" % [target_id, before, after, _last_struck_remaining])
+
+
+## The CPU must NOT see a faraway hidden line or use its coordinates as
+## navigation input. These are pure perception+public-route tests and do not
+## require the CPU to win or discover anything in the short (5s) CI round.
+func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
+	if cpu_sweep == null:
+		_fail("Fair-search probe: CpuSearchController was not constructed")
+		return
+	var line_script := load("res://scripts/systems/ChalkLine.gd") as GDScript
+	var hidden_line = line_script.new()
+	hidden_line.id = 987654
+	hidden_line.points = [Vector2(120.0, 90.0), Vector2(200.0, 90.0)]
+	hidden_line.wall_concealed = false
+	var far_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(1200.0, 700.0))
+	if not far_ids.is_empty():
+		_fail("CPU knew a hidden line across the zone: %s" % str(far_ids))
+		return
+	var near_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 190.0))
+	if not near_ids.has(987654):
+		_fail("CPU failed to sense an open-ground line after entering its reveal radius")
+		return
+	hidden_line.wall_concealed = true
+	var wall_outside: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 185.0))
+	if not wall_outside.is_empty():
+		_fail("CPU sensed a wall-concealed line outside its smaller reveal radius")
+		return
+	var wall_inside: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 170.0))
+	if not wall_inside.has(987654):
+		_fail("CPU failed to sense a wall-concealed line inside its reveal radius")
+		return
+	hidden_line.is_sneak = true
+	var sneak_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 90.0))
+	if not sneak_ids.is_empty():
+		_fail("CPU normal search targeted defender sneaks as ordinary lines")
+		return
+	var path: Array = cpu_sweep.call("_build_search_waypoints", Rect2(0, 0, 2400, 780), Vector2(1200, 760))
+	if path.size() < 8:
+		_fail("CPU terrain-only exploration path is empty or incomplete")
+		return
+	for p in path:
+		if not Rect2(0, 0, 2400, 780).has_point(p):
+			_fail("CPU exploration waypoint outside player territory: %s" % str(p))
+			return
+	print("KATTIPAAY_SMOKE: CPU_FAIR_SEARCH_OK (no distant detection, shared reveal distances, public zone route)")
 
 
 ## Commit A occlusion assertions (Deviation Fix #3, owner Q1/Q2/Q3). All
@@ -855,7 +903,19 @@ func _run_sneak_defender_pass(diff_label: String) -> void:
 	if not _saw_sneak_meter:
 		_fail("No EV_GAME_SNEAK_METER_CHANGED observed after the sneak draw")
 		return
-	await _wait_until(func() -> bool: return _saw_sneak_noticed, 8.0, "EV_GAME_SNEAK_NOTICED")
+	# The CPU no longer magically knows where the anchor cluster is. This
+	# short CI test simulates its character legitimately searching nearby.
+	# The normal 30s exploration route remains independent of line positions.
+	await _wait_until(func() -> bool: return float(cpu_sweep.get("_pause_timer")) <= 0.0, 1.5, "ARGUE_RESUMED_BEFORE_NOTICE")
+	if _failed:
+		return
+	var cpu_character: Node2D = world.get_entity(GHOST_ID) as Node2D
+	if cpu_character == null:
+		_fail("Missing visible CPU character for physical-proximity sneak notice test")
+		return
+	cpu_character.set_meta("has_target", false)
+	cpu_character.global_position = SNEAK_ANCHOR + Vector2(30.0, 20.0)
+	await _wait_until(func() -> bool: return _saw_sneak_noticed, 3.0, "EV_GAME_SNEAK_NOTICED")
 	if _failed:
 		return
 	var penalty_ids: Array = _sneak_noticed_payload.get("penalty_line_ids", [])
