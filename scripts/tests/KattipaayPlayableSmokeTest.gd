@@ -572,6 +572,17 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: WINNER_REACHED difficulty=%s" % diff_label)
+	var scorer := root.get_node_or_null("ScoringManager")
+	if scorer == null:
+		_fail("ScoringManager missing after result")
+		return
+	var score_by_marks := int(scorer.call("get_human_surviving_lines"))
+	var current_round := int(scorer.call("get_current_round"))
+	var reported_score := int(scorer.call("get_round_score", current_round))
+	if reported_score != score_by_marks:
+		_fail("Solo score used legacy arcade bonuses: score=%d survivors=%d" % [reported_score, score_by_marks])
+		return
+	print("KATTIPAAY_SMOKE: SURVIVOR_ONLY_SCORE_OK total=%d" % reported_score)
 
 	if draw_human_lines:
 		# (a) Audit MAJOR-1: at _finish_round the driver counts DrawSystem's
