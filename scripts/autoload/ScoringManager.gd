@@ -70,7 +70,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	
 	match to_state:
 		GameState.MatchState.DRAWING:
-			_reset_round_accumulators()
+			# Resume from pause must not discard strokes already drawn or
+			# their scoring statistics.
+			if from_state != GameState.MatchState.PAUSED:
+				_reset_round_accumulators()
 		GameState.MatchState.SCORING:
 			current_round += 1
 			_calculate_round_score()
