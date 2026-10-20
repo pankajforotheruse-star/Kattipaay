@@ -62,6 +62,10 @@ func _draw() -> void:
 	draw_rect(Rect2(-half, VISUAL_SIZE), Color.BLACK, false, 2.0)
 
 func _physics_process(delta: float) -> void:
+	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED):
+		velocity = Vector2.ZERO
+		return
 	queue_redraw()
 
 	if not patrolling:
