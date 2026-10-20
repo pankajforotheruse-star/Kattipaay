@@ -144,6 +144,8 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_empty_phase_grace_seconds", 0.5)
 	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 420.0)  # restored per-pass for the sneak pass
 	ProjectSettings.set_setting("chalk_gaon/solo_winner_hold_seconds", 1.0)
+	ProjectSettings.set_setting("chalk_gaon/solo_reveal_hold_seconds", 0.45)
+	ProjectSettings.set_setting("chalk_gaon/solo_scoring_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_argue_stall_seconds", 1.0)
 	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=5 winner_hold=1 argue_stall=1")
 
@@ -183,6 +185,22 @@ func _run_test() -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: HOME_READY")
+
+	# Equal survivor counts must be an explicit draw; reset state before
+	# starting real matches so this isolated regression doesn't affect them.
+	var scoring_mgr: Node = root.get_node_or_null("ScoringManager")
+	if scoring_mgr == null:
+		_fail("ScoringManager autoload missing")
+		quit(1)
+		return
+	scoring_mgr.call("set_survivors", 3, 3)
+	scoring_mgr.call("_determine_winner")
+	if int(scoring_mgr.call("get_winner_id")) != 0:
+		_fail("Survivor tie incorrectly awarded to a player")
+		quit(1)
+		return
+	scoring_mgr.call("reset_match")
+	print("KATTIPAAY_SMOKE: TIE_DECISION_OK")
 
 	# ── Pass 1: NORMAL — full R6 chain + audit MAJOR-1 (human lines survive)
 	# ── and MAJOR-2's counterpart (CPU sweep strike wiring).
@@ -302,6 +320,12 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	print("KATTIPAAY_SMOKE: DRAW_CLOCK_OK total=%d" % expected_draw_clock)
 
 	if draw_human_lines:
+		# An accidental tap-sized stroke must never score as a full line.
+		await _draw_human_stroke(Vector2(800.0, 120.0), Vector2(807.0, 120.0))
+		if int(draw_sys.call("get_active_lines").size()) != 0:
+			_fail("Tiny 7px stroke was accepted as a surviving human line")
+			return
+		print("KATTIPAAY_SMOKE: TINY_STROKE_REJECTED_OK")
 		# Draw through the SAME input events a real finger draw produces
 		# (EV_INPUT_DRAW_START/UPDATE/END -> DrawSystem._on_draw_*).
 		await _draw_cluster_lines()
@@ -314,6 +338,9 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			_fail("Expected 6 human-drawn lines, got %d" % _human_line_ids.size())
 			return
 		print("KATTIPAAY_SMOKE: HUMAN_LINES_DRAWN count=%d ids=%s" % [_human_line_ids.size(), str(_human_line_ids)])
+		await _assert_solo_pause_resume(world, draw_sys, ghost_sys, "DRAWING")
+		if _failed:
+			return
 
 	await _wait_for_match_state(MatchState.MEETING, MAX_DRAWING_SECONDS, "MEETING")
 	if _failed:
@@ -324,6 +351,14 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		_fail("CPU only drew %d lines; expected full drawing-phase batches (>2)" % cpu_base_count)
 		return
 	print("KATTIPAAY_SMOKE: CPU_BASE_LINES_OK difficulty=%s count=%d" % [diff_label, cpu_base_count])
+	if draw_human_lines:
+		# External draw events must not sneak an ordinary line through MEETING.
+		var before_meeting_lines := int(draw_sys.call("get_active_lines").size())
+		await _draw_human_stroke(Vector2(400, 200), Vector2(500, 210))
+		if int(draw_sys.call("get_active_lines").size()) != before_meeting_lines:
+			_fail("Direct input events drew an illicit line during MEETING")
+			return
+		print("KATTIPAAY_SMOKE: MEETING_DRAW_LOCK_OK")
 
 	if diff_label == "EASY":
 		# Audit MAJOR-2: EASY must place its ghost lines during DRAWING so the
@@ -346,6 +381,10 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: SEARCHING_REACHED difficulty=%s" % diff_label)
+	if draw_human_lines:
+		await _assert_solo_pause_resume(world, draw_sys, ghost_sys, "SEARCHING")
+		if _failed:
+			return
 
 	# Both search phases run inside SEARCHING; observe them via the phase events
 	# the driver emits (EV_GAME_SEARCH_PHASE_STARTED with phase/searcher/
@@ -442,11 +481,20 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: REVEAL_REACHED difficulty=%s" % diff_label)
+	await _wait_seconds(0.12)
+	if int(_game_state.call("get_match_state")) != MatchState.REVEAL:
+		_fail("REVEAL overlay skipped its configured visible hold")
+		return
 
 	await _wait_for_seen_match_state(MatchState.SCORING, 6.0, "SCORING")
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: SCORING_REACHED difficulty=%s" % diff_label)
+	await _wait_seconds(0.12)
+	if int(_game_state.call("get_match_state")) != MatchState.SCORING:
+		_fail("SCORING overlay skipped its configured visible hold")
+		return
+	print("KATTIPAAY_SMOKE: RESULT_HOLDS_OK")
 
 	await _wait_for_seen_match_state(MatchState.WINNER, 6.0, "WINNER")
 	if _failed:
@@ -478,6 +526,51 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		return
 
 	print("KATTIPAAY_SMOKE: PASS_DONE difficulty=%s" % diff_label)
+
+
+## Pause/resume regression: the match phase, the phase clock, and hidden
+## line stores must be completely preserved across top-level PAUSED.
+func _assert_solo_pause_resume(world: Node, draw_sys: Node, ghost_sys: Node, phase_name: String) -> void:
+	var driver: Node = world.get_node_or_null("SoloMatchDriver")
+	var timer: Node = root.get_node_or_null("MatchTimer")
+	if driver == null or timer == null:
+		_fail("Pause regression missing SoloMatchDriver / MatchTimer")
+		return
+	var phase_before := int(_game_state.call("get_match_state"))
+	var humans_before := int(draw_sys.call("get_active_lines").size())
+	var cpu_before := int(ghost_sys.call("get_active_ghost_lines").size())
+	var phase_index_before := int(driver.get("_search_phase_index"))
+	var phases_seen_before := _seen_phases.size()
+	var time_before := int(timer.call("get_remaining_seconds"))
+	var clock_before := float(driver.get("_drawing_elapsed")) if phase_name == "DRAWING" else float(driver.get("_search_elapsed"))
+	if not bool(_game_state.call("transition", TopState.PAUSED)):
+		_fail("Top-level PAUSED transition rejected in %s" % phase_name)
+		return
+	if int(_game_state.call("get_match_state")) != MatchState.PAUSED or not bool(timer.call("is_paused")):
+		_fail("Top-level pause did not pause match state + MatchTimer")
+		return
+	await _wait_seconds(0.18)
+	var clock_during := float(driver.get("_drawing_elapsed")) if phase_name == "DRAWING" else float(driver.get("_search_elapsed"))
+	if absf(clock_during - clock_before) > 0.04:
+		_fail("Solo local %s clock ticked while paused" % phase_name)
+		return
+	if not bool(_game_state.call("transition", TopState.PLAYING)):
+		_fail("Top-level PLAYING resume rejected in %s" % phase_name)
+		return
+	if int(_game_state.call("get_match_state")) != phase_before or bool(timer.call("is_paused")):
+		_fail("Resuming %s changed match phase or failed to resume timer" % phase_name)
+		return
+	if int(driver.get("_search_phase_index")) != phase_index_before or _seen_phases.size() != phases_seen_before:
+		_fail("Resuming %s rewound or duplicated search phases" % phase_name)
+		return
+	if int(draw_sys.call("get_active_lines").size()) != humans_before \
+			or int(ghost_sys.call("get_active_ghost_lines").size()) != cpu_before:
+		_fail("Pausing %s cleared existing hidden lines" % phase_name)
+		return
+	if int(timer.call("get_remaining_seconds")) > time_before:
+		_fail("Resuming %s reset countdown to full duration" % phase_name)
+		return
+	print("KATTIPAAY_SMOKE: %s_PAUSE_RESUME_OK" % phase_name)
 
 
 ## Draw 5 short strokes in the player zone's far top-left corner (the CPU
