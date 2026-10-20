@@ -412,6 +412,20 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			_fail("Expected 6 human-drawn lines, got %d" % _human_line_ids.size())
 			return
 		print("KATTIPAAY_SMOKE: HUMAN_LINES_DRAWN count=%d ids=%s" % [_human_line_ids.size(), str(_human_line_ids)])
+		# No malformed remote chalk or corrupted sync is permitted to erase
+		# pre-existing human/CPU marks or add bogus one-point lines.
+		var stored_human := int(draw_sys.call("get_active_lines").size())
+		var stored_cpu := int(ghost_sys.call("get_active_ghost_lines").size())
+		draw_sys.call("_on_network_line_drawn", {"pc": 1000000000})
+		draw_sys.call("_on_network_line_sync_batch", {"lines": [{"pc": -1}]})
+		ghost_sys.call("_on_network_ghost_lines_placed", {
+			"owner_id": GHOST_ID, "lines": [{"pc": 1000000000}]
+		})
+		if int(draw_sys.call("get_active_lines").size()) != stored_human \
+				or int(ghost_sys.call("get_active_ghost_lines").size()) != stored_cpu:
+			_fail("Malformed network payload mutated protected line stores")
+			return
+		print("KATTIPAAY_SMOKE: NETWORK_PACKET_REJECTION_OK")
 		await _assert_solo_pause_resume(world, draw_sys, ghost_sys, "DRAWING")
 		if _failed:
 			return
