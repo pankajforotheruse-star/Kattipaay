@@ -110,6 +110,11 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# A paused match must ignore every in-world gesture, even during human
+	# defender sneak mode; GUI buttons remain handled by Control nodes.
+	if GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED:
+		return
 	if not touch_to_move_enabled and not sneak_draw_enabled:
 		return
 
