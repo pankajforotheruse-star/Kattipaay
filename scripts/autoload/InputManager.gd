@@ -178,7 +178,8 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 		"start_time": Time.get_ticks_msec() / 1000.0,
 	}
 
-	if (_is_drawing_state() or sneak_draw_enabled) and _draw_touch_index == -1:
+	if ((GameState.solo_vs_cpu and _is_drawing_state()) or sneak_draw_enabled) \
+			and _draw_touch_index == -1:
 		# Mobile Play VS CPU: ONE finger draws ordinary and defender-sneak
 		# strokes. The previous first-finger-moves/second-finger-draws
 		# gesture made standard touch drawing unusable.
