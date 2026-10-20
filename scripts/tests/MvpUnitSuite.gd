@@ -108,6 +108,25 @@ func _test_chalk_roundtrip() -> void:
 	line.ghost_placed_at = 1842.0
 	line.is_discovered = false
 	var packet := line.to_network_dict()
+	_check(ChalkLine.is_valid_network_payload(packet), "valid encoded chalk packet passes bounded parser")
+	var malformed: Array[Dictionary] = [
+		{},
+		{"pc": 1000000000, "pd": PackedByteArray(), "wd": PackedByteArray()},
+		{"pc": -1, "pd": PackedByteArray(), "wd": PackedByteArray()},
+		{"pc": 2, "pd": PackedByteArray([1, 2]), "wd": PackedByteArray()},
+		{"pc": 2, "pd": PackedByteArray([0,0,0,0,0,0,0,0]), "wd": "not bytes"},
+	]
+	for sample in malformed:
+		_check(not ChalkLine.is_valid_network_payload(sample),
+			"malformed/unbounded network packet fails closed")
+		var rejected := ChalkLine.new()
+		rejected.from_network_dict(sample)
+		_check(rejected.points.is_empty() and rejected.id == -1,
+			"malformed packet cannot construct a live mark")
+	var bad_type: Dictionary = packet.duplicate(true)
+	bad_type["ct"] = 999
+	_check(not ChalkLine.is_valid_network_payload(bad_type),
+		"invalid chalk enum cannot index decay table")
 	var clone := ChalkLine.new()
 	clone.from_network_dict(packet)
 	_check(clone.id == line.id and clone.player_id == line.player_id,
