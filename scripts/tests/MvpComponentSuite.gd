@@ -103,7 +103,7 @@ func _run() -> void:
 	_check(int(_game_state.call("get_match_state")) == MATCH_PAUSED,
 		"match-level state actually paused")
 	_check(bool(_game_state.call("transition", TOP_PLAYING)), "resume accepted")
-	_check(GameState.get_match_state() == GameState.MatchState.DRAWING,
+	_check(int(_game_state.call("get_match_state")) == MATCH_DRAWING,
 		"resume returns to drawing without resetting phase")
 	await create_timer(0.18).timeout
 	_check(player.global_position.distance_to(human_frozen) > 2.0,
