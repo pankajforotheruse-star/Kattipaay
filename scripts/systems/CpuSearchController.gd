@@ -154,6 +154,11 @@ func probe_point_at_distance(points: Array, origin: Vector2, distance: float) ->
 
 
 func _process(delta: float) -> void:
+	# Pausing must freeze line discovery, NPC search, and the argument stall
+	# countdown. The UI top-level PAUSED flag may update before match state.
+	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED):
+		return
 	if not _active or _npc == null or _draw_sys == null:
 		return
 	if _pause_timer > 0.0:
