@@ -174,6 +174,10 @@ func _process(_delta: float) -> void:
 	var match_state := GameState.get_match_state()
 	if match_state != GameState.MatchState.DRAWING and match_state != GameState.MatchState.SEARCHING:
 		return
+	# Solo discovery only occurs during the human's search of CPU territory.
+	if GameState.solo_vs_cpu and (match_state != GameState.MatchState.SEARCHING \
+			or GameState.solo_active_searcher != 1):
+		return
 
 	_check_discovery()
 
@@ -317,6 +321,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	# Reset availability when entering a new DRAWING state (new wave)
 	if to_state == GameState.MatchState.DRAWING:
 		reset_for_new_round()
+	elif to_state == GameState.MatchState.SEARCHING:
+		_vision_cache.clear()
 
 
 ## Cache vision circle positions from FogSystem for discovery checking.
@@ -324,6 +330,13 @@ func _on_fog_revealed(payload: Dictionary) -> void:
 	var player_id: int = payload.get("player_id", -1)
 	var position: Vector2 = payload.get("position", Vector2.ZERO)
 	var radius: float = payload.get("radius", FogSystem.VISION_RADIUS if _fog_system else 200.0)
+	if GameState.solo_vs_cpu:
+		if GameState.get_match_state() != GameState.MatchState.SEARCHING \
+				or GameState.solo_active_searcher != 1 or player_id != 1:
+			return
+		var player := _game_world.get_entity(1) as Node2D if _game_world and _game_world.has_method("get_entity") else null
+		if player == null or position.distance_squared_to(player.global_position) > 4.0:
+			return
 
 	_vision_cache[player_id] = {
 		"position": position,
