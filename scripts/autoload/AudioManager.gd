@@ -40,8 +40,8 @@ func _exit_tree() -> void:
     # The generator playback is not scene-tree-owned; keeping a strong
     # reference past shutdown leaks AudioStreamGeneratorPlayback in headless CI.
     if _player:
-    	_player.stop()
-    	_player.stream = null
+        _player.stop()
+        _player.stream = null
     _playback = null
     _generator = null
 
