@@ -10,6 +10,13 @@ func enter(_prev: State) -> void:
 
 func physics_update(delta: float) -> void:
 	var player: CharacterBody2D = machine.get_parent()
+	# SceneTree is not paused by the match overlay, so explicit physics
+	# protection is required for both human and CPU actors in solo play.
+	# Preserve the destination so movement resumes naturally on unpause.
+	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED):
+		player.velocity = Vector2.ZERO
+		return
 
 	# Read target from the player's metadata (set by MovementSystem)
 	if not player.has_meta("target_position") or not player.has_meta("has_target"):
