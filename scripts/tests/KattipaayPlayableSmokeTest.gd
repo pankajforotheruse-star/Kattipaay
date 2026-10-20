@@ -294,6 +294,12 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: DRAWING_REACHED difficulty=%s" % diff_label)
+	var phase_timer := root.get_node_or_null("MatchTimer")
+	var expected_draw_clock := int(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40))
+	if phase_timer == null or int(phase_timer.call("get_total_seconds")) != expected_draw_clock:
+		_fail("Solo HUD clock not synchronized with drawing phase (%ds expected)" % expected_draw_clock)
+		return
+	print("KATTIPAAY_SMOKE: DRAW_CLOCK_OK total=%d" % expected_draw_clock)
 
 	if draw_human_lines:
 		# Draw through the SAME input events a real finger draw produces
@@ -313,6 +319,11 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: MEETING_REACHED difficulty=%s" % diff_label)
+	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
+	if cpu_base_count < 6:
+		_fail("CPU only drew %d lines; expected full drawing-phase batches (>2)" % cpu_base_count)
+		return
+	print("KATTIPAAY_SMOKE: CPU_BASE_LINES_OK difficulty=%s count=%d" % [diff_label, cpu_base_count])
 
 	if diff_label == "EASY":
 		# Audit MAJOR-2: EASY must place its ghost lines during DRAWING so the
@@ -345,9 +356,17 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		# one strike through the CPU's own path (DrawSystem.strike_line), then
 		# prove the EV_GAME_LINE_STRUCK is_ghost=false event and its remaining
 		# counter (the value the HUD label is fed from).
+		if _coin_searcher == HUMAN_ID:
+			await _exercise_human_search_security(world, ghost_sys)
+			if _failed:
+				return
 		await _exercise_cpu_strike(draw_sys)
 		if _failed:
 			return
+		if _coin_searcher == GHOST_ID:
+			await _exercise_human_search_security(world, ghost_sys)
+			if _failed:
+				return
 
 	await _wait_until(func() -> bool: return _seen_phases.size() >= 2, MAX_SEARCH_SECONDS, "SEARCH_PHASE_2")
 	if _failed:
@@ -572,6 +591,75 @@ func _exercise_cpu_strike(draw_sys: Node) -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: CPU_SWEEP_STRIKE_OK target=%d active %d -> %d remaining_payload=%d" % [target_id, before, after, _last_struck_remaining])
+
+
+## Security regression in the real human-search phase:
+## - never strike an undiscovered line simply by addressing its hidden center
+## - a CPU defender sneak is caught when the human PHYSICALLY reaches it
+func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
+	await _wait_until(func() -> bool:
+		return int(_game_state.get("solo_active_searcher")) == HUMAN_ID \
+				and int(_game_state.call("get_match_state")) == MatchState.SEARCHING,
+		MAX_SEARCH_SECONDS, "HUMAN_SEARCH_SECURITY_PHASE")
+	if _failed:
+		return
+	var striker: Node = world.get_node_or_null("SoloMatchDriver/StrikeSystem")
+	var player := world.call("get_entity", HUMAN_ID) as Node2D
+	if striker == null or player == null:
+		_fail("Missing striker or human character for remote-strike test")
+		return
+	var initial: Array = ghost_sys.call("get_active_ghost_lines")
+	var remote = null
+	var farthest := 0.0
+	for candidate in initial:
+		var pts: Array = candidate.get("points")
+		if pts.size() < 2:
+			continue
+		var d: float = player.global_position.distance_to(pts[0])
+		if d > farthest and not bool(candidate.get("is_discovered")):
+			farthest = d
+			remote = candidate
+	if remote == null or farthest < 200.0:
+		_fail("No sufficiently distant undiscovered CPU line for security probe")
+		return
+	var distant_points: Array = remote.get("points")
+	var remote_pos: Vector2 = distant_points[0]
+	var original_count: int = initial.size()
+	if bool(striker.call("try_strike_at", remote_pos, 90.0)) \
+			or bool(striker.call("strike_ghost_line", int(remote.get("id")))):
+		_fail("Blind or remote strike succeeded on hidden CPU chalk")
+		return
+	if int(ghost_sys.call("get_active_ghost_lines").size()) != original_count:
+		_fail("Rejected remote strike nonetheless removed a CPU line")
+		return
+	print("KATTIPAAY_SMOKE: REMOTE_STRIKE_BLOCKED_OK")
+
+	# Sneak near an actual player avatar: the CPU may draw it, but it only
+	# incurs the local penalty once the searcher is physically close.
+	var resource := load("res://scripts/systems/ChalkLine.gd") as GDScript
+	var attempted = resource.new()
+	var sneak_pts: Array[Vector2] = [
+		player.global_position + Vector2(45.0, 0.0),
+		player.global_position + Vector2(90.0, 0.0)]
+	attempted.set("points", sneak_pts)
+	attempted.set("is_sneak", true)
+	attempted.set("is_ghost", true)
+	attempted.set("id", -1)
+	var payload: Dictionary = {"lines": [attempted.call("to_network_dict")], "owner_id": GHOST_ID}
+	ghost_sys.call("_on_network_ghost_lines_placed", payload)
+	var sneak_id := -1
+	for candidate in ghost_sys.call("get_active_ghost_lines"):
+		if bool(candidate.get("is_sneak")):
+			sneak_id = int(candidate.get("id"))
+	if sneak_id < 0:
+		_fail("CPU defender sneaked line was not registered")
+		return
+	await _settle_frames()
+	for candidate in ghost_sys.call("get_active_ghost_lines"):
+		if int(candidate.get("id")) == sneak_id:
+			_fail("Human failed to catch CPU sneak at actual avatar location")
+			return
+	print("KATTIPAAY_SMOKE: CPU_SNEAK_CAUGHT_OK sneak=%d" % sneak_id)
 
 
 ## The CPU must NOT see a faraway hidden line or use its coordinates as
