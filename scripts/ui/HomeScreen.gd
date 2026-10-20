@@ -39,6 +39,14 @@ func _ready() -> void:
 		if unused_button:
 			unused_button.hide()
 	_update_xp_display()
+	# Static example XP/level data is not real progression. Do not display
+	# fabricated rewards in the Play VS CPU MVP.
+	if _xp_bar:
+		_xp_bar.hide()
+	if _xp_label:
+		_xp_label.hide()
+	if _nav_dots:
+		_nav_dots.hide()
 	if _version_label:
 		_version_label.text = "v1.0.0"
 
