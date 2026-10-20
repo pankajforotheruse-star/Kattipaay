@@ -68,8 +68,12 @@ def main() -> int:
     for path in paths:
         relative = path.relative_to(ROOT).as_posix()
         content = path.read_text(encoding="utf-8", errors="replace")
-        for pattern, label in secret_rules:
-            require(pattern.search(content) is None, f"{relative}: potential {label}")
+        # Our own scanner necessarily contains example patterns. Exclude its
+        # static rules from the content scan, but still validate every game
+        # asset, workflow and other test/script in this repository.
+        if path.resolve() != Path(__file__).resolve():
+            for pattern, label in secret_rules:
+                require(pattern.search(content) is None, f"{relative}: potential {label}")
         if path.suffix == ".gd":
             for pattern, label in [
                 (r"\bOS\.execute\s*\(", "process execution"),
