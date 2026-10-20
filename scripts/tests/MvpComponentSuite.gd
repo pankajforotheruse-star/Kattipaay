@@ -40,16 +40,16 @@ func _run() -> void:
 	if world == null or world.name != "GameWorld":
 		_finish()
 		return
-	var player := world.get_entity(1) as CharacterBody2D
-	var cpu := world.get_entity(2) as CharacterBody2D
-	var draw := world.get_node_or_null("Systems/DrawSystem") as DrawSystem
-	var ghost := world.get_node_or_null("Systems/GhostDrawSystem") as GhostDrawSystem
-	var fog := world.get_node_or_null("Systems/FogSystem") as FogSystem
+	var player := world.call("get_entity", 1) as CharacterBody2D
+	var cpu := world.call("get_entity", 2) as CharacterBody2D
+	var draw := world.get_node_or_null("Systems/DrawSystem") as Node
+	var ghost := world.get_node_or_null("Systems/GhostDrawSystem") as Node
+	var fog := world.get_node_or_null("Systems/FogSystem") as Node
 	var driver := world.get_node_or_null("SoloMatchDriver")
-	var sweep := world.get_node_or_null("SoloMatchDriver/CpuSearchController") as CpuSearchController
-	var strike := world.get_node_or_null("SoloMatchDriver/StrikeSystem") as StrikeSystem
-	var bot := world.get_node_or_null("SoloMatchDriver/GhostBot") as GhostBotController
-	var hud := world.get_node_or_null("HUD") as HUD
+	var sweep := world.get_node_or_null("SoloMatchDriver/CpuSearchController") as Node
+	var strike := world.get_node_or_null("SoloMatchDriver/StrikeSystem") as Node
+	var bot := world.get_node_or_null("SoloMatchDriver/GhostBot") as Node
+	var hud := world.get_node_or_null("HUD") as Node
 	_check(player != null and cpu != null, "human and CPU entities spawned")
 	_check(draw != null and ghost != null and fog != null, "drawing/fog systems ready")
 	_check(driver != null and sweep != null and strike != null and bot != null,
@@ -61,23 +61,23 @@ func _run() -> void:
 		return
 	_check(int(_game_state.call("get_match_state")) == MATCH_DRAWING,
 		"driver enters DRAWING for solo match")
-	var engine_start: int = draw.get_active_lines().size()
+	var engine_start: int = draw.call("get_active_lines").size()
 	# A forged SEARCH draw input must not insert marks. This is separate from
 	# the smoke test's long-press/meeting checks.
 	var points: Array[Vector2] = [Vector2(250, 210), Vector2(400, 210)]
-	draw.sneak_mode = false
+	draw.set("sneak_mode", false)
 	_game_state.set("current_match", MATCH_SEARCHING)
-	EventBus.emit(EventBus.EV_INPUT_DRAW_START, {"entity_id": 1, "position": points[0]})
-	EventBus.emit(EventBus.EV_INPUT_DRAW_UPDATE, {"entity_id": 1, "position": points[1]})
-	EventBus.emit(EventBus.EV_INPUT_DRAW_END, {"entity_id": 1})
-	_check(draw.get_active_lines().size() == engine_start,
+	root.get_node("EventBus").call("emit", "input.draw_start", {"entity_id": 1, "position": points[0]})
+	root.get_node("EventBus").call("emit", "input.draw_update", {"entity_id": 1, "position": points[1]})
+	root.get_node("EventBus").call("emit", "input.draw_end", {"entity_id": 1})
+	_check(draw.call("get_active_lines").size() == engine_start,
 		"search-phase fake drawing input rejected")
 	_game_state.set("current_match", MATCH_DRAWING)
 
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
-	var player_sm := player.get_node_or_null("EntityStateMachine") as EntityStateMachine
-	var cpu_sm := cpu.get_node_or_null("EntityStateMachine") as EntityStateMachine
+	var player_sm := player.get_node_or_null("EntityStateMachine") as Node
+	var cpu_sm := cpu.get_node_or_null("EntityStateMachine") as Node
 	_check(player_sm != null and cpu_sm != null, "entity movement state machines exist")
 	if player_sm == null or cpu_sm == null:
 		_finish()
@@ -89,8 +89,8 @@ func _run() -> void:
 	player.set_meta("has_target", true)
 	cpu.set_meta("target_position", cpu.global_position + Vector2(300, 0))
 	cpu.set_meta("has_target", true)
-	player_sm.transition_to("walking")
-	cpu_sm.transition_to("walking")
+	player_sm.call("transition_to", "walking")
+	cpu_sm.call("transition_to", "walking")
 	await create_timer(0.12).timeout
 	_check(bool(_game_state.call("transition", TOP_PAUSED)), "pause accepted")
 	var human_frozen: Vector2 = player.global_position
