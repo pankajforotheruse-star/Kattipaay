@@ -46,8 +46,18 @@ func _run() -> void:
 	# Let Godot flush the pending message/scene queue BEFORE process exit;
 	# otherwise even successfully freed PackedScene probes cause a false
 	# positive 'ObjectDB instances leaked' warning at shutdown.
-	for _i in range(8):
+	# Bootstrap intentionally goes Main -> Splash -> Home asynchronously.
+	# Exiting at Splash leaves its deferred transition pending and leaks
+	# canvas objects. Wait for a stable HomeScene before final disposal.
+	var deadline := Time.get_ticks_msec() + 9000
+	while (current_scene == null or current_scene.name != "HomeScreen") \
+			and Time.get_ticks_msec() < deadline:
 		await process_frame
+	if current_scene == null or current_scene.name != "HomeScreen":
+		_failures += 1
+		push_error("KATTIPAAY_SCENES: FAIL bootstrap never reached stable home")
+	await process_frame
+	await process_frame
 	if _seen < 12:
 		_failures += 1
 		push_error("KATTIPAAY_SCENES: FAIL unexpectedly few scene files: %d" % _seen)
