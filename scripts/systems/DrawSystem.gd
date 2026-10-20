@@ -29,6 +29,8 @@ const MAX_ACTIVE_LINES := 50
 
 ## Minimum distance between raw touch samples before recording a point.
 const MIN_SAMPLE_DISTANCE := 4.0
+## Minimum genuine solo stroke length: reject accidental 4px taps.
+const SOLO_MIN_STROKE_LENGTH := 18.0
 
 ## Catmull-Rom interpolation spacing (pixels between smoothed points).
 const SPLINE_SAMPLE_SPACING := 8.0
@@ -269,6 +271,10 @@ func _process(delta: float) -> void:
 ## Called when the second finger touches down while the first is held (draw gesture starts).
 ## payload: {entity_id: int, position: Vector2 (world-space), chalk_type: int}
 func _on_draw_start(payload: Dictionary) -> void:
+    # Solo drawing is legal only during DRAWING or the active defender sneak
+    # window. Direct events during searching/meeting cannot create extra marks.
+    if GameState.solo_vs_cpu and not (GameState.get_match_state() == GameState.MatchState.DRAWING or sneak_mode):
+        return
     # Defender sneak cap: no more sneak lines this defender phase (the slider
     # limit means the mechanic can never be spammed forever).
     if sneak_mode and _sneak_lines_used >= sneak_max_lines:
@@ -394,12 +400,27 @@ func _on_undo_draw(_payload = null) -> void:
 # LINE CREATION & FINALIZATION
 # =============================================================================
 
+## Measure raw stroke arc length (using actual sampled points, no smoothing).
+func _raw_stroke_length() -> float:
+    var length := 0.0
+    for i in range(1, _raw_draw_points.size()):
+        length += _raw_draw_points[i - 1].distance_to(_raw_draw_points[i])
+    return length
+
+
 ## Finalize the current drawing stroke: smooth, create ChalkLine, compress, notify.
 func _finish_drawing() -> void:
     _is_drawing = false
 
     if _raw_draw_points.size() < 2:
         # Not enough points for a valid line — remove preview
+        _remove_preview_line()
+        _drawing_entity_id = -1
+        return
+
+    # In solo mode, two near-identical touch points must not count as a
+    # complete surviving mark. Use path length, not just point count.
+    if GameState.solo_vs_cpu and _raw_stroke_length() < SOLO_MIN_STROKE_LENGTH:
         _remove_preview_line()
         _drawing_entity_id = -1
         return
