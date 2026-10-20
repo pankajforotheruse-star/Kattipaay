@@ -1101,13 +1101,21 @@ func _create_score_label() -> void:
     _score_label.offset_right = -16
     _score_label.offset_bottom = 110
     add_child(_score_label)
+    if GameState.solo_vs_cpu:
+        # Solo score is surviving hidden lines, not the legacy PvE point
+        # accumulator. The scoring/winner overlays show the real outcome.
+        _score_label.hide()
 
 func _on_total_score_updated(payload: Dictionary) -> void:
+    if GameState.solo_vs_cpu:
+        return
     var score: int = payload.get("total_score", 0)
     if _score_label:
         _score_label.text = "Score: %d" % score
 
 func _on_round_score_calculated(payload: Dictionary) -> void:
+    if GameState.solo_vs_cpu:
+        return
     var score: int = payload.get("score", 0)
     # Brief flash of round score
     if _score_label:
@@ -1122,6 +1130,8 @@ func _on_round_score_calculated(payload: Dictionary) -> void:
 
 
 func _on_score_changed(payload: Dictionary) -> void:
+    if GameState.solo_vs_cpu:
+        return
     # audit m4: live score delta (SloppyCountSystem) - flash it above the
     # score label so the event has visible feedback.
     var amount: int = payload.get("amount", 0)
