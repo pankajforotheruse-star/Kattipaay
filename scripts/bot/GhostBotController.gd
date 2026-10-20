@@ -61,7 +61,7 @@ const HUMAN_ENTITY_ID := 1
 
 # ── Placement geometry (mirrors GhostDrawSystem's line generation) ───────────
 const LINES_PER_PLACEMENT := 2
-const MAX_ACTIVE_GHOST_LINES := 4
+const MAX_ACTIVE_GHOST_LINES := 50
 const MIN_LINE_LENGTH := 100.0
 const MAX_LINE_LENGTH := 200.0
 const MIN_LINE_SEPARATION := 50.0
@@ -125,6 +125,9 @@ var _guilt: float = 0.0
 # ── Round state ──────────────────────────────────────────────────────────────
 var ai_state: int = AIState.IDLE
 var _lines_placed_this_round: bool = false
+var _cpu_draw_timer: float = 0.0
+var _cpu_placement_count: int = 0
+const CPU_LINE_TARGETS := {0: 8, 1: 12, 2: 16, 3: 20}
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
 var _placement_delay: float = 0.0
@@ -191,6 +194,12 @@ func _ai_tick(delta: float) -> void:
 	var ms := GameState.get_match_state()
 	if ms != GameState.MatchState.DRAWING and ms != GameState.MatchState.SEARCHING:
 		return
+	if GameState.solo_vs_cpu:
+		# Complete CPU cover is laid down DURING the drawing clock. Do not
+		# magically add base lines while the human is already searching.
+		if ms == GameState.MatchState.DRAWING:
+			_tick_cpu_drawing(delta)
+		return
 
 	# NIGHTMARE: arm placement once we have movement data + fog is live.
 	if difficulty == Difficulty.NIGHTMARE and not _lines_placed_this_round \
@@ -236,19 +245,50 @@ func _ai_tick(delta: float) -> void:
 
 # ── Placement ────────────────────────────────────────────────────────────────
 
+## Each side has a full DRAWING phase. Scale CPU strokes by difficulty but
+## distribute them through the actual phase duration (incl. fast CI pacing).
+## The CPU never sees the player's hidden coordinates to decide its count.
+func _target_cpu_lines() -> int:
+	var override := int(ProjectSettings.get_setting("chalk_gaon/cpu_line_target", -1))
+	var target := override if override >= 0 else int(CPU_LINE_TARGETS.get(difficulty, 12))
+	return clampi(target, 2, MAX_ACTIVE_GHOST_LINES)
+
+
+func _tick_cpu_drawing(delta: float) -> void:
+	if not _ghost_sys:
+		return
+	if _ghost_sys.get_active_ghost_lines().size() >= _target_cpu_lines():
+		return
+	_cpu_draw_timer -= delta
+	if _cpu_draw_timer > 0.0:
+		return
+	var drawing_seconds := float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40.0))
+	var pairs := maxi(1, int(ceil(float(_target_cpu_lines()) / float(LINES_PER_PLACEMENT))))
+	_cpu_draw_timer = maxf(0.7, (drawing_seconds - 0.3) / float(pairs))
+	# Each pair gets its own independent hiding site across the CPU territory.
+	_placement_anchor = Vector2(
+		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 130.0, ZoneLayout.CPU_ZONE.end.x - 130.0),
+		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 100.0, ZoneLayout.CPU_ZONE.end.y - 100.0))
+	_execute_placement()
+
+
+func get_cpu_placement_count() -> int:
+	return _cpu_placement_count
+
+
+
+
 func _schedule_placement(delay: float) -> void:
 	_placement_delay = delay
 	_placement_due = false
 
 
 func _can_place() -> bool:
-	if _lines_placed_this_round:
-		return false
 	if not _ghost_sys:
 		return false
 	if not _ghost_sys.is_ghost_draw_available():
 		return false
-	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= MAX_ACTIVE_GHOST_LINES
+	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= mini(MAX_ACTIVE_GHOST_LINES, _target_cpu_lines())
 
 
 func _execute_placement() -> void:
@@ -272,6 +312,7 @@ func _execute_placement() -> void:
 		"owner_id": GHOST_ENTITY_ID,
 	})
 	_lines_placed_this_round = true
+	_cpu_placement_count += 1
 	if difficulty == Difficulty.NIGHTMARE and not _accused_this_round:
 		_watch_armed = true
 		_watch_deadline = _now() + STOP_WATCH_WINDOW
@@ -515,6 +556,7 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 
 	if to_state == GameState.MatchState.DRAWING:
 		_reset_round_memory()
+		_cpu_draw_timer = 0.2
 		_fallback_timer = 0.0
 		_placement_delay = 0.0
 		_placement_due = false
@@ -661,6 +703,8 @@ func _reset_round_memory() -> void:
 	_draw_timestamps.clear()
 	_move_samples.clear()
 	_lines_placed_this_round = false
+	_cpu_placement_count = 0
+	_cpu_draw_timer = 0.0
 	_accused_this_round = false
 	_placement_anchor = Vector2.ZERO
 	_placement_due = false
