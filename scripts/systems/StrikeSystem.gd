@@ -77,6 +77,9 @@ func _on_search_phase_ended(_payload: Dictionary) -> void:
 
 
 func _on_input_move_start(payload: Dictionary) -> void:
+	if GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED:
+		return
 	if not _active or not _human_is_searcher:
 		return
 	if _argue_muffled > 0.0:
@@ -86,6 +89,11 @@ func _on_input_move_start(payload: Dictionary) -> void:
 
 
 func _process(delta: float) -> void:
+	# Do not spend the defender's argument timer or initiate an AI argument
+	# when the whole game has been paused.
+	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED):
+		return
 	if _argue_muffled > 0.0:
 		_argue_muffled = maxf(_argue_muffled - delta, 0.0)
 	# The CPU may argue only while defending (HUMAN searching), never
