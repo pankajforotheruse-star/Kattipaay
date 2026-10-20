@@ -164,7 +164,7 @@ func _test_phase_timer() -> void:
 	var during: float = timer.get("_remaining_seconds")
 	_check(absf(during - before) < 0.025, "paused timer cannot count down")
 	timer.resume()
-	timer._process(0.8)
+	timer._process(1.2) # raw durations are clamped to >= 1s
 	_check(not timer.is_running(), "timer stops at zero rather than running negative")
 	timer.stop()
 	print(PREFIX + "PHASE_TIMER_OK")
