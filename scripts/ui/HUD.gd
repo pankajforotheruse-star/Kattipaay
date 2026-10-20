@@ -612,6 +612,12 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     var to_state: int = payload.get("to", -1)
     var from_state: int = payload.get("from", -1)
 
+    # A top-level pause is an interruption, NOT a search-phase boundary.
+    # Preserve existing SEARCH banner, remaining-lines counter, and defender
+    # ARGUE button. There is no new SEARCH_PHASE_STARTED event on resume.
+    if to_state == GameState.MatchState.PAUSED or from_state == GameState.MatchState.PAUSED:
+        return
+
     # Reset the end-of-draw banner on any DRAWING boundary (fresh entry or exit).
     if to_state == GameState.MatchState.DRAWING or from_state == GameState.MatchState.DRAWING:
         _hide_draw_warning()
