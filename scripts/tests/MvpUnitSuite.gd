@@ -6,6 +6,7 @@ extends SceneTree
 const PREFIX := "KATTIPAAY_UNIT: "
 var _checks: int = 0
 var _failures: int = 0
+var _game_state: Node = null
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -19,6 +20,11 @@ func _check(ok: bool, label: String) -> void:
 
 
 func _run() -> void:
+	_game_state = root.get_node_or_null("GameState")
+	_check(_game_state != null, "GameState autoload present")
+	if _game_state == null:
+		quit(1)
+		return
 	_test_zone_invariants()
 	_test_visibility_boundaries()
 	_test_chalk_roundtrip()
@@ -150,13 +156,13 @@ func _test_search_policy() -> void:
 		"struck marks cannot be targeted twice")
 	var settings_before = ProjectSettings.get_setting("chalk_gaon/cpu_sneak_notice_chance", -1.0)
 	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", -1.0)
-	var prev_difficulty := GameState.cpu_difficulty
-	GameState.cpu_difficulty = 0
+	var prev_difficulty := int(_game_state.get("cpu_difficulty"))
+	_game_state.set("cpu_difficulty", 0)
 	var easy_chance: float = cpu._resolve_notice_chance()
-	GameState.cpu_difficulty = 3
+	_game_state.set("cpu_difficulty", 3)
 	var hard_chance: float = cpu._resolve_notice_chance()
 	_check(easy_chance < hard_chance, "higher difficulty increases legitimate sneak notice")
-	GameState.cpu_difficulty = prev_difficulty
+	_game_state.set("cpu_difficulty", prev_difficulty)
 	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", settings_before)
 	cpu.free()
 	print(PREFIX + "CPU_SEARCH_POLICY_OK")
@@ -167,8 +173,8 @@ func _test_scoring_decisions() -> void:
 	if score == null:
 		_check(false, "scoring autoload exists")
 		return
-	var prev_solo := GameState.solo_vs_cpu
-	GameState.solo_vs_cpu = true
+	var prev_solo := bool(_game_state.get("solo_vs_cpu"))
+	_game_state.set("solo_vs_cpu", true)
 	for case in [{"human": 7, "cpu": 3, "winner": 1}, {"human": 2, "cpu": 8, "winner": 2},
 			{"human": 0, "cpu": 0, "winner": 0}, {"human": 4, "cpu": 4, "winner": 0}]:
 		score.reset_match()
@@ -181,7 +187,7 @@ func _test_scoring_decisions() -> void:
 	score._calculate_round_score()
 	_check(score.get_round_score(0) == 5, "solo score excludes legacy draw/hint bonuses")
 	score.reset_match()
-	GameState.solo_vs_cpu = prev_solo
+	_game_state.set("solo_vs_cpu", prev_solo)
 	print(PREFIX + "SURVIVOR_SCORING_OK")
 
 
