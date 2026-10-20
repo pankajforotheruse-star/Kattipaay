@@ -5,6 +5,12 @@ extends SceneTree
 const PREFIX := "KATTIPAAY_COMPONENT: "
 var _checks: int = 0
 var _errors: int = 0
+var _game_state: Node = null
+const TOP_PLAYING := 3
+const TOP_PAUSED := 4
+const MATCH_DRAWING := 4
+const MATCH_SEARCHING := 6
+const MATCH_PAUSED := 12
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -18,9 +24,14 @@ func _check(ok: bool, description: String) -> void:
 
 
 func _run() -> void:
-	GameState.solo_vs_cpu = true
-	GameState.cpu_difficulty = GhostBotController.Difficulty.NORMAL
-	_check(GameState.transition(GameState.State.PLAYING),
+	_game_state = root.get_node_or_null("GameState")
+	_check(_game_state != null, "GameState autoload")
+	if _game_state == null:
+		_finish()
+		return
+	_game_state.set("solo_vs_cpu", true)
+	_game_state.set("cpu_difficulty", 1)
+	_check(bool(_game_state.call("transition", TOP_PLAYING)),
 		"transition from SPLASH to PLAYING")
 	for _i in range(5):
 		await process_frame
@@ -48,20 +59,20 @@ func _run() -> void:
 			or sweep == null or strike == null or driver == null:
 		_finish()
 		return
-	_check(GameState.get_match_state() == GameState.MatchState.DRAWING,
+	_check(int(_game_state.call("get_match_state")) == MATCH_DRAWING,
 		"driver enters DRAWING for solo match")
 	var engine_start: int = draw.get_active_lines().size()
 	# A forged SEARCH draw input must not insert marks. This is separate from
 	# the smoke test's long-press/meeting checks.
 	var points: Array[Vector2] = [Vector2(250, 210), Vector2(400, 210)]
 	draw.sneak_mode = false
-	GameState.current_match = GameState.MatchState.SEARCHING
+	_game_state.set("current_match", MATCH_SEARCHING)
 	EventBus.emit(EventBus.EV_INPUT_DRAW_START, {"entity_id": 1, "position": points[0]})
 	EventBus.emit(EventBus.EV_INPUT_DRAW_UPDATE, {"entity_id": 1, "position": points[1]})
 	EventBus.emit(EventBus.EV_INPUT_DRAW_END, {"entity_id": 1})
 	_check(draw.get_active_lines().size() == engine_start,
 		"search-phase fake drawing input rejected")
-	GameState.current_match = GameState.MatchState.DRAWING
+	_game_state.set("current_match", MATCH_DRAWING)
 
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
@@ -81,7 +92,7 @@ func _run() -> void:
 	player_sm.transition_to("walking")
 	cpu_sm.transition_to("walking")
 	await create_timer(0.12).timeout
-	_check(GameState.transition(GameState.State.PAUSED), "pause accepted")
+	_check(bool(_game_state.call("transition", TOP_PAUSED)), "pause accepted")
 	var human_frozen: Vector2 = player.global_position
 	var cpu_frozen: Vector2 = cpu.global_position
 	await create_timer(0.22).timeout
@@ -89,9 +100,9 @@ func _run() -> void:
 		"human physics frozen while paused")
 	_check(cpu.global_position.distance_to(cpu_frozen) < 0.2,
 		"CPU physics frozen while paused")
-	_check(GameState.get_match_state() == GameState.MatchState.PAUSED,
+	_check(int(_game_state.call("get_match_state")) == MATCH_PAUSED,
 		"match-level state actually paused")
-	_check(GameState.transition(GameState.State.PLAYING), "resume accepted")
+	_check(bool(_game_state.call("transition", TOP_PLAYING)), "resume accepted")
 	_check(GameState.get_match_state() == GameState.MatchState.DRAWING,
 		"resume returns to drawing without resetting phase")
 	await create_timer(0.18).timeout
