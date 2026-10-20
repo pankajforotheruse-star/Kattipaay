@@ -156,15 +156,21 @@ func _calculate_round_score() -> void:
 		"silent_sneak_bonus": _silent_sneaks * SILENT_SNEAK_BONUS
 	}
 	
-	# Apply formula
-	score += breakdown.lines_score
-	score += breakdown.cluster_bonus
-	score += breakdown.human_surviving_lines * SURVIVOR_POINTS_PER_LINE
-	score -= breakdown.argument_penalty
-	score -= breakdown.hint_trap_penalty
-	score += breakdown.correct_hint_bonus
-	score += breakdown.sloppy_count_delta
-	score += breakdown.silent_sneak_bonus
+	# The childhood Play VS CPU score IS the number of surviving chalk
+	# marks. Old arcade bonuses (draw count, clusters, hints, etc.) are not
+	# part of this game's win or round score; retain them only for non-solo
+	# modes, where the original scoring formula still applies.
+	if GameState.solo_vs_cpu:
+		score = _human_surviving_lines
+	else:
+		score += breakdown.lines_score
+		score += breakdown.cluster_bonus
+		score += breakdown.human_surviving_lines * SURVIVOR_POINTS_PER_LINE
+		score -= breakdown.argument_penalty
+		score -= breakdown.hint_trap_penalty
+		score += breakdown.correct_hint_bonus
+		score += breakdown.sloppy_count_delta
+		score += breakdown.silent_sneak_bonus
 	
 	# Clamp to minimum 0
 	score = maxi(score, 0)
