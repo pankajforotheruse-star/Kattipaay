@@ -127,6 +127,9 @@ var ai_state: int = AIState.IDLE
 var _lines_placed_this_round: bool = false
 var _cpu_draw_timer: float = 0.0
 var _cpu_placement_count: int = 0
+var _cpu_sneak_timer: float = 0.0
+var _cpu_sneaks_placed: int = 0
+const MAX_CPU_SNEAKS := 3
 const CPU_LINE_TARGETS := {0: 8, 1: 12, 2: 16, 3: 20}
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
@@ -156,6 +159,7 @@ func _ready() -> void:
 	_find_systems()
 
 	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_solo_search_phase_started)
 	EventBus.on(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
 	EventBus.on(EventBus.EV_GAME_FOG_REVEALED, _on_fog_revealed)
 	EventBus.on(EventBus.EV_INPUT_MOVE_COMMAND_WORLD, _on_move_command)
@@ -174,6 +178,7 @@ func _process(delta: float) -> void:
 
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_match_state_changed)
+	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_solo_search_phase_started)
 	EventBus.off(EventBus.EV_GAME_LINE_DRAWN, _on_line_drawn)
 	EventBus.off(EventBus.EV_GAME_FOG_REVEALED, _on_fog_revealed)
 	EventBus.off(EventBus.EV_INPUT_MOVE_COMMAND_WORLD, _on_move_command)
@@ -199,6 +204,8 @@ func _ai_tick(delta: float) -> void:
 		# magically add base lines while the human is already searching.
 		if ms == GameState.MatchState.DRAWING:
 			_tick_cpu_drawing(delta)
+		elif GameState.solo_active_searcher == HUMAN_ENTITY_ID:
+			_tick_cpu_defender_sneak(delta)
 		return
 
 	# NIGHTMARE: arm placement once we have movement data + fog is live.
@@ -274,6 +281,46 @@ func _tick_cpu_drawing(delta: float) -> void:
 
 func get_cpu_placement_count() -> int:
 	return _cpu_placement_count
+
+
+## The CPU also gets up to three attempts WHILE IT IS DEFENDING. A sneak
+## becomes an independently tracked line, and the human can catch it only
+## by physically searching its location (GhostDrawSystem handles the penalty).
+func _on_solo_search_phase_started(payload: Dictionary) -> void:
+	_cpu_sneaks_placed = 0
+	_cpu_sneak_timer = 5.0
+	if int(payload.get("searcher", -1)) != HUMAN_ENTITY_ID:
+		_cpu_sneak_timer = INF
+
+
+func _tick_cpu_defender_sneak(delta: float) -> void:
+	if _cpu_sneaks_placed >= MAX_CPU_SNEAKS or _ghost_sys == null:
+		return
+	if _ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
+		return
+	_cpu_sneak_timer -= delta
+	if _cpu_sneak_timer > 0.0:
+		return
+	_cpu_sneak_timer = maxf(1.0, float(ProjectSettings.get_setting(
+		"chalk_gaon/cpu_sneak_interval_seconds", 8.0)))
+	# A new concealed attempt at a fresh public zone location, never at a
+	# secret human target. The bot has no access to the human's hidden marks.
+	var anchor := Vector2(
+		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 140.0, ZoneLayout.CPU_ZONE.end.x - 140.0),
+		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 140.0, ZoneLayout.CPU_ZONE.end.y - 140.0))
+	var raw := _build_one_line_dict(anchor, _rng.randf_range(0.0, TAU),
+		_rng.randf_range(100.0, 160.0), _rng)
+	raw["sn"] = true
+	EventBus.emit(EventBus.EV_NETWORK_GHOST_LINES_PLACED, {
+		"lines": [raw],
+		"owner_id": GHOST_ENTITY_ID,
+	})
+	_cpu_sneaks_placed += 1
+	print("GhostBot: defender sneak #%d added in CPU zone" % _cpu_sneaks_placed)
+
+
+func get_cpu_sneaks_placed() -> int:
+	return _cpu_sneaks_placed
 
 
 
@@ -705,6 +752,8 @@ func _reset_round_memory() -> void:
 	_lines_placed_this_round = false
 	_cpu_placement_count = 0
 	_cpu_draw_timer = 0.0
+	_cpu_sneak_timer = 0.0
+	_cpu_sneaks_placed = 0
 	_accused_this_round = false
 	_placement_anchor = Vector2.ZERO
 	_placement_due = false
