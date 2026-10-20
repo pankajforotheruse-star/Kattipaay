@@ -196,11 +196,12 @@ func register_player_score(player_id: int, score: int) -> void:
 func _determine_winner() -> void:
 	# R6: Play VS CPU rounds are decided by surviving hidden lines. The side
 	# with MORE surviving (unstruck, unidentified) lines after BOTH searches
-	# wins; ties (including the both-empty edge case) resolve to the human so
-	# the round always produces a winner.
+	# wins; equal survivors are an explicit DRAW (winner_id == 0). A tie
+	# must not silently count as a human victory.
 	if _survivors_registered:
-		var human_won := _human_surviving_lines >= _cpu_surviving_lines
-		winner_id = InputManager.local_entity_id if human_won else 2
+		var human_won := _human_surviving_lines > _cpu_surviving_lines
+		var is_tie := _human_surviving_lines == _cpu_surviving_lines
+		winner_id = 0 if is_tie else (InputManager.local_entity_id if human_won else 2)
 		if human_won:
 			_stats.wins += 1
 		EventBus.emit(EventBus.EV_GAME_WINNER_DETERMINED, {
