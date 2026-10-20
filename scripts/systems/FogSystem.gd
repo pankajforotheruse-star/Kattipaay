@@ -137,6 +137,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if GameState.solo_vs_cpu and GameState.current == GameState.State.PAUSED:
+		return
 	if not _is_active or _is_paused:
 		return
 
