@@ -225,6 +225,17 @@ func _run_test() -> void:
 		quit(1)
 		return
 
+	# ── All four difficulty modes must finish a full match. Normal and Easy
+	# are tested above; Hard and Nightmare guard future bot tuning.
+	await _run_match_pass("HARD", false)
+	if _failed:
+		quit(1)
+		return
+	await _run_match_pass("NIGHTMARE", false)
+	if _failed:
+		quit(1)
+		return
+
 	# ── Pass 3: NORMAL — defender argue + sneak (slice 4): argue stalls the
 	# ── CPU sweep; sneak noticed (chance forced 1.0) → NOTICED + penalty
 	# ── strikes of the sneak AND 2 nearby defender lines; sneak unnoticed
@@ -435,8 +446,11 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		return
 	print("KATTIPAAY_SMOKE: MEETING_REACHED difficulty=%s" % diff_label)
 	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
-	if cpu_base_count < 6:
-		_fail("CPU only drew %d lines; expected full drawing-phase batches (>2)" % cpu_base_count)
+	var expected_cpu_lines := {"EASY": 8, "NORMAL": 12, "HARD": 16, "NIGHTMARE": 20}
+	var expected_count := int(expected_cpu_lines.get(diff_label, -1))
+	if cpu_base_count != expected_count:
+		_fail("CPU base-line count for %s: expected %d, got %d" % [
+			diff_label, expected_count, cpu_base_count])
 		return
 	print("KATTIPAAY_SMOKE: CPU_BASE_LINES_OK difficulty=%s count=%d" % [diff_label, cpu_base_count])
 	if draw_human_lines:
