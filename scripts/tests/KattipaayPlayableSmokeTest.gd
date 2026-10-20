@@ -584,7 +584,8 @@ func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
 	var line_script := load("res://scripts/systems/ChalkLine.gd") as GDScript
 	var hidden_line = line_script.new()
 	hidden_line.id = 987654
-	hidden_line.points = [Vector2(120.0, 90.0), Vector2(200.0, 90.0)]
+	var test_points: Array[Vector2] = [Vector2(120.0, 90.0), Vector2(200.0, 90.0)]
+	hidden_line.set("points", test_points)
 	hidden_line.wall_concealed = false
 	var far_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(1200.0, 700.0))
 	if not far_ids.is_empty():
