@@ -131,6 +131,9 @@ var _cpu_sneak_timer: float = 0.0
 var _cpu_sneaks_placed: int = 0
 const MAX_CPU_SNEAKS := 3
 const CPU_LINE_TARGETS := {0: 8, 1: 12, 2: 16, 3: 20}
+## Difficulty changes how many PUBLIC cover objects the CPU chooses, not
+## the reveal physics. The human is free to use exactly the same sites.
+const CPU_COVER_ANCHOR_SHARE := {0: 0.15, 1: 0.30, 2: 0.55, 3: 0.75}
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
 var _placement_delay: float = 0.0
@@ -273,10 +276,23 @@ func _tick_cpu_drawing(delta: float) -> void:
 	var pairs := maxi(1, int(ceil(float(_target_cpu_lines()) / float(LINES_PER_PLACEMENT))))
 	_cpu_draw_timer = maxf(0.7, (drawing_seconds - 0.3) / float(pairs))
 	# Each pair gets its own independent hiding site across the CPU territory.
-	_placement_anchor = Vector2(
+	_placement_anchor = _choose_public_hiding_anchor()
+	_execute_placement()
+
+
+## Select from the same public locations a human sees. Never inspect hidden
+## human marks to place CPU marks. This is a draw-phase strategy only.
+func _choose_public_hiding_anchor() -> Vector2:
+	if _rng.randf() < float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.30)):
+		var sites := HidingRules.get_cover_sites(true)
+		var site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
+		var region: Rect2 = site["rect"]
+		return Vector2(
+			_rng.randf_range(region.position.x + 12.0, region.end.x - 12.0),
+			_rng.randf_range(region.position.y + 12.0, region.end.y - 12.0))
+	return Vector2(
 		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 130.0, ZoneLayout.CPU_ZONE.end.x - 130.0),
 		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 100.0, ZoneLayout.CPU_ZONE.end.y - 100.0))
-	_execute_placement()
 
 
 func get_cpu_placement_count() -> int:
@@ -305,9 +321,7 @@ func _tick_cpu_defender_sneak(delta: float) -> void:
 		"chalk_gaon/cpu_sneak_interval_seconds", 8.0)))
 	# A new concealed attempt at a fresh public zone location, never at a
 	# secret human target. The bot has no access to the human's hidden marks.
-	var anchor := Vector2(
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 140.0, ZoneLayout.CPU_ZONE.end.x - 140.0),
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 140.0, ZoneLayout.CPU_ZONE.end.y - 140.0))
+	var anchor := _choose_public_hiding_anchor()
 	var raw := _build_one_line_dict(anchor, _rng.randf_range(0.0, TAU),
 		_rng.randf_range(100.0, 160.0), _rng)
 	raw["sn"] = true
@@ -344,13 +358,19 @@ func _execute_placement() -> void:
 		return
 
 	var anchor := Vector2.ZERO
-	match difficulty:
-		Difficulty.EASY:
-			anchor = _easy_anchor()
-		Difficulty.NIGHTMARE:
-			anchor = _compute_nightmare_anchor()
-		_:
-			anchor = _placement_anchor  # computed when the observation arrived
+	if GameState.solo_vs_cpu:
+		# The legacy PvE behavior used the other player's observations and
+		# could infer where their strokes were. Solo hiding uses ONLY a public
+		# terrain anchor, independent of any human drawing/movement signals.
+		anchor = _placement_anchor
+	else:
+		match difficulty:
+			Difficulty.EASY:
+				anchor = _easy_anchor()
+			Difficulty.NIGHTMARE:
+				anchor = _compute_nightmare_anchor()
+			_:
+				anchor = _placement_anchor
 	anchor = _clamp_to_cpu_zone(anchor)
 
 	var dicts := _build_line_dicts(anchor)
