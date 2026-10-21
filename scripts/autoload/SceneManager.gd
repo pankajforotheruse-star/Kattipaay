@@ -50,6 +50,11 @@ func show_overlay(overlay_path: String) -> void:
 	_remove_match_overlay()
 
 	var full_path := "res://scenes/" + overlay_path
+	# Multiplayer/competitive overlays are not all shipped in this solo MVP.
+	# Never attempt to load a dangling PackedScene path at runtime.
+	if not ResourceLoader.exists(full_path):
+		push_warning("SceneManager: optional overlay not implemented: %s" % full_path)
+		return
 	var overlay_scene := load(full_path) as PackedScene
 	if not overlay_scene:
 		push_error("SceneManager: failed to load overlay %s" % full_path)

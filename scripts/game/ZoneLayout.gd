@@ -70,8 +70,10 @@ static func clamp_to_cpu_zone(p: Vector2) -> Vector2:
 ## Clamp a point into an arbitrary zone rect.
 static func clamp_to_zone(p: Vector2, zone: Rect2) -> Vector2:
 	return Vector2(
-		clampf(p.x, zone.position.x, zone.end.x),
-		clampf(p.y, zone.position.y, zone.end.y)
+		# Rect2.has_point uses an EXCLUSIVE max edge. Clamp to the inside,
+		# otherwise a screen tap past the border produces an out-of-zone mark.
+		clampf(p.x, zone.position.x, zone.end.x - 0.01),
+		clampf(p.y, zone.position.y, zone.end.y - 0.01)
 	)
 
 ## True when the point lies inside the player zone.

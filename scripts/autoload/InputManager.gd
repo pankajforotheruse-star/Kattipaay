@@ -70,14 +70,37 @@ var _has_accelerometer: bool = false
 
 
 func _ready() -> void:
+	# Clear held gestures when a timed phase closes (otherwise a finger
+	# lifted during MEETING could leave a stale drawing/anchor index).
+	EventBus.on(EventBus.EV_MATCH_STATE_CHANGED, _on_phase_changed)
 	# Check accelerometer availability
-	_has_accelerometer = not Input.get_accelerometer().is_zero_approx() or true
-	# In practice: Input.get_accelerometer() returns (0,0,0) on desktop.
-	# We try to use it; shake detection gracefully handles unavailable sensor.
+	_has_accelerometer = OS.has_feature("mobile")
+	# Do not poll the accelerometer on every desktop frame. On Android,
+	# a zero reading is handled by _poll_accelerometer's early return.
 
 	# Start accelerometer polling if available
 	if _has_accelerometer:
 		set_process(true)
+
+
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_MATCH_STATE_CHANGED, _on_phase_changed)
+
+
+func _on_phase_changed(payload: Dictionary) -> void:
+	var next_phase := int(payload.get("to", -1))
+	if next_phase == GameState.MatchState.MEETING \
+			or next_phase == GameState.MatchState.PAUSED \
+			or next_phase == GameState.MatchState.REVEAL:
+		if _draw_touch_index >= 0 or _mouse_is_drawing:
+			EventBus.emit(EventBus.EV_INPUT_DRAW_END, {"entity_id": local_entity_id})
+		if _anchor_touch_index >= 0 or _mouse_is_anchor:
+			EventBus.emit(EventBus.EV_INPUT_MOVE_END, {})
+		_active_touches.clear()
+		_draw_touch_index = -1
+		_anchor_touch_index = -1
+		_mouse_is_drawing = false
+		_mouse_is_anchor = false
 
 
 func _process(_delta: float) -> void:
@@ -87,6 +110,11 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# A paused match must ignore every in-world gesture, even during human
+	# defender sneak mode; GUI buttons remain handled by Control nodes.
+	if GameState.current == GameState.State.PAUSED \
+			or GameState.get_match_state() == GameState.MatchState.PAUSED:
+		return
 	if not touch_to_move_enabled and not sneak_draw_enabled:
 		return
 
@@ -155,9 +183,11 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 		"start_time": Time.get_ticks_msec() / 1000.0,
 	}
 
-	if sneak_draw_enabled and _draw_touch_index == -1 and index != _anchor_touch_index:
-		# Defender sneak: the FIRST finger draws (one-finger tap-draw during the
-		# defender phase - no anchor finger, the defender never moves).
+	if ((GameState.solo_vs_cpu and _is_drawing_state()) or sneak_draw_enabled) \
+			and _draw_touch_index == -1:
+		# Mobile Play VS CPU: ONE finger draws ordinary and defender-sneak
+		# strokes. The previous first-finger-moves/second-finger-draws
+		# gesture made standard touch drawing unusable.
 		_draw_touch_index = index
 		var world_pos := screen_to_world(screen_pos)
 		EventBus.emit(EventBus.EV_INPUT_DRAW_START, {

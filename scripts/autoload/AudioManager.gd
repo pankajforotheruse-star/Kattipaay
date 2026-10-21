@@ -36,7 +36,23 @@ var _playback: AudioStreamGeneratorPlayback = null
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
+func _exit_tree() -> void:
+    # The generator playback is not scene-tree-owned; keeping a strong
+    # reference past shutdown leaks AudioStreamGeneratorPlayback in headless CI.
+    if _player:
+        _player.stop()
+        _player.stream = null
+    _playback = null
+    _generator = null
+
+
 func _ready() -> void:
+    # Godot's headless test runner has no usable audio output, but the
+    # generator playback persists in AudioServer and leaks at shutdown.
+    # Skip generating audio in headless CI; real desktop/Android sound stays.
+    if DisplayServer.get_name() == "headless":
+        print("AudioManager: headless — procedural audio disabled")
+        return
     _setup_audio()
     print("AudioManager: ready — procedural audio initialized")
 

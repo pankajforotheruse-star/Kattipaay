@@ -52,6 +52,21 @@ func release(obj: Object) -> void:
 	_free.append(obj)
 
 
+## Free any unparented/prewarmed objects at scene shutdown. Prewarmed
+## Line2D instances are not owned by the scene tree until first acquired.
+func dispose() -> void:
+	for obj in _free:
+		if not is_instance_valid(obj):
+			continue
+		if obj is Node:
+			(obj as Node).free()
+		elif obj is RefCounted:
+			pass
+		else:
+			obj.free()
+	_free.clear()
+
+
 ## Reset a Line2D node to a clean, hidden state ready for reuse.
 static func reset_line2d(ln: Line2D) -> void:
 	ln.clear_points()
