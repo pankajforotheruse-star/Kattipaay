@@ -962,7 +962,7 @@ func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
 	# decisions, with monotonic speed/cover inspection. No policy may
 	# increase the immutable HidingRules reveal radii.
 	var old_diff := int(_game_state.get("cpu_difficulty"))
-	var old_speed_override := ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", -1.0)
+	var old_speed_override: float = float(ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", -1.0))
 	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", -1.0)
 	var last_speed := 0.0
 	var last_inspect := -1.0
