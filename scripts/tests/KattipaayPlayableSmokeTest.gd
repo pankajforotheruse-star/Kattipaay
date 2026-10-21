@@ -143,7 +143,7 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_search_phase_seconds", 5.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_early_exit_grace_seconds", 0.5)
 	ProjectSettings.set_setting("chalk_gaon/solo_empty_phase_grace_seconds", 0.5)
-	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 420.0)  # restored per-pass for the sneak pass
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", -1.0)  # exercise real profile speeds in all four end-to-end passes
 	ProjectSettings.set_setting("chalk_gaon/solo_winner_hold_seconds", 1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_reveal_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_scoring_hold_seconds", 0.45)
