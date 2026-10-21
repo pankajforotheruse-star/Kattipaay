@@ -90,10 +90,44 @@ func _run() -> void:
 			"remote human tap cannot inspect cover")
 		_check(not bool(cover.call("can_reveal", covered, rect.get_center(), false)),
 			"uninspected leaf line invisible")
+		# Integration: actual GhostDrawSystem must not discover or strike a
+		# covered line at zero distance before the human lifts the leaves.
+		var original_pos := player.global_position
+		player.global_position = rect.get_center()
+		player.set_meta("has_target", false)
+		var test_line := ChalkLine.new()
+		test_line.id = -1
+		test_line.points = covered
+		test_line.widths = [3.0, 3.0]
+		test_line.player_id = 2
+		test_line.is_ghost = true
+		test_line.ghost_owner_id = 2
+		ghost.call("_on_network_ghost_lines_placed", {
+			"lines": [test_line.to_network_dict()], "owner_id": 2})
+		var marks: Array = ghost.call("get_active_ghost_lines")
+		_check(not marks.is_empty(), "covered CPU line added to live game store")
+		if not marks.is_empty():
+			var live_line: ChalkLine = marks[-1]
+			ghost.call("_on_fog_revealed", {
+				"player_id": 1, "position": player.global_position, "radius": 200.0})
+			ghost.call("_check_discovery")
+			_check(not live_line.is_discovered,
+				"actual human GhostDrawSystem cannot passively X-ray covered mark")
+			strike.call("_on_search_phase_started", {"searcher": 1})
+			_check(not bool(strike.call("strike_ghost_line", live_line.id)),
+				"direct strike ID cannot bypass unopened cover")
 		_check(bool(cover.call("inspect_at", 1, rect.get_center(),
 			rect.get_center() + Vector2(60, 0))), "human can inspect nearby leaf")
 		_check(bool(cover.call("can_reveal", covered, rect.get_center(), false)),
 			"inspected nearby mark discovered")
+		if not marks.is_empty():
+			ghost.call("_check_discovery")
+			_check(live_line.is_discovered,
+				"real GhostDrawSystem reveals stroke after nearby inspection")
+			_check(bool(strike.call("strike_ghost_line", live_line.id)),
+				"real StrikeSystem strikes physically discovered inspected stroke")
+			strike.call("_on_search_phase_ended", {})
+		player.global_position = original_pos
 		_check(not bool(cover.call("can_reveal", covered, distant, false)),
 			"inspection never remotely reveals mark")
 		cover.call("_on_search_started", {"searcher": 2})
