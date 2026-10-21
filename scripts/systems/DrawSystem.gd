@@ -244,11 +244,13 @@ func _process(delta: float) -> void:
     # human_surviving was 0 at _finish_round in virtually every real round.
     # Frozen lines keep their remaining lifetime and only expire during a
     # later DRAWING phase (or the max-line/undo paths).
-    if GameState.get_match_state() == GameState.MatchState.DRAWING:
+    if not GameState.solo_vs_cpu and GameState.get_match_state() == GameState.MatchState.DRAWING:
         _tick_decay(delta)
 
     # --- Consume chalk while actively drawing ---
-    if _is_drawing and not _chalk_exhausted and not _match_time_exceeded:
+    # Solo chalk is a time-based competition, not a legacy energy/decay
+    # survival game. Do not exhaust chalk or expire an ordinary stroke.
+    if not GameState.solo_vs_cpu and _is_drawing and not _chalk_exhausted and not _match_time_exceeded:
         _current_stroke_duration += delta
         _chalk_remaining -= CHALK_COST_PER_SECOND * delta
         if _chalk_remaining <= 0.0:
@@ -279,17 +281,17 @@ func _on_draw_start(payload: Dictionary) -> void:
     # limit means the mechanic can never be spammed forever).
     if sneak_mode and _sneak_lines_used >= sneak_max_lines:
         return
-    if _chalk_exhausted or _match_time_exceeded:
+    if not GameState.solo_vs_cpu and (_chalk_exhausted or _match_time_exceeded):
         return
     if _active_lines.size() >= MAX_ACTIVE_LINES:
         # Remove oldest line to make room (GDD §4: oldest line fades when limit reached)
         _remove_oldest_line()
-    if _chalk_remaining <= 0.0:
+    if not GameState.solo_vs_cpu and _chalk_remaining <= 0.0:
         return
 
     _is_drawing = true
     _drawing_entity_id = payload.get("entity_id", -1)
-    _current_chalk_type = payload.get("chalk_type", ChalkType.WHITE)
+    _current_chalk_type = ChalkType.WHITE if GameState.solo_vs_cpu else payload.get("chalk_type", ChalkType.WHITE)
     _current_stroke_duration = 0.0
 
     # Reset point buffers
@@ -444,14 +446,15 @@ func _finish_drawing() -> void:
     line.player_id = _drawing_entity_id
     line.is_sneak = sneak_mode
     line.created_at = Time.get_ticks_msec()
-    line.decay_duration = ChalkLine.DECAY_DURATIONS[_current_chalk_type]
+    line.decay_duration = ChalkLine.GHOST_DECAY_SENTINEL if GameState.solo_vs_cpu else \
+            ChalkLine.DECAY_DURATIONS[_current_chalk_type]
     line.id = -1  # Will be assigned by server/host or locally
 
-    # --- Step 3: Check line-line connections ---
-    _check_line_connections(line)
-
-    # --- Step 4: Detect sealed circles ---
-    _check_sealed_circle(line)
+    # Legacy connections/sealing circles were for the PvE prototype. They
+    # have no role in draw-hide-search and can only create misleading cues.
+    if not GameState.solo_vs_cpu:
+        _check_line_connections(line)
+        _check_sealed_circle(line)
 
     # --- Step 5: Network: send to server, or self-assign if offline host ---
     if NetworkManager.is_connected:
@@ -984,6 +987,8 @@ func _on_match_drawing_started(_payload) -> void:
 
 
 func _on_chalk_exhausted(_payload) -> void:
+    if GameState.solo_vs_cpu:
+        return
     _chalk_exhausted = true
     if _is_drawing:
         _finish_drawing()
@@ -993,6 +998,8 @@ func _on_chalk_exhausted(_payload) -> void:
 ## EV_GAME_CHALK_USED (audit m4): this system owns the chalk pool, so it
 ## applies the deduction and refreshes the HUD meter.
 func _on_chalk_used(payload: Dictionary) -> void:
+    if GameState.solo_vs_cpu:
+        return
     var amount: float = payload.get("amount", 0.0)
     if amount <= 0.0:
         return

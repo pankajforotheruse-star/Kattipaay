@@ -27,6 +27,12 @@ func _ready() -> void:
 	add_child(scenery)
 	move_child(scenery, 0)
 	_align_wall_art_with_concealment_geometry()
+	if GameState.solo_vs_cpu:
+		# Shared, discoverable public cover. Creation precedes solo controllers
+		# so both human and CPU search systems see the same inspection state.
+		var covers := CoverSystem.new()
+		covers.name = "CoverSystem"
+		add_child(covers)
 
 	# The scene presets entity ids (Player=1, NPC1=2). Seed the allocator above
 	# the highest registered id so later-spawned entities never collide with

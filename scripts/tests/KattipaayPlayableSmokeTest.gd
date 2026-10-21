@@ -83,7 +83,7 @@ const GHOST_ID := 2
 const CLUSTER_START := Vector2(120.0, 90.0)
 const CLUSTER_STRIDE := 70.0
 const DECAY_PROBE_START := Vector2(2330.0, 60.0)
-const DECAY_PROBE_DURATION := 8.6
+const DECAY_PROBE_DURATION := 0.2
 # Pass 3 (slice 4): the defender's anchor cluster + sneak strokes. The 3
 # anchor lines sit ~70-160px apart so the CPU's nearest-first sweep always
 # passes within NOTICE_RADIUS (170px) of a sneak line drawn on the cluster
@@ -112,7 +112,8 @@ var _coin_searcher: int = -1
 var _coin_human_first: bool = false
 var _seen_phases: Array = []  # {phase:int, searcher:int, target_lines:int}
 var _search_warning_events: Array = []  # {phase:int, searcher:int, remaining_seconds:int}
-var _human_line_ids: Array = []  # ids of lines the test drew as the human
+var _human_line_ids: Array = []
+var _persistence_probe_id: int = -1  # ids of lines the test drew as the human
 var _saw_human_line_drawn := false
 var _saw_line_struck_human := false  # EV_GAME_LINE_STRUCK with is_ghost=false
 var _last_struck_remaining := -1
@@ -142,7 +143,7 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_search_phase_seconds", 5.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_early_exit_grace_seconds", 0.5)
 	ProjectSettings.set_setting("chalk_gaon/solo_empty_phase_grace_seconds", 0.5)
-	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 420.0)  # restored per-pass for the sneak pass
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", -1.0)  # exercise real profile speeds in all four end-to-end passes
 	ProjectSettings.set_setting("chalk_gaon/solo_winner_hold_seconds", 1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_reveal_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_scoring_hold_seconds", 0.45)
@@ -321,6 +322,7 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	_coin_human_first = false
 	_seen_phases.clear()
 	_human_line_ids.clear()
+	_persistence_probe_id = -1
 	_saw_human_line_drawn = false
 	_saw_line_struck_human = false
 	_last_struck_remaining = -1
@@ -423,6 +425,13 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			_fail("Expected 6 human-drawn lines, got %d" % _human_line_ids.size())
 			return
 		print("KATTIPAAY_SMOKE: HUMAN_LINES_DRAWN count=%d ids=%s" % [_human_line_ids.size(), str(_human_line_ids)])
+		var bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
+		if bot == null or not (bot.get("_searcher_line_centroids") as Array).is_empty() \
+				or not (bot.get("_heatmap") as Dictionary).is_empty() \
+				or not (bot.get("_move_samples") as Array).is_empty():
+			_fail("Solo CPU retained a prohibited legacy cache of the human's secret chalk or path")
+			return
+		print("KATTIPAAY_SMOKE: NO_SECRET_LINE_MEMORY_OK")
 		# No malformed remote chalk or corrupted sync is permitted to erase
 		# pre-existing human/CPU marks or add bogus one-point lines.
 		var stored_human := int(draw_sys.call("get_active_lines").size())
@@ -445,6 +454,18 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: MEETING_REACHED difficulty=%s" % diff_label)
+	if draw_human_lines:
+		# A human mark survives even if old PvE decay metadata says expired.
+		# This verifies the childhood rule that ONLY the searcher or an
+		# actual caught-sneak penalty removes marks, not an arcade timer.
+		var persisted := false
+		for item in draw_sys.call("get_active_lines"):
+			if int(item.get("id")) == _persistence_probe_id:
+				persisted = true
+		if not persisted:
+			_fail("Ordinary human mark expired during solo drawing without being struck")
+			return
+		print("KATTIPAAY_SMOKE: SOLO_CHALK_PERSISTS_OK")
 	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
 	var expected_cpu_lines := {"EASY": 8, "NORMAL": 12, "HARD": 16, "NIGHTMARE": 20}
 	var expected_count := int(expected_cpu_lines.get(diff_label, -1))
@@ -721,6 +742,7 @@ func _draw_decay_probe(draw_sys: Node) -> void:
 	var lines: Array = draw_sys.call("get_active_lines")
 	for line in lines:
 		if int(line.get("id")) == probe_id:
+			_persistence_probe_id = probe_id
 			line.set("decay_duration", DECAY_PROBE_DURATION)
 			print("KATTIPAAY_SMOKE: DECAY_PROBE_ARMED id=%d decay_duration=%.1f" % [probe_id, DECAY_PROBE_DURATION])
 			return
@@ -958,6 +980,43 @@ func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
 		if not Rect2(0, 0, 2400, 780).has_point(p):
 			_fail("CPU exploration waypoint outside player territory: %s" % str(p))
 			return
+	# All four CPU difficulty policies must differ in PUBLIC-map search
+	# decisions, with monotonic speed/cover inspection. No policy may
+	# increase the immutable HidingRules reveal radii.
+	var old_diff := int(_game_state.get("cpu_difficulty"))
+	var old_speed_override: float = float(ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", -1.0))
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", -1.0)
+	var last_speed := 0.0
+	var last_inspect := -1.0
+	var last_cover_stops := -1
+	var unchanged_path: Array = []
+	for level in range(4):
+		_game_state.set("cpu_difficulty", level)
+		cpu_sweep.call("_read_settings")
+		var speed := float(cpu_sweep.get("_sweep_speed"))
+		var policy: Dictionary = cpu_sweep.get("_search_profile")
+		var inspect := float(policy["inspect"])
+		var stops := int(policy["cover_stops"])
+		if speed <= last_speed or inspect <= last_inspect or stops <= last_cover_stops:
+			_fail("CPU difficulty policy did not increase fair search skill at level %d" % level)
+			return
+		var route: Array = cpu_sweep.call("_build_search_waypoints",
+			Rect2(0, 0, 2400, 780), Vector2(1200, 760))
+		if route.size() < 8 or route == unchanged_path:
+			_fail("CPU difficulty route did not vary with public-map skill level %d" % level)
+			return
+		for waypoint in route:
+			if not ZoneLayout.PLAYER_ZONE.has_point(waypoint):
+				_fail("Difficulty %d route left the legal player territory" % level)
+				return
+		unchanged_path = route
+		last_speed = speed
+		last_inspect = inspect
+		last_cover_stops = stops
+	_game_state.set("cpu_difficulty", old_diff)
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", old_speed_override)
+	cpu_sweep.call("_read_settings")
+	print("KATTIPAAY_SMOKE: FAIR_DIFFICULTY_POLICIES_OK easy-normal-hard-nightmare")
 	print("KATTIPAAY_SMOKE: CPU_FAIR_SEARCH_OK (no distant detection, shared reveal distances, public zone route)")
 
 

@@ -55,6 +55,13 @@ func _run() -> void:
 	_check(driver != null and sweep != null and strike != null and bot != null,
 		"solo match systems ready")
 	_check(hud != null, "live HUD ready")
+	var cover := world.get_node_or_null("CoverSystem") as Node
+	_check(cover != null, "fair mirrored cover inspector present")
+	if cover != null:
+		# A drawn line must be genuinely hidden UNDER the unlifted public pile.
+		# ChalkLines z=10 plus stroke z=11 (relative), so cover must be >21.
+		_check((cover as Node2D).z_index > 21,
+			"uninspected leaf/brick cover renders over solo chalk")
 	if player == null or cpu == null or draw == null or ghost == null \
 			or sweep == null or strike == null or driver == null:
 		_finish()
@@ -73,6 +80,83 @@ func _run() -> void:
 	_check(draw.call("get_active_lines").size() == engine_start,
 		"search-phase fake drawing input rejected")
 	_game_state.set("current_match", MATCH_DRAWING)
+
+	# Physical inspection: faraway taps cannot X-ray a covered line.
+	if cover != null:
+		var site: Dictionary = HidingRules.get_cover_sites(true)[2]
+		var rect: Rect2 = site["rect"]
+		var covered: Array[Vector2] = [
+			rect.get_center() - Vector2(10, 0),
+			rect.get_center() + Vector2(10, 0)]
+		var distant := rect.get_center() + Vector2(500, 0)
+		_game_state.set("current_match", MATCH_SEARCHING)
+		_game_state.set("solo_active_searcher", 1)
+		_check(not bool(cover.call("inspect_at", 1, rect.get_center(), distant)),
+			"remote human tap cannot inspect cover")
+		_check(not bool(cover.call("can_reveal", covered, rect.get_center(), false)),
+			"uninspected leaf line invisible")
+		# Integration: actual GhostDrawSystem must not discover or strike a
+		# covered line at zero distance before the human lifts the leaves.
+		var original_pos := player.global_position
+		player.global_position = rect.get_center()
+		player.set_meta("has_target", false)
+		var test_line := ChalkLine.new()
+		test_line.id = -1
+		test_line.points = covered
+		test_line.widths = [3.0, 3.0]
+		test_line.player_id = 2
+		test_line.is_ghost = true
+		test_line.ghost_owner_id = 2
+		ghost.call("_on_network_ghost_lines_placed", {
+			"lines": [test_line.to_network_dict()], "owner_id": 2})
+		var marks: Array = ghost.call("get_active_ghost_lines")
+		_check(not marks.is_empty(), "covered CPU line added to live game store")
+		var live_line: ChalkLine = null
+		if not marks.is_empty():
+			live_line = marks[-1]
+			ghost.call("_on_fog_revealed", {
+				"player_id": 1, "position": player.global_position, "radius": 200.0})
+			ghost.call("_check_discovery")
+			_check(not live_line.is_discovered,
+				"actual human GhostDrawSystem cannot passively X-ray covered mark")
+			strike.call("_on_search_phase_started", {"searcher": 1})
+			_check(not bool(strike.call("strike_ghost_line", live_line.id)),
+				"direct strike ID cannot bypass unopened cover")
+		_check(bool(cover.call("inspect_at", 1, rect.get_center(),
+			rect.get_center() + Vector2(60, 0))), "human can inspect nearby leaf")
+		_check(bool(cover.call("can_reveal", covered, rect.get_center(), false)),
+			"inspected nearby mark discovered")
+		if not marks.is_empty():
+			ghost.call("_check_discovery")
+			_check(live_line.is_discovered,
+				"real GhostDrawSystem reveals stroke after nearby inspection")
+			_check(bool(strike.call("strike_ghost_line", live_line.id)),
+				"real StrikeSystem strikes physically discovered inspected stroke")
+			strike.call("_on_search_phase_ended", {})
+		player.global_position = original_pos
+		_check(not bool(cover.call("can_reveal", covered, distant, false)),
+			"inspection never remotely reveals mark")
+		cover.call("_on_search_started", {"searcher": 2})
+		_game_state.set("solo_active_searcher", 2)
+		_check(not bool(cover.call("cpu_inspect_nearby", distant, 1.0)),
+			"CPU cannot inspect cover from another zone")
+		var human_leaf: Dictionary = HidingRules.get_cover_sites(false)[2]
+		var human_leaf_rect: Rect2 = human_leaf["rect"]
+		var human_cover_line: Array[Vector2] = [
+			human_leaf_rect.get_center() - Vector2(10, 0),
+			human_leaf_rect.get_center() + Vector2(10, 0)]
+		_check(not bool(cover.call("can_reveal", human_cover_line,
+			human_leaf_rect.get_center(), false)),
+			"CPU sees no hidden mark before cover inspection")
+		_check(bool(cover.call("cpu_inspect_nearby",
+			human_leaf_rect.get_center() + Vector2(50, 0), 1.0)),
+			"CPU physically inspects reachable public cover")
+		_check(bool(cover.call("can_reveal", human_cover_line,
+			human_leaf_rect.get_center(), false)),
+			"CPU gets same reveal result as human after inspection")
+		_game_state.set("current_match", MATCH_DRAWING)
+		_game_state.set("solo_active_searcher", -1)
+		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
 
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.

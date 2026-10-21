@@ -7,9 +7,9 @@ enum Step { DRAW = 0, HIDE = 1, TOSS = 2, SEARCH = 3, DEFEND = 4 }
 
 const STEP_DATA := [
 	{ "title": "DRAW", "body": "In your own half, drag one finger (or left mouse button) to draw as many chalk lines as you can before 40 seconds run out." },
-	{ "title": "HIDE", "body": "Place marks against compound walls to conceal them. Hidden wall marks require searching closer than marks on open ground." },
+	{ "title": "HIDE", "body": "Draw on open ground, by walls or in tree shadows. Lines under leaf piles or loose bricks need an opponent to come close and tap the cover to inspect it." },
 	{ "title": "TOSS", "body": "Meet at the central alley, call heads or tails, and find out who searches the other half first." },
-	{ "title": "SEARCH", "body": "During your 30-second search, tap to walk around the CPU's half. Get close enough to discover a mark, then tap it to strike it out." },
+	{ "title": "SEARCH", "body": "During your 30-second search, tap to move around the CPU's half. When near leaves or bricks, tap that cover to inspect underneath. Tap a discovered mark to strike it out." },
 	{ "title": "DEFEND", "body": "When the CPU searches your half, distract it with ARGUE and sneak up to three extra marks. Then swap roles. More surviving lines wins; equal totals are a draw." },
 ]
 

@@ -243,6 +243,10 @@ func _create_chalk_label() -> void:
     _chalk_label.offset_right = -16
     _chalk_label.offset_bottom = 84
     add_child(_chalk_label)
+    # Drawing is limited by time and valid stroke count in the solo game,
+    # never a PvE "chalk stamina" bar.
+    if GameState.solo_vs_cpu:
+        _chalk_label.hide()
 
 
 func _create_argument_button() -> void:
