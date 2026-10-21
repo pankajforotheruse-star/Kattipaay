@@ -518,7 +518,10 @@ func _check_discovery() -> void:
 				# Networked lines (incl. the solo GhostBot mock peer) carry gp
 				# in their network dict; the old single _placed_at_time only
 				# ever reflected the local activation path.
-				if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
+				# The old 5-second "ghost discovered" arcade-point penalty
+				# was never a childhood game rule. Solo penalties happen
+				# ONLY for actually caught defender sneaks (local line removal).
+				if not GameState.solo_vs_cpu and (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
 					penalty_window_hit = true
 				line.is_discovered = true
 				break  # One hit per line is enough
