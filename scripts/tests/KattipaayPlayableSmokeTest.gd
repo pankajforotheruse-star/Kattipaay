@@ -83,7 +83,7 @@ const GHOST_ID := 2
 const CLUSTER_START := Vector2(120.0, 90.0)
 const CLUSTER_STRIDE := 70.0
 const DECAY_PROBE_START := Vector2(2330.0, 60.0)
-const DECAY_PROBE_DURATION := 8.6
+const DECAY_PROBE_DURATION := 0.2
 # Pass 3 (slice 4): the defender's anchor cluster + sneak strokes. The 3
 # anchor lines sit ~70-160px apart so the CPU's nearest-first sweep always
 # passes within NOTICE_RADIUS (170px) of a sneak line drawn on the cluster
@@ -112,7 +112,8 @@ var _coin_searcher: int = -1
 var _coin_human_first: bool = false
 var _seen_phases: Array = []  # {phase:int, searcher:int, target_lines:int}
 var _search_warning_events: Array = []  # {phase:int, searcher:int, remaining_seconds:int}
-var _human_line_ids: Array = []  # ids of lines the test drew as the human
+var _human_line_ids: Array = []
+var _persistence_probe_id: int = -1  # ids of lines the test drew as the human
 var _saw_human_line_drawn := false
 var _saw_line_struck_human := false  # EV_GAME_LINE_STRUCK with is_ghost=false
 var _last_struck_remaining := -1
@@ -321,6 +322,7 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	_coin_human_first = false
 	_seen_phases.clear()
 	_human_line_ids.clear()
+	_persistence_probe_id = -1
 	_saw_human_line_drawn = false
 	_saw_line_struck_human = false
 	_last_struck_remaining = -1
@@ -445,6 +447,18 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: MEETING_REACHED difficulty=%s" % diff_label)
+	if draw_human_lines:
+		# A human mark survives even if old PvE decay metadata says expired.
+		# This verifies the childhood rule that ONLY the searcher or an
+		# actual caught-sneak penalty removes marks, not an arcade timer.
+		var persisted := false
+		for item in draw_sys.call("get_active_lines"):
+			if int(item.get("id")) == _persistence_probe_id:
+				persisted = true
+		if not persisted:
+			_fail("Ordinary human mark expired during solo drawing without being struck")
+			return
+		print("KATTIPAAY_SMOKE: SOLO_CHALK_PERSISTS_OK")
 	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
 	var expected_cpu_lines := {"EASY": 8, "NORMAL": 12, "HARD": 16, "NIGHTMARE": 20}
 	var expected_count := int(expected_cpu_lines.get(diff_label, -1))
@@ -721,6 +735,7 @@ func _draw_decay_probe(draw_sys: Node) -> void:
 	var lines: Array = draw_sys.call("get_active_lines")
 	for line in lines:
 		if int(line.get("id")) == probe_id:
+			_persistence_probe_id = probe_id
 			line.set("decay_duration", DECAY_PROBE_DURATION)
 			print("KATTIPAAY_SMOKE: DECAY_PROBE_ARMED id=%d decay_duration=%.1f" % [probe_id, DECAY_PROBE_DURATION])
 			return
