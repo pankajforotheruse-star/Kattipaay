@@ -1,0 +1,136 @@
+# CoverSystem.gd — shared physical inspection for human and CPU searchers.
+# PUBLIC cover geometry comes exclusively from HidingRules, in both zones.
+# A human must approach leaves/bricks and tap their visible cover sprite.
+# The CPU can only inspect after its actual character reaches the same range.
+# Inspection persists only for this search phase, not across future rounds.
+class_name CoverSystem
+extends Node2D
+
+var _inspected: Dictionary = {}
+var _cpu_attempted: Dictionary = {}
+var _cpu_rng := RandomNumberGenerator.new()
+var _feedback: String = ""
+var _feedback_time := 0.0
+
+func _ready() -> void:
+	_cpu_rng.randomize()
+	z_index = 2
+	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_started)
+	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_human_tap)
+
+func _exit_tree() -> void:
+	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_started)
+	EventBus.off(EventBus.EV_INPUT_MOVE_START, _on_human_tap)
+
+func _on_search_started(_payload: Dictionary) -> void:
+	_inspected.clear()
+	_cpu_attempted.clear()
+	_feedback = ""
+	queue_redraw()
+
+func inspected_sites() -> Dictionary:
+	return _inspected.duplicate()
+
+func can_reveal(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
+	return HidingRules.can_reveal_line(points, searcher_pos, wall_concealed, _inspected)
+
+func can_notice_sneak(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
+	return can_reveal(points, searcher_pos, wall_concealed)
+
+## Searcher must actually be within INSPECTION_RADIUS of the public cover.
+## Tapping a faraway cover while en route cannot inspect it.
+func inspect_at(searcher_id: int, tap_world_pos: Vector2, actor_pos: Vector2) -> bool:
+	if GameState.get_match_state() != GameState.MatchState.SEARCHING:
+		return false
+	if GameState.solo_active_searcher != searcher_id:
+		return false
+	var zone_cpu := searcher_id == 1
+	for site in HidingRules.get_cover_sites(zone_cpu):
+		if not HidingRules.is_inspectable_cover(int(site["kind"])):
+			continue
+		var region: Rect2 = site["rect"]
+		if not region.has_point(tap_world_pos):
+			continue
+		if _distance_to_rect(actor_pos, region) > HidingRules.INSPECTION_RADIUS:
+			return false
+		_inspected[str(site["id"])] = true
+		_feedback = ("LEAVES CHECKED" if int(site["kind"]) == HidingRules.COVER_LEAVES else "BRICKS CHECKED")
+		_feedback_time = 1.5
+		queue_redraw()
+		print("CoverSystem: searcher %d inspected %s" % [searcher_id, str(site["id"])])
+		return true
+	return false
+
+## CPU can try one physical inspection per cover site per phase.
+## Probability is a decision skill, not extra vision. The eligible positions
+## and consequences are identical for both participants.
+func cpu_inspect_nearby(actor_pos: Vector2, chance: float) -> bool:
+	if GameState.get_match_state() != GameState.MatchState.SEARCHING \
+			or GameState.solo_active_searcher != 2:
+		return false
+	for site in HidingRules.get_cover_sites(false):
+		if not HidingRules.is_inspectable_cover(int(site["kind"])):
+			continue
+		var id := str(site["id"])
+		if _cpu_attempted.has(id):
+			continue
+		var rect: Rect2 = site["rect"]
+		if _distance_to_rect(actor_pos, rect) > HidingRules.INSPECTION_RADIUS:
+			continue
+		_cpu_attempted[id] = true
+		if _cpu_rng.randf() <= clampf(chance, 0.0, 1.0):
+			return inspect_at(2, rect.get_center(), actor_pos)
+	return false
+
+static func _distance_to_rect(point: Vector2, rect: Rect2) -> float:
+	var nearest := Vector2(
+		clampf(point.x, rect.position.x, rect.end.x),
+		clampf(point.y, rect.position.y, rect.end.y))
+	return point.distance_to(nearest)
+
+func _on_human_tap(payload: Dictionary) -> void:
+	if not GameState.solo_vs_cpu or GameState.solo_active_searcher != 1:
+		return
+	if GameState.get_match_state() != GameState.MatchState.SEARCHING \
+			or GameState.current == GameState.State.PAUSED:
+		return
+	var world := get_parent()
+	if world == null or not world.has_method("get_entity"):
+		return
+	var human := world.get_entity(1) as Node2D
+	if human:
+		var tap := InputManager.screen_to_world(payload.get("screen_position", Vector2.ZERO))
+		inspect_at(1, tap, human.global_position)
+
+func _process(delta: float) -> void:
+	if _feedback_time > 0.0:
+		_feedback_time -= delta
+		if _feedback_time <= 0.0:
+			_feedback = ""
+			queue_redraw()
+
+func _draw() -> void:
+	for site in HidingRules.get_all_cover_sites():
+		var region: Rect2 = site["rect"]
+		var kind := int(site["kind"])
+		if kind == HidingRules.COVER_TREE:
+			draw_ellipse(region.get_center(), region.size * 0.5, Color(0.08, 0.18, 0.10, 0.30))
+			continue
+		var checked := _inspected.has(str(site["id"]))
+		var color := Color(0.29, 0.42, 0.18, 0.85) if kind == HidingRules.COVER_LEAVES else Color(0.58, 0.40, 0.28, 0.95)
+		if checked:
+			color.a = 0.24
+		draw_rect(region, color, true)
+		draw_rect(region, Color(0.95, 0.85, 0.48, 0.90) if checked else Color(0.2, 0.18, 0.12, 0.6), false, 3.0)
+		if kind == HidingRules.COVER_BRICKS and not checked:
+			for dx in range(16, int(region.size.x), 32):
+				draw_line(region.position + Vector2(dx, 5), region.position + Vector2(dx, region.size.y - 5), Color(0.29, 0.23, 0.17, 0.50), 2.0)
+
+## Godot 4.4 CanvasItem has no draw_ellipse primitive; draw a filled, smooth
+## polygon so tree shade renders without introducing texture dependencies.
+func draw_ellipse(center: Vector2, radius: Vector2, color: Color) -> void:
+	var vertices := PackedVector2Array()
+	for i in range(33):
+		var angle := TAU * float(i) / 32.0
+		vertices.append(center + Vector2(cos(angle) * radius.x, sin(angle) * radius.y))
+	draw_colored_polygon(vertices, color)
