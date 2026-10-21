@@ -425,6 +425,13 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			_fail("Expected 6 human-drawn lines, got %d" % _human_line_ids.size())
 			return
 		print("KATTIPAAY_SMOKE: HUMAN_LINES_DRAWN count=%d ids=%s" % [_human_line_ids.size(), str(_human_line_ids)])
+		var bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
+		if bot == null or not (bot.get("_searcher_line_centroids") as Array).is_empty() \
+				or not (bot.get("_heatmap") as Dictionary).is_empty() \
+				or not (bot.get("_move_samples") as Array).is_empty():
+			_fail("Solo CPU retained a prohibited legacy cache of the human's secret chalk or path")
+			return
+		print("KATTIPAAY_SMOKE: NO_SECRET_LINE_MEMORY_OK")
 		# No malformed remote chalk or corrupted sync is permitted to erase
 		# pre-existing human/CPU marks or add bogus one-point lines.
 		var stored_human := int(draw_sys.call("get_active_lines").size())
