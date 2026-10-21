@@ -55,6 +55,8 @@ func _run() -> void:
 	_check(driver != null and sweep != null and strike != null and bot != null,
 		"solo match systems ready")
 	_check(hud != null, "live HUD ready")
+	var cover := world.get_node_or_null("CoverSystem") as Node
+	_check(cover != null, "fair mirrored cover inspector present")
 	if player == null or cpu == null or draw == null or ghost == null \
 			or sweep == null or strike == null or driver == null:
 		_finish()
@@ -73,6 +75,34 @@ func _run() -> void:
 	_check(draw.call("get_active_lines").size() == engine_start,
 		"search-phase fake drawing input rejected")
 	_game_state.set("current_match", MATCH_DRAWING)
+
+	# Physical inspection: faraway taps cannot X-ray a covered line.
+	if cover != null:
+		var site: Dictionary = HidingRules.get_cover_sites(true)[2]
+		var rect: Rect2 = site["rect"]
+		var covered: Array[Vector2] = [
+			rect.get_center() - Vector2(10, 0),
+			rect.get_center() + Vector2(10, 0)]
+		var distant := rect.get_center() + Vector2(500, 0)
+		_game_state.set("current_match", MATCH_SEARCHING)
+		_game_state.set("solo_active_searcher", 1)
+		_check(not bool(cover.call("inspect_at", 1, rect.get_center(), distant)),
+			"remote human tap cannot inspect cover")
+		_check(not bool(cover.call("can_reveal", covered, rect.get_center(), false)),
+			"uninspected leaf line invisible")
+		_check(bool(cover.call("inspect_at", 1, rect.get_center(),
+			rect.get_center() + Vector2(60, 0))), "human can inspect nearby leaf")
+		_check(bool(cover.call("can_reveal", covered, rect.get_center(), false)),
+			"inspected nearby mark discovered")
+		_check(not bool(cover.call("can_reveal", covered, distant, false)),
+			"inspection never remotely reveals mark")
+		cover.call("_on_search_started", {"searcher": 2})
+		_game_state.set("solo_active_searcher", 2)
+		_check(not bool(cover.call("cpu_inspect_nearby", distant, 1.0)),
+			"CPU cannot inspect cover from another zone")
+		_game_state.set("current_match", MATCH_DRAWING)
+		_game_state.set("solo_active_searcher", -1)
+		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
 
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
