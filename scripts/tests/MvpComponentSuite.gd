@@ -135,6 +135,20 @@ func _run() -> void:
 		_game_state.set("solo_active_searcher", 2)
 		_check(not bool(cover.call("cpu_inspect_nearby", distant, 1.0)),
 			"CPU cannot inspect cover from another zone")
+		var human_leaf: Dictionary = HidingRules.get_cover_sites(false)[2]
+		var human_leaf_rect: Rect2 = human_leaf["rect"]
+		var human_cover_line: Array[Vector2] = [
+			human_leaf_rect.get_center() - Vector2(10, 0),
+			human_leaf_rect.get_center() + Vector2(10, 0)]
+		_check(not bool(cover.call("can_reveal", human_cover_line,
+			human_leaf_rect.get_center(), false)),
+			"CPU sees no hidden mark before cover inspection")
+		_check(bool(cover.call("cpu_inspect_nearby",
+			human_leaf_rect.get_center() + Vector2(50, 0), 1.0)),
+			"CPU physically inspects reachable public cover")
+		_check(bool(cover.call("can_reveal", human_cover_line,
+			human_leaf_rect.get_center(), false)),
+			"CPU gets same reveal result as human after inspection")
 		_game_state.set("current_match", MATCH_DRAWING)
 		_game_state.set("solo_active_searcher", -1)
 		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
