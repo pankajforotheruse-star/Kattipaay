@@ -57,6 +57,11 @@ func _run() -> void:
 	_check(hud != null, "live HUD ready")
 	var cover := world.get_node_or_null("CoverSystem") as Node
 	_check(cover != null, "fair mirrored cover inspector present")
+	if cover != null:
+		# A drawn line must be genuinely hidden UNDER the unlifted public pile.
+		# ChalkLines z=10 plus stroke z=11 (relative), so cover must be >21.
+		_check((cover as Node2D).z_index > 21,
+			"uninspected leaf/brick cover renders over solo chalk")
 	if player == null or cpu == null or draw == null or ghost == null \
 			or sweep == null or strike == null or driver == null:
 		_finish()
