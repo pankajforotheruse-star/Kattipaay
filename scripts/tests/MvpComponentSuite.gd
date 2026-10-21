@@ -106,8 +106,9 @@ func _run() -> void:
 			"lines": [test_line.to_network_dict()], "owner_id": 2})
 		var marks: Array = ghost.call("get_active_ghost_lines")
 		_check(not marks.is_empty(), "covered CPU line added to live game store")
+		var live_line: ChalkLine = null
 		if not marks.is_empty():
-			var live_line: ChalkLine = marks[-1]
+			live_line = marks[-1]
 			ghost.call("_on_fog_revealed", {
 				"player_id": 1, "position": player.global_position, "radius": 200.0})
 			ghost.call("_check_discovery")
