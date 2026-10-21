@@ -6,7 +6,7 @@ Godot target: **4.4 stable**. Branch `feat/fair-cover-search-loop`. This spec co
 
 1. From Home choose **Play vs CPU** → Easy / Normal / Hard / Nightmare.
 2. Two equal-sized territories are visible, separated by the central alley. The owner of each half draws only in that half.
-3. Both sides have ~40 seconds to draw as many sufficiently long chalk strokes as practical. CPU has an AI-selected target of 8 / 12 / 16 / 20 base strokes by difficulty. Human is capped at the existing 50-line store.
+3. Both sides have ~40 seconds to draw as many sufficiently long chalk strokes as practical. Solo human chalk does **not decay or run out**: the old PvE stamina meter, red/yellow powers, circle sealing and timed line expiry are bypassed, so only a legal strike/undo/sneak penalty (or the technical 50-line capacity) removes a valid mark. CPU has an AI-selected target of 8 / 12 / 16 / 20 base strokes by difficulty. Human is capped at the existing 50-line store.
 4. Public hiding places appear identically in each territory: open ground, compound walls, two tree shadows, two leaf piles and two loose-brick piles. A stroke's cover comes from its **actual segment intersection** with these places.
 5. At time expiry both travel to the alley, where a player calls heads/tails. A 50/50 toss chooses the first searcher.
 6. Each search lasts ~30 seconds or ends when all opponent strokes are struck. The other side becomes searcher for phase 2; no new coin toss.
@@ -35,7 +35,7 @@ Positive `chalk_gaon/cpu_sweep_speed` is a test/tuning override; -1 selects prof
 - Human `GhostDrawSystem` discovery and `StrikeSystem` checks use that actual cover state. Input taps alone cannot remotely reveal or strike.
 - `CpuSearchController` plans a route using only public territory geometry and the current profile; it does not choose waypoints from hidden human line coordinates.
 - It senses opponent lines only after an actual physical encounter (cover state + nearest-segment distance), never from a distant map-wide observation.
-- The CPU's solo-mode hiding anchor is drawn from public cover / random terrain, **not** the legacy PvE observer's record of the human's drawing position.
+- The CPU's solo-mode hiding anchor is drawn from public cover / random terrain, **not** the legacy PvE observer's record of the human's drawing position. Legacy callbacks for human drawing centroids, heatmaps, movement samples and guilt/accusations all return immediately in solo mode; they must never cache those coordinates.
 
 ## Difference from legacy MVP and known gaps
 
