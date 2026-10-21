@@ -958,6 +958,43 @@ func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
 		if not Rect2(0, 0, 2400, 780).has_point(p):
 			_fail("CPU exploration waypoint outside player territory: %s" % str(p))
 			return
+	# All four CPU difficulty policies must differ in PUBLIC-map search
+	# decisions, with monotonic speed/cover inspection. No policy may
+	# increase the immutable HidingRules reveal radii.
+	var old_diff := int(_game_state.get("cpu_difficulty"))
+	var old_speed_override := ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", -1.0)
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", -1.0)
+	var last_speed := 0.0
+	var last_inspect := -1.0
+	var last_cover_stops := -1
+	var unchanged_path: Array = []
+	for level in range(4):
+		_game_state.set("cpu_difficulty", level)
+		cpu_sweep.call("_read_settings")
+		var speed := float(cpu_sweep.get("_sweep_speed"))
+		var policy: Dictionary = cpu_sweep.get("_search_profile")
+		var inspect := float(policy["inspect"])
+		var stops := int(policy["cover_stops"])
+		if speed <= last_speed or inspect <= last_inspect or stops <= last_cover_stops:
+			_fail("CPU difficulty policy did not increase fair search skill at level %d" % level)
+			return
+		var route: Array = cpu_sweep.call("_build_search_waypoints",
+			Rect2(0, 0, 2400, 780), Vector2(1200, 760))
+		if route.size() < 8 or route == unchanged_path:
+			_fail("CPU difficulty route did not vary with public-map skill level %d" % level)
+			return
+		for waypoint in route:
+			if not ZoneLayout.PLAYER_ZONE.has_point(waypoint):
+				_fail("Difficulty %d route left the legal player territory" % level)
+				return
+		unchanged_path = route
+		last_speed = speed
+		last_inspect = inspect
+		last_cover_stops = stops
+	_game_state.set("cpu_difficulty", old_diff)
+	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", old_speed_override)
+	cpu_sweep.call("_read_settings")
+	print("KATTIPAAY_SMOKE: FAIR_DIFFICULTY_POLICIES_OK easy-normal-hard-nightmare")
 	print("KATTIPAAY_SMOKE: CPU_FAIR_SEARCH_OK (no distant detection, shared reveal distances, public zone route)")
 
 
