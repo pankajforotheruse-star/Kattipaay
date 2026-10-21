@@ -281,12 +281,12 @@ func _on_draw_start(payload: Dictionary) -> void:
     # limit means the mechanic can never be spammed forever).
     if sneak_mode and _sneak_lines_used >= sneak_max_lines:
         return
-    if _chalk_exhausted or _match_time_exceeded:
+    if not GameState.solo_vs_cpu and (_chalk_exhausted or _match_time_exceeded):
         return
     if _active_lines.size() >= MAX_ACTIVE_LINES:
         # Remove oldest line to make room (GDD §4: oldest line fades when limit reached)
         _remove_oldest_line()
-    if _chalk_remaining <= 0.0:
+    if not GameState.solo_vs_cpu and _chalk_remaining <= 0.0:
         return
 
     _is_drawing = true
@@ -987,6 +987,8 @@ func _on_match_drawing_started(_payload) -> void:
 
 
 func _on_chalk_exhausted(_payload) -> void:
+    if GameState.solo_vs_cpu:
+        return
     _chalk_exhausted = true
     if _is_drawing:
         _finish_drawing()
@@ -996,6 +998,8 @@ func _on_chalk_exhausted(_payload) -> void:
 ## EV_GAME_CHALK_USED (audit m4): this system owns the chalk pool, so it
 ## applies the deduction and refreshes the HUD meter.
 func _on_chalk_used(payload: Dictionary) -> void:
+    if GameState.solo_vs_cpu:
+        return
     var amount: float = payload.get("amount", 0.0)
     if amount <= 0.0:
         return
