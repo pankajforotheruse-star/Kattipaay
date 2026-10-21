@@ -25,15 +25,26 @@ const PENALTY_RADIUS := 240.0
 const PENALTY_EXTRA_STRIKES := 2
 ## Per-difficulty notice chance when chalk_gaon/cpu_sneak_notice_chance == -1.0.
 const DIFFICULTY_NOTICE := {
-	0: 0.15,  # EASY — rarely catches sneaks
-	1: 0.35,  # NORMAL
-	2: 0.60,  # HARD
-	3: 0.85,  # NIGHTMARE — almost always catches them
+	0: 0.15,
+	1: 0.35,
+	2: 0.60,
+	3: 0.85,
+}
+## These tune only search decisions, never cover physics, detection radius
+## or knowledge of a line's unvisited coordinates.
+const SEARCH_PROFILES := {
+	0: {"speed": 310.0, "lane": 260.0, "cover_stops": 2, "inspect": 0.25, "strike_pause": 1.3},
+	1: {"speed": 420.0, "lane": 210.0, "cover_stops": 3, "inspect": 0.55, "strike_pause": 0.8},
+	2: {"speed": 470.0, "lane": 175.0, "cover_stops": 4, "inspect": 0.80, "strike_pause": 0.55},
+	3: {"speed": 510.0, "lane": 145.0, "cover_stops": 6, "inspect": 0.95, "strike_pause": 0.35},
 }
 
 var _active: bool = false
 var _npc: CharacterBody2D = null
 var _draw_sys: DrawSystem = null
+var _cover_sys: CoverSystem = null
+var _search_profile: Dictionary = SEARCH_PROFILES[1]
+var _sweep_lane_spacing: float = 210.0
 var _search_waypoints: Array[Vector2] = []
 var _waypoint_index: int = 0
 var _pause_timer: float = 0.0
@@ -48,6 +59,7 @@ var _sneak_notice_chance: float = -1.0
 func _ready() -> void:
 	var world := get_tree().current_scene as Node2D
 	if world:
+		_cover_sys = world.get_node_or_null("CoverSystem") as CoverSystem
 		var systems: Node = world.get_node_or_null("Systems")
 		if systems:
 			_draw_sys = systems.get_node_or_null("DrawSystem") as DrawSystem
@@ -69,7 +81,10 @@ func _exit_tree() -> void:
 ## Sweep speed + notice chance are read at every CPU phase start so tests and
 ## a future settings screen can override them at runtime.
 func _read_settings() -> void:
-	_sweep_speed = float(ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", DEFAULT_SWEEP_SPEED))
+	_search_profile = SEARCH_PROFILES.get(GameState.cpu_difficulty, SEARCH_PROFILES[1])
+	var override := float(ProjectSettings.get_setting("chalk_gaon/cpu_sweep_speed", -1.0))
+	_sweep_speed = override if override > 0.0 else float(_search_profile["speed"])
+	_sweep_lane_spacing = float(_search_profile["lane"])
 	_sneak_notice_chance = _resolve_notice_chance()
 	if _npc:
 		_npc.set_meta("move_speed", _sweep_speed)
@@ -165,13 +180,20 @@ func _process(delta: float) -> void:
 		_pause_timer = maxf(_pause_timer - delta, 0.0)
 		return
 
+	# Cover inspection comes FIRST and only happens after the NPC has
+	# physically arrived within the same radius as a human searcher.
+	if _cover_sys and _cover_sys.cpu_inspect_nearby(
+			_npc.global_position, float(_search_profile["inspect"])):
+		_pause_timer = 0.35
+		_npc.set_meta("has_target", false)
+		return
 	# The line registry is consulted ONLY by the proximity sensor, not the
 	# navigation planner. A faraway/covered line cannot inform our target.
 	_check_sneak_notices()
 	var revealed_ids := probe_revealed_line_ids(_draw_sys.get_active_lines(), _npc.global_position)
 	if not revealed_ids.is_empty():
 		if _draw_sys.strike_line(revealed_ids[0]):
-			_pause_timer = STRIKE_PAUSE_SECONDS
+			_pause_timer = float(_search_profile["strike_pause"])
 			_npc.set_meta("has_target", false)
 		return
 	_follow_search_route()
@@ -187,7 +209,9 @@ func probe_revealed_line_ids(lines: Array, searcher_pos: Vector2) -> Array[int]:
 		var line: ChalkLine = candidate
 		if line.is_sneak or line.is_struck or line.points.size() < 2:
 			continue
-		if HidingRules.is_revealed(line.points, searcher_pos, line.wall_concealed):
+		var detected := _cover_sys.can_reveal(line.points, searcher_pos, line.wall_concealed) if _cover_sys else \
+				HidingRules.can_reveal_line(line.points, searcher_pos, line.wall_concealed)
+		if detected:
 			ids.append(line.id)
 	return ids
 
@@ -206,11 +230,32 @@ func _build_search_waypoints(zone: Rect2, from_pos: Vector2) -> Array[Vector2]:
 	var lane_y := top
 	while lane_y < bottom:
 		lanes.append(lane_y)
-		lane_y += SWEEP_LANE_SPACING
+		lane_y += _sweep_lane_spacing
 	if lanes.is_empty() or lanes[-1] < bottom:
 		lanes.append(bottom)
-	var bottom_first := from_pos.y >= zone.get_center().y
-	var right_first := from_pos.x >= zone.get_center().x
+	# Prioritize a few PUBLIC cover sites, not marks. More capable opponents
+	# systematically investigate more hiding places. All routes are derived
+	# only from map geometry, entry point and difficulty.
+	var sites: Array[Vector2] = []
+	for site in HidingRules.get_cover_sites(false):
+		var center: Vector2 = site["rect"].get_center()
+		if zone.has_point(center):
+			sites.append(center)
+	var cursor := from_pos
+	var stops := mini(int(_search_profile["cover_stops"]), sites.size())
+	for _i in range(stops):
+		var closest := 0
+		var closest_d := INF
+		for j in range(sites.size()):
+			var dist := cursor.distance_squared_to(sites[j])
+			if dist < closest_d:
+				closest_d = dist
+				closest = j
+		cursor = sites[closest]
+		waypoints.append(cursor)
+		sites.remove_at(closest)
+	var bottom_first := cursor.y >= zone.get_center().y
+	var right_first := cursor.x >= zone.get_center().x
 	for row in range(lanes.size()):
 		var lane_index := lanes.size() - row - 1 if bottom_first else row
 		var y := lanes[lane_index]
@@ -242,7 +287,12 @@ func _check_sneak_notices() -> void:
 		if line == null or line.is_struck:
 			_unresolved_sneaks.erase(line_id)
 			continue
-		if npc_pos.distance_to(_center_of(line.points)) > NOTICE_RADIUS:
+		# A hidden sneak is not globally detectable, even if its ID is
+		# tracked. The same cover/inspection predicate gates BOTH sides.
+		var detected := _cover_sys.can_notice_sneak(
+			line.points, npc_pos, line.wall_concealed) if _cover_sys else \
+				HidingRules.can_reveal_line(line.points, npc_pos, line.wall_concealed)
+		if not detected:
 			continue
 		_unresolved_sneaks.erase(line_id)  # resolved — rolled ONCE, pass or fail
 		if randf() < _resolve_notice_chance():
