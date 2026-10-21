@@ -26,7 +26,6 @@ func _ready() -> void:
 	scenery.name = "Scenery"
 	add_child(scenery)
 	move_child(scenery, 0)
-	_align_wall_art_with_concealment_geometry()
 
 	# The scene presets entity ids (Player=1, NPC1=2). Seed the allocator above
 	# the highest registered id so later-spawned entities never collide with
@@ -44,32 +43,6 @@ func _ready() -> void:
 	# The home screen sets the flag; normal/online play never does.
 	if GameState.solo_vs_cpu:
 		_spawn_solo_match()
-
-## Older WallA/B/C sprites were placed at unrelated coordinates while
-## HidingRules used different concealment rectangles. Align the artwork with
-## the very same authoritative wall geometry in both halves of the map.
-## Collision/pathfinding is NOT introduced here: the CPU route needs its own
-## obstacle-aware navigation before making these walls physically solid.
-func _align_wall_art_with_concealment_geometry() -> void:
-	var names := ["WallA", "WallB", "WallC"]
-	var player_walls := HidingRules.get_zone_walls()
-	var cpu_walls := HidingRules.get_cpu_walls()
-	for i in range(mini(names.size(), player_walls.size())):
-		_fit_wall_sprite("Props/PlayerZoneProps/" + names[i], player_walls[i])
-	for i in range(mini(names.size(), cpu_walls.size())):
-		_fit_wall_sprite("Props/CpuZoneProps/" + names[i], cpu_walls[i])
-
-
-func _fit_wall_sprite(path: String, rect: Rect2) -> void:
-	var sprite := get_node_or_null(path) as Sprite2D
-	if sprite == null or sprite.texture == null:
-		return
-	var texture_size := Vector2(sprite.texture.get_size())
-	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
-		return
-	sprite.position = rect.get_center()
-	sprite.scale = rect.size / texture_size
-
 
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_ENTITY_REGISTER, _on_entity_register)

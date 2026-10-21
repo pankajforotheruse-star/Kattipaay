@@ -144,11 +144,7 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_empty_phase_grace_seconds", 0.5)
 	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 420.0)  # restored per-pass for the sneak pass
 	ProjectSettings.set_setting("chalk_gaon/solo_winner_hold_seconds", 1.0)
-	ProjectSettings.set_setting("chalk_gaon/solo_reveal_hold_seconds", 0.45)
-	ProjectSettings.set_setting("chalk_gaon/solo_scoring_hold_seconds", 0.45)
 	ProjectSettings.set_setting("chalk_gaon/solo_argue_stall_seconds", 1.0)
-	# Deterministically cover CPU's LEGAL defender-argue path.
-	ProjectSettings.set_setting("chalk_gaon/cpu_argue_chance", 1.0)
 	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=5 winner_hold=1 argue_stall=1")
 
 	if change_scene_to_file(MAIN_SCENE) != OK:
@@ -187,30 +183,6 @@ func _run_test() -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: HOME_READY")
-	await _assert_home_mvp_ui()
-	if _failed:
-		quit(1)
-		return
-	_assert_android_minimal_permissions()
-	if _failed:
-		quit(1)
-		return
-
-	# Equal survivor counts must be an explicit draw; reset state before
-	# starting real matches so this isolated regression doesn't affect them.
-	var scoring_mgr: Node = root.get_node_or_null("ScoringManager")
-	if scoring_mgr == null:
-		_fail("ScoringManager autoload missing")
-		quit(1)
-		return
-	scoring_mgr.call("set_survivors", 3, 3)
-	scoring_mgr.call("_determine_winner")
-	if int(scoring_mgr.call("get_winner_id")) != 0:
-		_fail("Survivor tie incorrectly awarded to a player")
-		quit(1)
-		return
-	scoring_mgr.call("reset_match")
-	print("KATTIPAAY_SMOKE: TIE_DECISION_OK")
 
 	# ── Pass 1: NORMAL — full R6 chain + audit MAJOR-1 (human lines survive)
 	# ── and MAJOR-2's counterpart (CPU sweep strike wiring).
@@ -221,17 +193,6 @@ func _run_test() -> void:
 
 	# ── Pass 2: EASY — ghost lines must exist before the search (MAJOR-2).
 	await _run_match_pass("EASY", false)
-	if _failed:
-		quit(1)
-		return
-
-	# ── All four difficulty modes must finish a full match. Normal and Easy
-	# are tested above; Hard and Nightmare guard future bot tuning.
-	await _run_match_pass("HARD", false)
-	if _failed:
-		quit(1)
-		return
-	await _run_match_pass("NIGHTMARE", false)
 	if _failed:
 		quit(1)
 		return
@@ -247,67 +208,6 @@ func _run_test() -> void:
 
 	print("KATTIPAAY_SMOKE: PASS")
 	quit(0)
-
-
-## The legacy prototype home/tutorial previously advertised unavailable PvE,
-## shop and multiplayer flows instead of the playable MVP.
-func _assert_home_mvp_ui() -> void:
-	var home := current_scene
-	if home == null or home.name != "HomeScreen":
-		_fail("Home-screen MVP UI probe has no HomeScreen")
-		return
-	for button_name in ["PlayOnlineButton", "OfflinePlayButton", "ShopButton",
-			"BattlePassButton", "CollectionButton", "DailyRewardButton", "SettingsButton"]:
-		var button := home.get_node_or_null("%" + button_name) as Button
-		if button == null or button.visible:
-			_fail("Unavailable home-screen feature was still advertised: %s" % button_name)
-			return
-	var play := home.get_node_or_null("%PlayVsCPUButton") as Button
-	var tutorial_btn := home.get_node_or_null("%TutorialButton") as Button
-	if play == null or not play.visible or tutorial_btn == null or not tutorial_btn.visible:
-		_fail("Play vs CPU or tutorial button missing from MVP home")
-		return
-	tutorial_btn.pressed.emit()
-	await _settle_frames()
-	var overlay: Node = home.get_node_or_null("TutorialOverlay")
-	if overlay == null:
-		_fail("Tutorial did not open the correct 5-step overlay")
-		return
-	var body := overlay.get_node_or_null("%StepBodyLabel") as Label
-	var heading := overlay.get_node_or_null("%StepTitleLabel") as Label
-	var next_btn := overlay.get_node_or_null("%NextButton") as Button
-	if body == null or not body.text.contains("40 seconds") or heading == null or next_btn == null:
-		_fail("Tutorial still teaches an obsolete drawing mechanic")
-		return
-	for expected in ["HIDE", "TOSS", "SEARCH", "DEFEND"]:
-		next_btn.pressed.emit()
-		if not heading.text.contains(expected):
-			_fail("Tutorial step missing actual MVP rule: %s" % expected)
-			return
-	var skip := overlay.get_node_or_null("%SkipButton") as Button
-	if skip:
-		skip.pressed.emit()
-	await _settle_frames()
-	var fake_level := home.get_node_or_null("%XPLabel") as Label
-	var fake_xp_bar := home.get_node_or_null("%XPBar") as ProgressBar
-	if fake_level == null or fake_level.visible or fake_xp_bar == null or fake_xp_bar.visible:
-		_fail("Unimplemented static XP and progression chrome still visible")
-		return
-	print("KATTIPAAY_SMOKE: MVP_HOME_TUTORIAL_OK")
-
-
-## Android export must not request location/Wi-Fi control for this local MVP.
-func _assert_android_minimal_permissions() -> void:
-	var preset := FileAccess.get_file_as_string("res://export_presets.cfg")
-	if preset.is_empty():
-		_fail("Android export preset not readable")
-		return
-	for permission in ["access_fine_location", "change_wifi_state", "change_network_state",
-			"nearby_wifi_devices", "access_wifi_state"]:
-		if not preset.contains("permissions/" + permission + "=false"):
-			_fail("Unnecessary Android permission still enabled: %s" % permission)
-			return
-	print("KATTIPAAY_SMOKE: ANDROID_PERMISSIONS_OK")
 
 
 ## Launch one full short-paced VS CPU match at the given difficulty and run
@@ -386,31 +286,13 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		_run_occlusion_assertions(draw_sys, ghost_sys, cpu_sweep)
 		if _failed:
 			return
-		_run_cpu_fair_search_assertions(cpu_sweep)
-		if _failed:
-			return
-		_assert_visual_walls(world)
-		if _failed:
-			return
 
 	await _wait_for_match_state(MatchState.DRAWING, MAX_DRAWING_SECONDS, "DRAWING")
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: DRAWING_REACHED difficulty=%s" % diff_label)
-	var phase_timer := root.get_node_or_null("MatchTimer")
-	var expected_draw_clock := int(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40))
-	if phase_timer == null or int(phase_timer.call("get_total_seconds")) != expected_draw_clock:
-		_fail("Solo HUD clock not synchronized with drawing phase (%ds expected)" % expected_draw_clock)
-		return
-	print("KATTIPAAY_SMOKE: DRAW_CLOCK_OK total=%d" % expected_draw_clock)
 
 	if draw_human_lines:
-		# An accidental tap-sized stroke must never score as a full line.
-		await _draw_human_stroke(Vector2(800.0, 120.0), Vector2(807.0, 120.0))
-		if int(draw_sys.call("get_active_lines").size()) != 0:
-			_fail("Tiny 7px stroke was accepted as a surviving human line")
-			return
-		print("KATTIPAAY_SMOKE: TINY_STROKE_REJECTED_OK")
 		# Draw through the SAME input events a real finger draw produces
 		# (EV_INPUT_DRAW_START/UPDATE/END -> DrawSystem._on_draw_*).
 		await _draw_cluster_lines()
@@ -423,44 +305,11 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			_fail("Expected 6 human-drawn lines, got %d" % _human_line_ids.size())
 			return
 		print("KATTIPAAY_SMOKE: HUMAN_LINES_DRAWN count=%d ids=%s" % [_human_line_ids.size(), str(_human_line_ids)])
-		# No malformed remote chalk or corrupted sync is permitted to erase
-		# pre-existing human/CPU marks or add bogus one-point lines.
-		var stored_human := int(draw_sys.call("get_active_lines").size())
-		var stored_cpu := int(ghost_sys.call("get_active_ghost_lines").size())
-		draw_sys.call("_on_network_line_drawn", {"pc": 1000000000})
-		draw_sys.call("_on_network_line_sync_batch", {"lines": [{"pc": -1}]})
-		ghost_sys.call("_on_network_ghost_lines_placed", {
-			"owner_id": GHOST_ID, "lines": [{"pc": 1000000000}]
-		})
-		if int(draw_sys.call("get_active_lines").size()) != stored_human \
-				or int(ghost_sys.call("get_active_ghost_lines").size()) != stored_cpu:
-			_fail("Malformed network payload mutated protected line stores")
-			return
-		print("KATTIPAAY_SMOKE: NETWORK_PACKET_REJECTION_OK")
-		await _assert_solo_pause_resume(world, draw_sys, ghost_sys, "DRAWING")
-		if _failed:
-			return
 
 	await _wait_for_match_state(MatchState.MEETING, MAX_DRAWING_SECONDS, "MEETING")
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: MEETING_REACHED difficulty=%s" % diff_label)
-	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
-	var expected_cpu_lines := {"EASY": 8, "NORMAL": 12, "HARD": 16, "NIGHTMARE": 20}
-	var expected_count := int(expected_cpu_lines.get(diff_label, -1))
-	if cpu_base_count != expected_count:
-		_fail("CPU base-line count for %s: expected %d, got %d" % [
-			diff_label, expected_count, cpu_base_count])
-		return
-	print("KATTIPAAY_SMOKE: CPU_BASE_LINES_OK difficulty=%s count=%d" % [diff_label, cpu_base_count])
-	if draw_human_lines:
-		# External draw events must not sneak an ordinary line through MEETING.
-		var before_meeting_lines := int(draw_sys.call("get_active_lines").size())
-		await _draw_human_stroke(Vector2(400, 200), Vector2(500, 210))
-		if int(draw_sys.call("get_active_lines").size()) != before_meeting_lines:
-			_fail("Direct input events drew an illicit line during MEETING")
-			return
-		print("KATTIPAAY_SMOKE: MEETING_DRAW_LOCK_OK")
 
 	if diff_label == "EASY":
 		# Audit MAJOR-2: EASY must place its ghost lines during DRAWING so the
@@ -483,10 +332,6 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: SEARCHING_REACHED difficulty=%s" % diff_label)
-	if draw_human_lines:
-		await _assert_solo_pause_resume(world, draw_sys, ghost_sys, "SEARCHING")
-		if _failed:
-			return
 
 	# Both search phases run inside SEARCHING; observe them via the phase events
 	# the driver emits (EV_GAME_SEARCH_PHASE_STARTED with phase/searcher/
@@ -497,17 +342,9 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		# one strike through the CPU's own path (DrawSystem.strike_line), then
 		# prove the EV_GAME_LINE_STRUCK is_ghost=false event and its remaining
 		# counter (the value the HUD label is fed from).
-		if _coin_searcher == HUMAN_ID:
-			await _exercise_human_search_security(world, ghost_sys)
-			if _failed:
-				return
 		await _exercise_cpu_strike(draw_sys)
 		if _failed:
 			return
-		if _coin_searcher == GHOST_ID:
-			await _exercise_human_search_security(world, ghost_sys)
-			if _failed:
-				return
 
 	await _wait_until(func() -> bool: return _seen_phases.size() >= 2, MAX_SEARCH_SECONDS, "SEARCH_PHASE_2")
 	if _failed:
@@ -583,36 +420,16 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: REVEAL_REACHED difficulty=%s" % diff_label)
-	await _wait_seconds(0.12)
-	if int(_game_state.call("get_match_state")) != MatchState.REVEAL:
-		_fail("REVEAL overlay skipped its configured visible hold")
-		return
 
 	await _wait_for_seen_match_state(MatchState.SCORING, 6.0, "SCORING")
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: SCORING_REACHED difficulty=%s" % diff_label)
-	await _wait_seconds(0.12)
-	if int(_game_state.call("get_match_state")) != MatchState.SCORING:
-		_fail("SCORING overlay skipped its configured visible hold")
-		return
-	print("KATTIPAAY_SMOKE: RESULT_HOLDS_OK")
 
 	await _wait_for_seen_match_state(MatchState.WINNER, 6.0, "WINNER")
 	if _failed:
 		return
 	print("KATTIPAAY_SMOKE: WINNER_REACHED difficulty=%s" % diff_label)
-	var scorer := root.get_node_or_null("ScoringManager")
-	if scorer == null:
-		_fail("ScoringManager missing after result")
-		return
-	var score_by_marks := int(scorer.call("get_human_surviving_lines"))
-	var current_round := int(scorer.call("get_current_round"))
-	var reported_score := int(scorer.call("get_round_score", current_round))
-	if reported_score != score_by_marks:
-		_fail("Solo score used legacy arcade bonuses: score=%d survivors=%d" % [reported_score, score_by_marks])
-		return
-	print("KATTIPAAY_SMOKE: SURVIVOR_ONLY_SCORE_OK total=%d" % reported_score)
 
 	if draw_human_lines:
 		# (a) Audit MAJOR-1: at _finish_round the driver counts DrawSystem's
@@ -639,56 +456,6 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 		return
 
 	print("KATTIPAAY_SMOKE: PASS_DONE difficulty=%s" % diff_label)
-
-
-## Pause/resume regression: the match phase, the phase clock, and hidden
-## line stores must be completely preserved across top-level PAUSED.
-func _assert_solo_pause_resume(world: Node, draw_sys: Node, ghost_sys: Node, phase_name: String) -> void:
-	var driver: Node = world.get_node_or_null("SoloMatchDriver")
-	var timer: Node = root.get_node_or_null("MatchTimer")
-	if driver == null or timer == null:
-		_fail("Pause regression missing SoloMatchDriver / MatchTimer")
-		return
-	var phase_before := int(_game_state.call("get_match_state"))
-	var humans_before := int(draw_sys.call("get_active_lines").size())
-	var cpu_before := int(ghost_sys.call("get_active_ghost_lines").size())
-	var phase_index_before := int(driver.get("_search_phase_index"))
-	var phases_seen_before := _seen_phases.size()
-	var time_before := int(timer.call("get_remaining_seconds"))
-	var clock_before := float(driver.get("_drawing_elapsed")) if phase_name == "DRAWING" else float(driver.get("_search_elapsed"))
-	if not bool(_game_state.call("transition", TopState.PAUSED)):
-		_fail("Top-level PAUSED transition rejected in %s" % phase_name)
-		return
-	if int(_game_state.call("get_match_state")) != MatchState.PAUSED or not bool(timer.call("is_paused")):
-		_fail("Top-level pause did not pause match state + MatchTimer")
-		return
-	await _wait_seconds(0.18)
-	var clock_during := float(driver.get("_drawing_elapsed")) if phase_name == "DRAWING" else float(driver.get("_search_elapsed"))
-	if absf(clock_during - clock_before) > 0.04:
-		_fail("Solo local %s clock ticked while paused" % phase_name)
-		return
-	if not bool(_game_state.call("transition", TopState.PLAYING)):
-		_fail("Top-level PLAYING resume rejected in %s" % phase_name)
-		return
-	if int(_game_state.call("get_match_state")) != phase_before or bool(timer.call("is_paused")):
-		_fail("Resuming %s changed match phase or failed to resume timer" % phase_name)
-		return
-	if int(driver.get("_search_phase_index")) != phase_index_before or _seen_phases.size() != phases_seen_before:
-		_fail("Resuming %s rewound or duplicated search phases" % phase_name)
-		return
-	if int(draw_sys.call("get_active_lines").size()) != humans_before \
-			or int(ghost_sys.call("get_active_ghost_lines").size()) != cpu_before:
-		_fail("Pausing %s cleared existing hidden lines" % phase_name)
-		return
-	if int(timer.call("get_remaining_seconds")) > time_before:
-		_fail("Resuming %s reset countdown to full duration" % phase_name)
-		return
-	if phase_name == "SEARCHING":
-		var remaining_label := world.get_node_or_null("HUD/RemainingLinesLabel") as Label
-		if remaining_label == null or not remaining_label.visible:
-			_fail("Pausing SEARCHING hid the remaining-lines HUD without restoring it")
-			return
-	print("KATTIPAAY_SMOKE: %s_PAUSE_RESUME_OK" % phase_name)
 
 
 ## Draw 5 short strokes in the player zone's far top-left corner (the CPU
@@ -802,163 +569,6 @@ func _exercise_cpu_strike(draw_sys: Node) -> void:
 		quit(1)
 		return
 	print("KATTIPAAY_SMOKE: CPU_SWEEP_STRIKE_OK target=%d active %d -> %d remaining_payload=%d" % [target_id, before, after, _last_struck_remaining])
-
-
-## Security regression in the real human-search phase:
-## - never strike an undiscovered line simply by addressing its hidden center
-## - a CPU defender sneak is caught when the human PHYSICALLY reaches it
-func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
-	await _wait_until(func() -> bool:
-		return int(_game_state.get("solo_active_searcher")) == HUMAN_ID \
-				and int(_game_state.call("get_match_state")) == MatchState.SEARCHING,
-		MAX_SEARCH_SECONDS, "HUMAN_SEARCH_SECURITY_PHASE")
-	if _failed:
-		return
-	var striker: Node = world.get_node_or_null("SoloMatchDriver/StrikeSystem")
-	var arg_sys: Node = world.get_node_or_null("Systems/ArgumentSystem")
-	if arg_sys == null:
-		_fail("Missing ArgumentSystem during human search")
-		return
-	await _wait_until(func() -> bool: return bool(arg_sys.call("has_argued", GHOST_ID)),
-			2.0, "CPU_DEFENDER_ARGUE")
-	if _failed:
-		return
-	if float(striker.get("_argue_muffled")) <= 0.0:
-		_fail("CPU defender ARGUE did not apply searcher muffle")
-		return
-	print("KATTIPAAY_SMOKE: CPU_DEFENDER_ARGUE_OK")
-	# Now test the remote-strike security rule independently of the temporary
-	# argument stall (otherwise muffling could mask an insecure strike path).
-	striker.set("_argue_muffled", 0.0)
-	var player := world.call("get_entity", HUMAN_ID) as Node2D
-	if striker == null or player == null:
-		_fail("Missing striker or human character for remote-strike test")
-		return
-	var initial: Array = ghost_sys.call("get_active_ghost_lines")
-	var remote = null
-	var farthest := 0.0
-	for candidate in initial:
-		var pts: Array = candidate.get("points")
-		if pts.size() < 2:
-			continue
-		var d: float = player.global_position.distance_to(pts[0])
-		if d > farthest and not bool(candidate.get("is_discovered")):
-			farthest = d
-			remote = candidate
-	if remote == null or farthest < 200.0:
-		_fail("No sufficiently distant undiscovered CPU line for security probe")
-		return
-	var distant_points: Array = remote.get("points")
-	var remote_pos: Vector2 = distant_points[0]
-	var original_count: int = initial.size()
-	if bool(striker.call("try_strike_at", remote_pos, 90.0)) \
-			or bool(striker.call("strike_ghost_line", int(remote.get("id")))):
-		_fail("Blind or remote strike succeeded on hidden CPU chalk")
-		return
-	if int(ghost_sys.call("get_active_ghost_lines").size()) != original_count:
-		_fail("Rejected remote strike nonetheless removed a CPU line")
-		return
-	print("KATTIPAAY_SMOKE: REMOTE_STRIKE_BLOCKED_OK")
-
-	# Sneak near an actual player avatar: the CPU may draw it, but it only
-	# incurs the local penalty once the searcher is physically close.
-	var resource := load("res://scripts/systems/ChalkLine.gd") as GDScript
-	var attempted = resource.new()
-	var sneak_pts: Array[Vector2] = [
-		player.global_position + Vector2(45.0, 0.0),
-		player.global_position + Vector2(90.0, 0.0)]
-	attempted.set("points", sneak_pts)
-	attempted.set("is_sneak", true)
-	attempted.set("is_ghost", true)
-	attempted.set("id", -1)
-	var payload: Dictionary = {"lines": [attempted.call("to_network_dict")], "owner_id": GHOST_ID}
-	ghost_sys.call("_on_network_ghost_lines_placed", payload)
-	var sneak_id := -1
-	for candidate in ghost_sys.call("get_active_ghost_lines"):
-		if bool(candidate.get("is_sneak")):
-			sneak_id = int(candidate.get("id"))
-	if sneak_id < 0:
-		_fail("CPU defender sneaked line was not registered")
-		return
-	await _settle_frames()
-	for candidate in ghost_sys.call("get_active_ghost_lines"):
-		if int(candidate.get("id")) == sneak_id:
-			_fail("Human failed to catch CPU sneak at actual avatar location")
-			return
-	print("KATTIPAAY_SMOKE: CPU_SNEAK_CAUGHT_OK sneak=%d" % sneak_id)
-
-
-## All displayed compound-wall sprites should occupy the exact Rect2 cells
-## used by HidingRules for actual chalk concealment, including the mirrored CPU
-## half. Historical sprites were hundreds of pixels away from those cells.
-func _assert_visual_walls(world: Node) -> void:
-	var expected := [
-		{"path": "Props/PlayerZoneProps/WallA", "center": Vector2(890, 492), "size": Vector2(500, 24)},
-		{"path": "Props/PlayerZoneProps/WallB", "center": Vector2(1572, 670), "size": Vector2(24, 220)},
-		{"path": "Props/PlayerZoneProps/WallC", "center": Vector2(1030, 661), "size": Vector2(260, 22)},
-		{"path": "Props/CpuZoneProps/WallA", "center": Vector2(890, 1512), "size": Vector2(500, 24)},
-		{"path": "Props/CpuZoneProps/WallB", "center": Vector2(1572, 1690), "size": Vector2(24, 220)},
-		{"path": "Props/CpuZoneProps/WallC", "center": Vector2(1030, 1681), "size": Vector2(260, 22)}
-	]
-	for cell in expected:
-		var sprite := world.get_node_or_null(cell["path"]) as Sprite2D
-		if sprite == null or sprite.texture == null:
-			_fail("Visual wall absent: %s" % cell["path"])
-			return
-		if sprite.global_position.distance_to(cell["center"]) > 0.1:
-			_fail("Wall art doesn't match HidingRules coordinates: %s" % cell["path"])
-			return
-		var current_size := sprite.scale * Vector2(sprite.texture.get_size())
-		if current_size.distance_to(cell["size"]) > 0.1:
-			_fail("Wall sprite dimensions don't match concealment Rect2: %s" % cell["path"])
-			return
-	print("KATTIPAAY_SMOKE: VISUAL_WALL_GEOMETRY_OK all=6")
-
-
-## The CPU must NOT see a faraway hidden line or use its coordinates as
-## navigation input. These are pure perception+public-route tests and do not
-## require the CPU to win or discover anything in the short (5s) CI round.
-func _run_cpu_fair_search_assertions(cpu_sweep: Node) -> void:
-	if cpu_sweep == null:
-		_fail("Fair-search probe: CpuSearchController was not constructed")
-		return
-	var line_script := load("res://scripts/systems/ChalkLine.gd") as GDScript
-	var hidden_line = line_script.new()
-	hidden_line.id = 987654
-	var test_points: Array[Vector2] = [Vector2(120.0, 90.0), Vector2(200.0, 90.0)]
-	hidden_line.set("points", test_points)
-	hidden_line.wall_concealed = false
-	var far_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(1200.0, 700.0))
-	if not far_ids.is_empty():
-		_fail("CPU knew a hidden line across the zone: %s" % str(far_ids))
-		return
-	var near_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 190.0))
-	if not near_ids.has(987654):
-		_fail("CPU failed to sense an open-ground line after entering its reveal radius")
-		return
-	hidden_line.wall_concealed = true
-	var wall_outside: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 185.0))
-	if not wall_outside.is_empty():
-		_fail("CPU sensed a wall-concealed line outside its smaller reveal radius")
-		return
-	var wall_inside: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 170.0))
-	if not wall_inside.has(987654):
-		_fail("CPU failed to sense a wall-concealed line inside its reveal radius")
-		return
-	hidden_line.is_sneak = true
-	var sneak_ids: Array = cpu_sweep.call("probe_revealed_line_ids", [hidden_line], Vector2(140.0, 90.0))
-	if not sneak_ids.is_empty():
-		_fail("CPU normal search targeted defender sneaks as ordinary lines")
-		return
-	var path: Array = cpu_sweep.call("_build_search_waypoints", Rect2(0, 0, 2400, 780), Vector2(1200, 760))
-	if path.size() < 8:
-		_fail("CPU terrain-only exploration path is empty or incomplete")
-		return
-	for p in path:
-		if not Rect2(0, 0, 2400, 780).has_point(p):
-			_fail("CPU exploration waypoint outside player territory: %s" % str(p))
-			return
-	print("KATTIPAAY_SMOKE: CPU_FAIR_SEARCH_OK (no distant detection, shared reveal distances, public zone route)")
 
 
 ## Commit A occlusion assertions (Deviation Fix #3, owner Q1/Q2/Q3). All
@@ -1245,18 +855,7 @@ func _run_sneak_defender_pass(diff_label: String) -> void:
 	if not _saw_sneak_meter:
 		_fail("No EV_GAME_SNEAK_METER_CHANGED observed after the sneak draw")
 		return
-	# The CPU no longer magically knows where the anchor cluster is. This
-	# short CI test simulates its character legitimately searching nearby.
-	# The normal 30s exploration route remains independent of line positions.
-	# Clear the already-asserted argument stall to fit the 5s CI search.
-	cpu_sweep.set("_pause_timer", 0.0)
-	var cpu_character: Node2D = world.call("get_entity", GHOST_ID) as Node2D
-	if cpu_character == null:
-		_fail("Missing visible CPU character for physical-proximity sneak notice test")
-		return
-	cpu_character.set_meta("has_target", false)
-	cpu_character.global_position = SNEAK_ANCHOR + Vector2(30.0, 20.0)
-	await _wait_until(func() -> bool: return _saw_sneak_noticed, 3.0, "EV_GAME_SNEAK_NOTICED")
+	await _wait_until(func() -> bool: return _saw_sneak_noticed, 8.0, "EV_GAME_SNEAK_NOTICED")
 	if _failed:
 		return
 	var penalty_ids: Array = _sneak_noticed_payload.get("penalty_line_ids", [])

@@ -110,7 +110,7 @@ func _run_flip_animation() -> void:
 	if _flip_tween and _flip_tween.is_valid():
 		_flip_tween.kill()
 	_flip_tween = create_tween()
-	var half := _flip_duration / (FLIP_CYCLES * 4.0) # each of 2*cycles has TWO half animations
+	var half := _flip_duration / (FLIP_CYCLES * 2.0)
 	for i in range(FLIP_CYCLES * 2):
 		_flip_tween.tween_property(_coin_panel, "scale:x", 0.05, half) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)

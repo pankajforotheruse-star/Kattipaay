@@ -63,7 +63,7 @@ const VALID_MATCH_TRANSITIONS: Dictionary = {
     MatchState.WINNER:          [MatchState.SWAP_TEAMS, MatchState.RETURN_TO_LOBBY],
     MatchState.SWAP_TEAMS:      [MatchState.LOBBY, MatchState.RETURN_TO_LOBBY],
     MatchState.RETURN_TO_LOBBY: [MatchState.WAITING],
-    MatchState.PAUSED:          [MatchState.DRAWING, MatchState.MEETING, MatchState.SEARCHING, MatchState.REVEAL, MatchState.RETURN_TO_LOBBY],
+    MatchState.PAUSED:          [MatchState.DRAWING, MatchState.SEARCHING, MatchState.REVEAL, MatchState.RETURN_TO_LOBBY],
 }
 
 # Shortcut: every match state can transition to RETURN_TO_LOBBY on disconnect.
@@ -111,14 +111,6 @@ func transition(to: int) -> bool:
         return false
 
     var from := current
-
-    # In solo mode the top-level pause overlay must also pause the match's
-    # real state machine, not merely change the menu state. Do this while
-    # PLAYING so enter_match_state still passes its state guard.
-    if solo_vs_cpu and from == State.PLAYING and to == State.PAUSED:
-        if current_match == MatchState.DRAWING or current_match == MatchState.MEETING or current_match == MatchState.SEARCHING:
-            enter_match_state(MatchState.PAUSED)
-
     previous = from
     current = to
 
@@ -130,15 +122,6 @@ func transition(to: int) -> bool:
         "from": from,
         "to": to,
     })
-
-    # Resume the EXACT phase held before pause, after changing back to
-    # PLAYING so match-state transitions are permitted.
-    if solo_vs_cpu and from == State.PAUSED and to == State.PLAYING \
-            and current_match == MatchState.PAUSED:
-        var resume_match := pre_pause_match
-        if resume_match == MatchState.DRAWING or resume_match == MatchState.MEETING or resume_match == MatchState.SEARCHING:
-            enter_match_state(resume_match)
-            pre_pause_match = MatchState.NONE
 
     print("GameState: %s → %s" % [_state_name(from), _state_name(to)])
     return true

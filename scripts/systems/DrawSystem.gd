@@ -29,8 +29,6 @@ const MAX_ACTIVE_LINES := 50
 
 ## Minimum distance between raw touch samples before recording a point.
 const MIN_SAMPLE_DISTANCE := 4.0
-## Minimum genuine solo stroke length: reject accidental 4px taps.
-const SOLO_MIN_STROKE_LENGTH := 18.0
 
 ## Catmull-Rom interpolation spacing (pixels between smoothed points).
 const SPLINE_SAMPLE_SPACING := 8.0
@@ -231,8 +229,6 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_CHALK_USED, _on_chalk_used)  # audit m4
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_phase_started)
     EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_ENDED, _on_search_phase_ended)
-    if _line_pool:
-        _line_pool.dispose()
 
 
 func _process(delta: float) -> void:
@@ -271,10 +267,6 @@ func _process(delta: float) -> void:
 ## Called when the second finger touches down while the first is held (draw gesture starts).
 ## payload: {entity_id: int, position: Vector2 (world-space), chalk_type: int}
 func _on_draw_start(payload: Dictionary) -> void:
-    # Solo drawing is legal only during DRAWING or the active defender sneak
-    # window. Direct events during searching/meeting cannot create extra marks.
-    if GameState.solo_vs_cpu and not (GameState.get_match_state() == GameState.MatchState.DRAWING or sneak_mode):
-        return
     # Defender sneak cap: no more sneak lines this defender phase (the slider
     # limit means the mechanic can never be spammed forever).
     if sneak_mode and _sneak_lines_used >= sneak_max_lines:
@@ -400,27 +392,12 @@ func _on_undo_draw(_payload = null) -> void:
 # LINE CREATION & FINALIZATION
 # =============================================================================
 
-## Measure raw stroke arc length (using actual sampled points, no smoothing).
-func _raw_stroke_length() -> float:
-    var length := 0.0
-    for i in range(1, _raw_draw_points.size()):
-        length += _raw_draw_points[i - 1].distance_to(_raw_draw_points[i])
-    return length
-
-
 ## Finalize the current drawing stroke: smooth, create ChalkLine, compress, notify.
 func _finish_drawing() -> void:
     _is_drawing = false
 
     if _raw_draw_points.size() < 2:
         # Not enough points for a valid line — remove preview
-        _remove_preview_line()
-        _drawing_entity_id = -1
-        return
-
-    # In solo mode, two near-identical touch points must not count as a
-    # complete surviving mark. Use path length, not just point count.
-    if GameState.solo_vs_cpu and _raw_stroke_length() < SOLO_MIN_STROKE_LENGTH:
         _remove_preview_line()
         _drawing_entity_id = -1
         return
@@ -906,9 +883,6 @@ static func _compute_polygon_radius(points: Array[Vector2], center: Vector2) -> 
 ## Received from server/host: a new line was drawn by another player.
 ## payload: compressed line Dictionary from ChalkLine.to_network_dict()
 func _on_network_line_drawn(payload: Dictionary) -> void:
-    if not ChalkLine.is_valid_network_payload(payload):
-        push_warning("DrawSystem: rejected malformed remote chalk packet")
-        return
     # Check if we already have this line (might have been predicted)
     var line_id: int = payload.get("id", -1)
     var existing := _find_line_by_id(line_id)
@@ -944,16 +918,8 @@ func _on_network_line_rejected(payload: Dictionary) -> void:
 ## Batch sync of all active lines when a new player joins mid-match.
 ## payload: {lines: Array[Dictionary]} — each dict from ChalkLine.to_network_dict()
 func _on_network_line_sync_batch(payload: Dictionary) -> void:
-    var lines_data = payload.get("lines", [])
-    if not lines_data is Array or lines_data.size() > MAX_ACTIVE_LINES:
-        push_warning("DrawSystem: refused malformed/oversized line sync")
-        return
-    # Validate the ENTIRE sync before clearing existing lines: a malformed
-    # payload must never erase the current game state.
-    for candidate in lines_data:
-        if not candidate is Dictionary or not ChalkLine.is_valid_network_payload(candidate):
-            push_warning("DrawSystem: refused invalid line in sync batch")
-            return
+    var lines_data: Array = payload.get("lines", [])
+    # Clear existing lines first (fresh slate from server)
     clear_all_lines()
 
     for line_data in lines_data:

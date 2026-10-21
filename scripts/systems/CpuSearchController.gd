@@ -1,8 +1,33 @@
-# CpuSearchController.gd — information-limited CPU exploration for Play VS CPU.
-# The CPU plans its path from PUBLIC territory geometry, not from the hidden
-# human lines. It may only strike a non-sneak line after the actual CPU entity
-# enters the SAME reveal radius used by the human. Unvisited sneaks cannot be
-# noticed through an end-of-route roll. No hidden line coordinates drive travel.
+# CpuSearchController.gd — Deterministic CPU search sweep (slice 3, R6)
+#
+# When the GHOST is the active searcher (EV_GAME_SEARCH_PHASE_STARTED with
+# searcher = GHOST_ENTITY_ID), the visible NPC walks a simple greedy sweep
+# through the PLAYER zone: head to the nearest still-hidden NON-SNEAK player
+# chalk line, strike it when within the strike radius (visible WipeEffect — the
+# defending player watches), then repeat. No target left = the phase can
+# early-exit (the SoloMatchDriver owns that decision).
+#
+# Slice 4 (defender argue + sneak):
+#   - ARGUE STALL: EV_GAME_DEFENDER_ARGUE_STARTED with target_searcher_id ==
+#     GHOST_ENTITY_ID (the human defender argues/distracts) freezes the sweep
+#     for stall_seconds (chalk_gaon/solo_argue_stall_seconds) so the CPU
+#     misses lines while it is distracted.
+#   - SNEAK NOTICE: sneak lines the defender draws during the CPU's phase are
+#     NOT sweep targets (the sweep plan only contains non-sneak lines). The
+#     FIRST time the sweep passes within NOTICE_RADIUS of a still-unresolved
+#     sneak line the CPU rolls notice ONCE per line: with
+#     chalk_gaon/cpu_sneak_notice_chance (default -1.0 -> per-difficulty
+#     table: EASY 0.15 / NORMAL 0.35 / HARD 0.60 / NIGHTMARE 0.85) it emits
+#     EV_GAME_SNEAK_NOTICED and applies the penalty — the sneak line is struck
+#     out AND up to PENALTY_EXTRA_STRIKES nearby non-sneak defender lines are
+#     auto-struck (the CPU "re-checks" the area). Unnoticed sneak lines remain
+#     active and count as surviving lines at scoring. When the sweep plan ends,
+#     leftover unresolved sneak lines each get one final roll (the CPU circles
+#     back) so off-path sneaks stay risky, capped at one penalty.
+#     The chance is read LIVE from ProjectSettings at each roll so the smoke
+#     test / a settings screen can force it (1.0 / 0.0).
+#
+# Spawned by the SoloMatchDriver (solo mode only) as a child node.
 
 class_name CpuSearchController
 extends Node
@@ -10,10 +35,9 @@ extends Node
 const GHOST_ENTITY_ID := 2
 const DEFAULT_SWEEP_SPEED := 420.0
 ## Strike radius around each line's center (world pixels).
+const STRIKE_RADIUS := 120.0
+## Short pause after each strike so the defender sees the wipe.
 const STRIKE_PAUSE_SECONDS := 0.8
-const WAYPOINT_REACHED_RADIUS := 28.0
-const SWEEP_EDGE_MARGIN := 115.0
-const SWEEP_LANE_SPACING := 170.0
 ## Sneak-notice proximity: the CPU notices a sneak line only while sweeping
 ## within this radius of the line's center (once per line per phase).
 const NOTICE_RADIUS := 170.0
@@ -34,8 +58,7 @@ const DIFFICULTY_NOTICE := {
 var _active: bool = false
 var _npc: CharacterBody2D = null
 var _draw_sys: DrawSystem = null
-var _search_waypoints: Array[Vector2] = []
-var _waypoint_index: int = 0
+var _current_target: ChalkLine = null
 var _pause_timer: float = 0.0
 var _sweep_speed: float = DEFAULT_SWEEP_SPEED
 ## Sneak line ids still waiting for a notice roll this CPU phase.
@@ -87,27 +110,20 @@ func _resolve_notice_chance() -> float:
 
 func _on_search_phase_started(payload: Dictionary) -> void:
 	_active = int(payload.get("searcher", -1)) == GHOST_ENTITY_ID
-	_search_waypoints.clear()
-	_waypoint_index = 0
+	_current_target = null
 	_pause_timer = 0.0
 	_unresolved_sneaks.clear()
 	if not _active:
 		return
 	_read_settings()
-	var start_pos := _npc.global_position if _npc else ZoneLayout.SEARCH_ENTRY_CPU
-	# Search plans never depend on the hidden line registry.
-	_search_waypoints = _build_search_waypoints(ZoneLayout.PLAYER_ZONE, start_pos)
 	for line in _draw_sys.get_active_lines() if _draw_sys else []:
 		if line.is_sneak and not line.is_struck:
 			_unresolved_sneaks[line.id] = true
 
 
 func _on_search_phase_ended(_payload: Dictionary) -> void:
-	if _active and _npc:
-		_npc.set_meta("has_target", false)
 	_active = false
-	_search_waypoints.clear()
-	_waypoint_index = 0
+	_current_target = null
 	_unresolved_sneaks.clear()
 
 
@@ -120,13 +136,10 @@ func _on_defender_argue_started(payload: Dictionary) -> void:
 		return
 	var stall: float = float(payload.get("stall_seconds", 3.0))
 	_pause_timer = maxf(_pause_timer, stall)
-	# Stop the old waypoint movement too while the defender distracts us.
-	if _npc:
-		_npc.set_meta("has_target", false)
 	print("CpuSearchController: distracted by argue — sweep stalls %.1fs" % stall)
 
 ## A sneak line the defender draws mid-phase joins the unresolved set so the
-## proximity roll can notice it. Without this the
+## proximity roll (and the end-of-sweep roll) can notice it. Without this the
 ## CPU can never catch a sneak drawn after the phase started.
 func _on_sneak_line_drawn(payload: Dictionary) -> void:
 	if not _active:
@@ -154,80 +167,49 @@ func probe_point_at_distance(points: Array, origin: Vector2, distance: float) ->
 
 
 func _process(delta: float) -> void:
-	# Pausing must freeze line discovery, NPC search, and the argument stall
-	# countdown. The UI top-level PAUSED flag may update before match state.
-	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
-			or GameState.get_match_state() == GameState.MatchState.PAUSED):
-		return
 	if not _active or _npc == null or _draw_sys == null:
 		return
 	if _pause_timer > 0.0:
-		_pause_timer = maxf(_pause_timer - delta, 0.0)
+		_pause_timer -= delta
 		return
-
-	# The line registry is consulted ONLY by the proximity sensor, not the
-	# navigation planner. A faraway/covered line cannot inform our target.
+	if _current_target == null or not is_instance_valid(_current_target):
+		_pick_target()
+		if _current_target == null:
+			_check_leftover_sneaks()
+			return  # no lines left — the driver's early-exit / timer ends the phase
 	_check_sneak_notices()
-	var revealed_ids := probe_revealed_line_ids(_draw_sys.get_active_lines(), _npc.global_position)
-	if not revealed_ids.is_empty():
-		if _draw_sys.strike_line(revealed_ids[0]):
-			_pause_timer = STRIKE_PAUSE_SECONDS
-			_npc.set_meta("has_target", false)
-		return
-	_follow_search_route()
+	var center := _center_of(_current_target.points)
+	_walk_to(center)
+	# Commit A (hiding): the CPU may only reveal+strike a line once its searcher
+	# is inside the line's reveal radius (nearest point) - the SAME HidingRules
+	# radii as the human searcher (R=160px open-ground, R_occluded=90px
+	# wall-concealed). Both sides play by identical occlusion rules; difficulty
+	# never changes this geometry (owner Q3).
+	var line_dist: float = _npc.global_position.distance_to(
+		HidingRules.nearest_point_on_line(_current_target.points, _npc.global_position))
+	if line_dist <= HidingRules.reveal_radius_for(_current_target.wall_concealed):
+		var target: ChalkLine = _current_target
+		_current_target = null
+		if _draw_sys.strike_line(target.id):
+			_pause_timer = STRIKE_PAUSE_SECONDS  # let the defender watch the wipe
+		else:
+			_pause_timer = 0.15  # line vanished under us (decay) — re-pick
 
 
-## Same shared proximity predicate as the human; excludes special sneaks.
-## Exposed as a pure probe so the smoke test can assert non-omniscience.
-func probe_revealed_line_ids(lines: Array, searcher_pos: Vector2) -> Array[int]:
-	var ids: Array[int] = []
-	for candidate in lines:
-		if not candidate is ChalkLine:
-			continue
-		var line: ChalkLine = candidate
+## Greedy nearest-first over NON-SNEAK lines only: the sweep plan fixes the
+## lines the CPU will strike. Sneak lines drawn mid-sweep are never targeted;
+## they are only ever caught by the one-shot probabilistic notice roll.
+func _pick_target() -> void:
+	var best: ChalkLine = null
+	var best_d := INF
+	for line in _draw_sys.get_active_lines():
 		if line.is_sneak or line.is_struck or line.points.size() < 2:
 			continue
-		if HidingRules.is_revealed(line.points, searcher_pos, line.wall_concealed):
-			ids.append(line.id)
-	return ids
-
-
-## Uses only publicly known zone geometry plus the character's entry point.
-func _build_search_waypoints(zone: Rect2, from_pos: Vector2) -> Array[Vector2]:
-	var waypoints: Array[Vector2] = []
-	var left := zone.position.x + SWEEP_EDGE_MARGIN
-	var right := zone.end.x - SWEEP_EDGE_MARGIN
-	var top := zone.position.y + SWEEP_EDGE_MARGIN
-	var bottom := zone.end.y - SWEEP_EDGE_MARGIN
-	if right <= left or bottom <= top:
-		waypoints.append(zone.get_center())
-		return waypoints
-	var lanes: Array[float] = []
-	var lane_y := top
-	while lane_y < bottom:
-		lanes.append(lane_y)
-		lane_y += SWEEP_LANE_SPACING
-	if lanes.is_empty() or lanes[-1] < bottom:
-		lanes.append(bottom)
-	var bottom_first := from_pos.y >= zone.get_center().y
-	var right_first := from_pos.x >= zone.get_center().x
-	for row in range(lanes.size()):
-		var lane_index := lanes.size() - row - 1 if bottom_first else row
-		var y := lanes[lane_index]
-		var row_right_first := right_first if row % 2 == 0 else not right_first
-		waypoints.append(Vector2(right if row_right_first else left, y))
-		waypoints.append(Vector2(left if row_right_first else right, y))
-	return waypoints
-
-
-func _follow_search_route() -> void:
-	if _search_waypoints.is_empty():
-		return
-	var target := _search_waypoints[_waypoint_index]
-	if _npc.global_position.distance_to(target) <= WAYPOINT_REACHED_RADIUS:
-		_waypoint_index = (_waypoint_index + 1) % _search_waypoints.size()
-		target = _search_waypoints[_waypoint_index]
-	_walk_to(target)
+		var d := _npc.global_position.distance_squared_to(_center_of(line.points))
+		if d < best_d:
+			best_d = d
+			best = line
+	_current_target = best
 
 
 ## One notice roll per unresolved sneak line, rolled the FIRST time the sweep
@@ -276,6 +258,23 @@ func _apply_notice_penalty(sneak_line: ChalkLine) -> void:
 	})
 	_pause_timer = NOTICE_PAUSE_SECONDS
 	print("CpuSearchController: NOTICED sneak line %d — penalty lines %s" % [sneak_line.id, str(penalized)])
+
+
+## Sweep plan finished: the CPU circles back once. Every leftover unresolved
+## sneak line gets a single notice roll; at most one penalty fires per sweep
+## end so the moment stays readable.
+func _check_leftover_sneaks() -> void:
+	if _unresolved_sneaks.is_empty():
+		return
+	var pending: Array = _unresolved_sneaks.keys()
+	_unresolved_sneaks.clear()
+	for line_id in pending:
+		var line: ChalkLine = _find_line(int(line_id))
+		if line == null or line.is_struck:
+			continue
+		if randf() < _resolve_notice_chance():
+			_apply_notice_penalty(line)
+			return
 
 
 func _walk_to(target: Vector2) -> void:
