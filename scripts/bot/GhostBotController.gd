@@ -661,6 +661,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 
 
 func _on_line_drawn(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("player_id", -1) != HUMAN_ENTITY_ID:
 		return
 	var line_id: int = payload.get("line_id", -1)
@@ -700,6 +704,10 @@ func _on_line_drawn(payload: Dictionary) -> void:
 
 
 func _on_fog_revealed(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if difficulty != Difficulty.NIGHTMARE:
 		return
 	var pos: Vector2 = payload.get("position", Vector2.ZERO)
@@ -715,6 +723,10 @@ func _on_fog_revealed(payload: Dictionary) -> void:
 
 
 func _on_move_command(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if difficulty != Difficulty.NIGHTMARE:
 		return
 	var target: Vector2 = payload.get("target", Vector2.ZERO)
@@ -743,6 +755,10 @@ func _on_move_command(payload: Dictionary) -> void:
 
 
 func _on_silent_sneak_activated(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("searcher_id", -1) != HUMAN_ENTITY_ID:
 		return
 	if difficulty == Difficulty.HARD:
@@ -752,6 +768,10 @@ func _on_silent_sneak_activated(payload: Dictionary) -> void:
 
 
 func _on_silent_sneak_line_crossed(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("searcher_id", -1) != HUMAN_ENTITY_ID:
 		return
 	if difficulty == Difficulty.HARD:
@@ -761,6 +781,10 @@ func _on_silent_sneak_line_crossed(payload: Dictionary) -> void:
 
 
 func _on_ghost_line_discovered(_payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	# The searcher found one of our lines — they are close and effective.
 	if difficulty == Difficulty.HARD:
 		_bump_guilt(0.15)
