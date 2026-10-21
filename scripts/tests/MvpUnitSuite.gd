@@ -27,6 +27,7 @@ func _run() -> void:
 		return
 	_test_zone_invariants()
 	_test_visibility_boundaries()
+	_test_fair_cover_rules()
 	_test_chalk_roundtrip()
 	# CPU path + perception are tested with real controllers in the smoke test.
 	_test_scoring_decisions()
@@ -92,6 +93,59 @@ func _test_visibility_boundaries() -> void:
 	_check(HidingRules.is_wall_concealed([wall.get_center(), wall.get_center() + Vector2(30, 0)]),
 		"line starting inside wall is concealed")
 	print(PREFIX + "VISIBILITY_GEOMETRY_OK")
+
+
+## Property tests for mirrored sites, shadow radius and active inspection.
+## Both searchers use this SAME pure predicate regardless of CPU difficulty.
+func _test_fair_cover_rules() -> void:
+	var player_sites := HidingRules.get_cover_sites(false)
+	var cpu_sites := HidingRules.get_cover_sites(true)
+	_check(player_sites.size() == 6 and cpu_sites.size() == 6,
+		"equal public cover objects in each territory")
+	for i in range(player_sites.size()):
+		var h: Dictionary = player_sites[i]
+		var c: Dictionary = cpu_sites[i]
+		var hr: Rect2 = h["rect"]
+		var cr: Rect2 = c["rect"]
+		_check(int(h["kind"]) == int(c["kind"]) and hr.size == cr.size,
+			"cover kind and dimensions identical on both sides")
+		_check(cr.position == hr.position + Vector2(0, ZoneLayout.CPU_ZONE.position.y),
+			"CPU cover exactly mirrors human cover")
+	for cpu_zone in [false, true]:
+		for site in HidingRules.get_cover_sites(cpu_zone):
+			var kind := int(site["kind"])
+			var region: Rect2 = site["rect"]
+			var inside: Array[Vector2] = [
+				region.get_center() - Vector2(12, 0),
+				region.get_center() + Vector2(12, 0)]
+			var at: Vector2 = region.get_center()
+			if HidingRules.is_inspectable_cover(kind):
+				_check(not HidingRules.can_reveal_line(inside, at, false),
+					"covered mark invisible to uninspected searcher")
+				var inspected := {str(site["id"]): true}
+				_check(HidingRules.can_reveal_line(inside, at, false, inspected),
+					"inspection reveals nearby covered mark")
+				_check(not HidingRules.can_reveal_line(inside,
+					at + Vector2(0, 300), false, inspected),
+					"inspection never reveals faraway mark")
+			elif kind == HidingRules.COVER_TREE:
+				_check(HidingRules.can_reveal_line(inside, at + Vector2(0, 80), false),
+					"tree shade discoverable at close range")
+				_check(not HidingRules.can_reveal_line(inside, at + Vector2(0, 240), false),
+					"tree shadow genuinely reduces long-distance visibility")
+	var first_leaf: Dictionary = player_sites[2]
+	var leaf_rect: Rect2 = first_leaf["rect"]
+	var leaf_line: Array[Vector2] = [leaf_rect.get_center() - Vector2(10, 0),
+		leaf_rect.get_center() + Vector2(10, 0)]
+	var inspected := {str(first_leaf["id"]): true}
+	for level in range(4):
+		_game_state.set("cpu_difficulty", level)
+		_check(not HidingRules.can_reveal_line(leaf_line, leaf_rect.get_center(), false),
+			"difficulty cannot bypass inspection")
+		_check(HidingRules.can_reveal_line(
+			leaf_line, leaf_rect.get_center(), false, inspected),
+			"difficulty cannot change inspected reveal radius")
+	print(PREFIX + "FAIR_COVER_SYMMETRY_OK")
 
 
 func _test_chalk_roundtrip() -> void:
