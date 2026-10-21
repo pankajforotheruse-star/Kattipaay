@@ -14,7 +14,10 @@ var _feedback_time := 0.0
 
 func _ready() -> void:
 	_cpu_rng.randomize()
-	z_index = 2
+	# Chalk containers draw at z=10 and their Line2D strokes at z=10/11
+	# relative to the container (effective 20/21). Public piles need to
+	# cover the chalk visually until inspected, not sit beneath it.
+	z_index = 22
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_started)
 	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_human_tap)
 
