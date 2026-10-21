@@ -70,10 +70,7 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	
 	match to_state:
 		GameState.MatchState.DRAWING:
-			# Resume from pause must not discard strokes already drawn or
-			# their scoring statistics.
-			if from_state != GameState.MatchState.PAUSED:
-				_reset_round_accumulators()
+			_reset_round_accumulators()
 		GameState.MatchState.SCORING:
 			current_round += 1
 			_calculate_round_score()
@@ -156,21 +153,15 @@ func _calculate_round_score() -> void:
 		"silent_sneak_bonus": _silent_sneaks * SILENT_SNEAK_BONUS
 	}
 	
-	# The childhood Play VS CPU score IS the number of surviving chalk
-	# marks. Old arcade bonuses (draw count, clusters, hints, etc.) are not
-	# part of this game's win or round score; retain them only for non-solo
-	# modes, where the original scoring formula still applies.
-	if GameState.solo_vs_cpu:
-		score = _human_surviving_lines
-	else:
-		score += breakdown.lines_score
-		score += breakdown.cluster_bonus
-		score += breakdown.human_surviving_lines * SURVIVOR_POINTS_PER_LINE
-		score -= breakdown.argument_penalty
-		score -= breakdown.hint_trap_penalty
-		score += breakdown.correct_hint_bonus
-		score += breakdown.sloppy_count_delta
-		score += breakdown.silent_sneak_bonus
+	# Apply formula
+	score += breakdown.lines_score
+	score += breakdown.cluster_bonus
+	score += breakdown.human_surviving_lines * SURVIVOR_POINTS_PER_LINE
+	score -= breakdown.argument_penalty
+	score -= breakdown.hint_trap_penalty
+	score += breakdown.correct_hint_bonus
+	score += breakdown.sloppy_count_delta
+	score += breakdown.silent_sneak_bonus
 	
 	# Clamp to minimum 0
 	score = maxi(score, 0)
@@ -205,12 +196,11 @@ func register_player_score(player_id: int, score: int) -> void:
 func _determine_winner() -> void:
 	# R6: Play VS CPU rounds are decided by surviving hidden lines. The side
 	# with MORE surviving (unstruck, unidentified) lines after BOTH searches
-	# wins; equal survivors are an explicit DRAW (winner_id == 0). A tie
-	# must not silently count as a human victory.
+	# wins; ties (including the both-empty edge case) resolve to the human so
+	# the round always produces a winner.
 	if _survivors_registered:
-		var human_won := _human_surviving_lines > _cpu_surviving_lines
-		var is_tie := _human_surviving_lines == _cpu_surviving_lines
-		winner_id = 0 if is_tie else (InputManager.local_entity_id if human_won else 2)
+		var human_won := _human_surviving_lines >= _cpu_surviving_lines
+		winner_id = InputManager.local_entity_id if human_won else 2
 		if human_won:
 			_stats.wins += 1
 		EventBus.emit(EventBus.EV_GAME_WINNER_DETERMINED, {

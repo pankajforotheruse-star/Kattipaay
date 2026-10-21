@@ -612,12 +612,6 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     var to_state: int = payload.get("to", -1)
     var from_state: int = payload.get("from", -1)
 
-    # A top-level pause is an interruption, NOT a search-phase boundary.
-    # Preserve existing SEARCH banner, remaining-lines counter, and defender
-    # ARGUE button. There is no new SEARCH_PHASE_STARTED event on resume.
-    if to_state == GameState.MatchState.PAUSED or from_state == GameState.MatchState.PAUSED:
-        return
-
     # Reset the end-of-draw banner on any DRAWING boundary (fresh entry or exit).
     if to_state == GameState.MatchState.DRAWING or from_state == GameState.MatchState.DRAWING:
         _hide_draw_warning()
@@ -1107,21 +1101,13 @@ func _create_score_label() -> void:
     _score_label.offset_right = -16
     _score_label.offset_bottom = 110
     add_child(_score_label)
-    if GameState.solo_vs_cpu:
-        # Solo score is surviving hidden lines, not the legacy PvE point
-        # accumulator. The scoring/winner overlays show the real outcome.
-        _score_label.hide()
 
 func _on_total_score_updated(payload: Dictionary) -> void:
-    if GameState.solo_vs_cpu:
-        return
     var score: int = payload.get("total_score", 0)
     if _score_label:
         _score_label.text = "Score: %d" % score
 
 func _on_round_score_calculated(payload: Dictionary) -> void:
-    if GameState.solo_vs_cpu:
-        return
     var score: int = payload.get("score", 0)
     # Brief flash of round score
     if _score_label:
@@ -1136,8 +1122,6 @@ func _on_round_score_calculated(payload: Dictionary) -> void:
 
 
 func _on_score_changed(payload: Dictionary) -> void:
-    if GameState.solo_vs_cpu:
-        return
     # audit m4: live score delta (SloppyCountSystem) - flash it above the
     # score label so the event has visible feedback.
     var amount: int = payload.get("amount", 0)

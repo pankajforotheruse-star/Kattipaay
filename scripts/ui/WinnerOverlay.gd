@@ -22,12 +22,11 @@ func _build_ui() -> void:
 	dim.color = Color(0.02, 0.02, 0.08, 0.62)
 	add_child(dim)
 
-	var is_tie := ScoringManager.get_winner_id() == 0
 	var human_won := ScoringManager.get_winner_id() == 1
 
 	var title := Label.new()
 	title.name = "WinnerTitle"
-	title.text = "IT'S A DRAW!" if is_tie else ("YOU WIN!" if human_won else "CPU WINS")
+	title.text = "YOU WIN!" if human_won else "CPU WINS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 60)
@@ -58,7 +57,7 @@ func _build_ui() -> void:
 
 	var sub2 := Label.new()
 	sub2.name = "WinnerNote"
-	sub2.text = "More surviving hidden lines wins" if human_survivors != cpu_survivors else "Both sides protected the same number of lines"
+	sub2.text = "More surviving hidden lines wins" if human_survivors != cpu_survivors else "Tie broken in your favor"
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub2.add_theme_font_size_override("font_size", 16)
 	sub2.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.55))

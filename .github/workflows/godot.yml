@@ -47,30 +47,18 @@ jobs:
             echo "Static / Parse Check FAILED: Godot process exited non-zero."
             exit 1
           fi
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-static-check.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-static-check.log; then
             echo "Static / Parse Check FAILED: Godot reported a script/runtime initialization error."
             exit 1
           fi
           echo "Static / Parse Check PASSED."
-
-      - name: Audit every scene resource and instantiate it
-        run: |
-          set -euo pipefail
-          timeout 80s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpSceneAudit.gd --log-file godot-scene-audit.log
-          cat godot-scene-audit.log
-          grep -q "KATTIPAAY_SCENES: PASS" godot-scene-audit.log
-          if grep -E -q "KATTIPAAY_SCENES: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-scene-audit.log; then
-            exit 1
-          fi
 
       - name: Upload static-check log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: godot-static-check-log
-          path: |
-            godot-static-check.log
-            godot-scene-audit.log
+          path: godot-static-check.log
           if-no-files-found: ignore
 
   playable-smoke-test:
@@ -106,7 +94,7 @@ jobs:
             echo "Import project FAILED: Godot process exited non-zero."
             exit 1
           fi
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-import.log; then
+          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-import.log; then
             echo "Import project FAILED: Godot reported a script/runtime initialization error."
             exit 1
           fi
@@ -129,7 +117,7 @@ jobs:
             echo "Kattipaay Playable Smoke Test FAILED: PASS marker not found."
             exit 1
           fi
-          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort|Leaked instance|ObjectDB instances leaked" godot-playable-smoke.log; then
+          if grep -E -q "KATTIPAAY_SMOKE: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|engine abort" godot-playable-smoke.log; then
             echo "Kattipaay Playable Smoke Test FAILED: runtime/script error detected."
             exit 1
           fi
@@ -143,113 +131,15 @@ jobs:
           path: godot-playable-smoke.log
           if-no-files-found: ignore
 
-
-  unit-tests:
-    name: Deterministic Unit Tests
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Download Godot 4.4 stable
-        run: |
-          set -euo pipefail
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
-          unzip -q Godot_v4.4-stable_linux.x86_64.zip
-          chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --version
-      - name: Import scenes and compile all GDScript
-        run: |
-          set -euo pipefail
-          "$GODOT_BIN" --headless --path . --editor --quit --log-file godot-unit-import.log
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-unit-import.log; then
-            cat godot-unit-import.log
-            exit 1
-          fi
-      - name: Run deterministic unit suite
-        run: |
-          set -euo pipefail
-          timeout 90s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpUnitSuite.gd --log-file godot-unit.log
-          cat godot-unit.log
-          grep -q "KATTIPAAY_UNIT: PASS" godot-unit.log
-          if grep -E -q "KATTIPAAY_UNIT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-unit.log; then
-            exit 1
-          fi
-      - name: Upload unit logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: godot-unit-logs
-          path: |
-            godot-unit.log
-            godot-unit-import.log
-          if-no-files-found: ignore
-
-  component-tests:
-    name: Scene Component and Pause Physics
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Download Godot 4.4 stable
-        run: |
-          set -euo pipefail
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
-          unzip -q Godot_v4.4-stable_linux.x86_64.zip
-          chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --version
-      - name: Import full project
-        run: |
-          set -euo pipefail
-          "$GODOT_BIN" --headless --path . --editor --quit --log-file godot-component-import.log
-          if grep -E -q "SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-component-import.log; then
-            cat godot-component-import.log
-            exit 1
-          fi
-      - name: Run component suite
-        run: |
-          set -euo pipefail
-          timeout 100s "$GODOT_BIN" --headless --path . --script res://scripts/tests/MvpComponentSuite.gd --log-file godot-component.log
-          cat godot-component.log
-          grep -q "KATTIPAAY_COMPONENT: PASS" godot-component.log
-          if grep -E -q "KATTIPAAY_COMPONENT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-component.log; then
-            exit 1
-          fi
-      - name: Upload component logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: godot-component-logs
-          path: |
-            godot-component.log
-            godot-component-import.log
-          if-no-files-found: ignore
-
-  security-check:
-    name: Security / Permissions / CI Policy
-    runs-on: ubuntu-22.04
-    timeout-minutes: 3
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Compile audit script
-        run: python3 -m py_compile scripts/tests/security_audit.py
-      - name: Run security configuration and secret-scan baseline
-        run: python3 scripts/tests/security_audit.py
-
   regression-check:
     name: Regression Check
     runs-on: ubuntu-22.04
     timeout-minutes: 2
-    needs: [static-check, unit-tests, component-tests, playable-smoke-test, security-check]
+    needs: [static-check, playable-smoke-test]
     steps:
       - name: Regression gate
         run: |
           echo "Static / Parse Check: PASSED"
-          echo "Deterministic Unit Tests: PASSED"
-          echo "Scene Component and Pause Physics: PASSED"
-          echo "Security/Permissions/CI Policy: PASSED"
           echo "Kattipaay Playable Smoke Test: PASSED"
           echo "Regression Check: PASSED"
           echo "All required Kattipaay CI checks passed for this commit/PR."

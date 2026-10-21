@@ -32,21 +32,7 @@ var _swipe_start: Vector2 = Vector2.ZERO
 func _ready() -> void:
 	_setup_background()
 	_connect_signals()
-	# Hide non-MVP placeholders; only real Play VS CPU and tutorial paths are
-	# presented as ready. Existing handlers remain for future development.
-	for unused_button in [_play_online_btn, _offline_play_btn, _settings_btn,
-			_shop_btn, _battle_pass_btn, _collection_btn, _daily_reward_btn]:
-		if unused_button:
-			unused_button.hide()
 	_update_xp_display()
-	# Static example XP/level data is not real progression. Do not display
-	# fabricated rewards in the Play VS CPU MVP.
-	if _xp_bar:
-		_xp_bar.hide()
-	if _xp_label:
-		_xp_label.hide()
-	if _nav_dots:
-		_nav_dots.hide()
 	if _version_label:
 		_version_label.text = "v1.0.0"
 
@@ -136,11 +122,7 @@ func _show_coming_soon(title: String, body: String) -> void:
 	add_child(popup)
 func _on_tutorial() -> void:
 	EventBus.emit("ui.button_pressed", {"button": "tutorial"})
-	# The old tutorial.tscn teaches ghost accusations and PvE combat.
-	# Present the actual Play VS CPU draw-and-hide rules instead.
-	var tutorial_scene := load("res://scenes/overlay/tutorial.tscn") as PackedScene
-	if tutorial_scene:
-		add_child(tutorial_scene.instantiate())
+	SceneManager.go_to("tutorial/tutorial.tscn")
 func _update_xp_display() -> void:
 	if _xp_bar and _xp_label:
 		var level := 14
