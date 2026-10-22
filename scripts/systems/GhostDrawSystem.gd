@@ -638,28 +638,31 @@ func _start_proximity_fade(line_id: int, target_alpha: float) -> void:
 		mat = node.material as ShaderMaterial
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_LINEAR)
-	tween.tween_method(
-		func(a: float):
-			node.modulate.a = a
-			if mat:
-				mat.set_shader_parameter("alpha_mult", a)
-		,
-		node.modulate.a,
-		target_alpha,
-		PROXIMITY_FADE_DURATION
-	)
-	tween.tween_callback(func():
-		_proximity_tweens.erase(line_id)
-		if target_alpha >= 1.0:
-			_proximity_state[line_id] = PRESENT_SHOWN
-			_proximity_alpha[line_id] = 1.0
-		else:
-			_proximity_state[line_id] = PRESENT_HIDDEN
-			_proximity_alpha[line_id] = 0.0
-			if is_instance_valid(node):
-				node.visible = false
-	)
+	tween.tween_method(_apply_proximity_alpha.bind(node, mat), node.modulate.a, target_alpha, PROXIMITY_FADE_DURATION)
+	tween.tween_callback(_finish_proximity_fade.bind(line_id, node, target_alpha))
 	_proximity_tweens[line_id] = tween
+
+
+## Tween step for proximity fades: drives the node's modulate alpha and (when a
+## shader material is attached) the chalk shader's alpha_mult in lockstep, so
+## the fade looks the same with and without the outline shader.
+func _apply_proximity_alpha(a: float, node: Line2D, mat: ShaderMaterial) -> void:
+	node.modulate.a = a
+	if mat:
+		mat.set_shader_parameter("alpha_mult", a)
+## End-of-fade bookkeeping: drop the tween from the active set, snap the fade
+## state machine to its terminal state, and (only when fading out) hide the
+## node so an invisible line stops rendering entirely.
+func _finish_proximity_fade(line_id: int, node: Line2D, target_alpha: float) -> void:
+	_proximity_tweens.erase(line_id)
+	if target_alpha >= 1.0:
+		_proximity_state[line_id] = PRESENT_SHOWN
+		_proximity_alpha[line_id] = 1.0
+	else:
+		_proximity_state[line_id] = PRESENT_HIDDEN
+		_proximity_alpha[line_id] = 0.0
+		if is_instance_valid(node):
+			node.visible = false
 
 
 func _kill_proximity_tween(line_id: int) -> void:

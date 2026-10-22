@@ -757,6 +757,26 @@ func _run_occlusion_assertions(draw_sys: Node, ghost_sys: Node, cpu_sweep: Node)
 		int(nightmare_shadow["concealed"]), int(nightmare_shadow["total"])])
 
 
+## Deterministic Commit-B shadow-conceal share for one difficulty:
+## OCCLUSION_BIAS_PLACEMENTS calls to _build_line_dicts (2 lines each) on one
+## freshly-seeded RNG, the same seed for every difficulty so only the share
+## table differs. Each returned dict is classified by its network "sc" flag
+## (tree-shadow concealment, written by the shared HidingRules rule).
+func _count_shadow_placements(bot: Node, difficulty: int, seed: int) -> Dictionary:
+	bot.set("difficulty", difficulty)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var concealed := 0
+	var total := 0
+	for i in range(OCCLUSION_BIAS_PLACEMENTS):
+		var dicts: Array = bot.call("_build_line_dicts", Vector2(1200.0, 1500.0), rng)
+		for d in dicts:
+			total += 1
+			if bool(d.get("sc", false)):
+				concealed += 1
+	return {"total": total, "concealed": concealed}
+
+
 ## Deterministic GhostBot conceal share for one difficulty: OCCLUSION_BIAS_PLACEMENTS
 ## calls to _build_line_dicts (2 lines each) on one freshly-seeded RNG, the same
 ## seed for every difficulty so only the share table differs. Each returned dict
