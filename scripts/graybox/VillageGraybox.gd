@@ -80,7 +80,7 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Recess left", Vector3(cx + 3, 1.1, -17), Vector3(0.5, 2.2, 3), wall)
 	_add_box("Recess back", Vector3(cx + 5, 1.1, -18.5), Vector3(4.5, 2.2, 0.5), wall)
 	_add_box("Recess right", Vector3(cx + 7, 1.1, -17), Vector3(0.5, 2.2, 3), wall)
-	_add_box("Low shelter roof", Vector3(cx - 1, 1.05, 15), Vector3(6, 0.35, 4), Color(0.38, 0.28, 0.19))
+	_add_box("Low shelter roof", Vector3(cx - 1, 1.6, 15), Vector3(6, 0.35, 4), Color(0.38, 0.28, 0.19))
 	for j in range(3):
 		_add_box("Crate_%d" % j, Vector3(cx + 3 + j * 1.6, 0.6, 3 + j * 0.65), Vector3(1.2, 1.2, 1.2), Color(0.43, 0.30, 0.18))
 	# Fallen log and adjacent rock provide simple obstructed surfaces.
@@ -185,7 +185,13 @@ func _physics_process(delta: float) -> void:
 	walker.move_and_slide()
 	var target := walker.global_position + Vector3(0, 1.1, 0)
 	var offset := Vector3(sin(yaw) * 6.5 * cos(pitch), 2.3 - sin(pitch) * 6.5, cos(yaw) * 6.5 * cos(pitch))
-	camera.global_position = target + offset
+	var desired_camera_position := target + offset
+	var camera_query := PhysicsRayQueryParameters3D.create(target, desired_camera_position)
+	camera_query.exclude = [walker.get_rid()]
+	var camera_hit := get_world_3d().direct_space_state.intersect_ray(camera_query)
+	if not camera_hit.is_empty():
+		desired_camera_position = camera_hit["position"] + camera_hit["normal"] * 0.2
+	camera.global_position = desired_camera_position
 	camera.look_at(target)
 	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | Tab swap zone | Esc release mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
 
