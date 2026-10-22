@@ -18,6 +18,8 @@ func _run() -> void:
 	var walker := level.get_node_or_null("GrayboxExplorer") as CharacterBody3D
 	var camera: Camera3D = null
 	var box_count := 0
+	var perimeter_count := 0
+	var raycast_surfaces := 0
 	var house_count := 0
 	var ramp_count := 0
 	var blockers := 0
@@ -26,6 +28,10 @@ func _run() -> void:
 			camera = child as Camera3D
 		if child is StaticBody3D:
 			box_count += 1
+			if child.is_in_group("graybox_surfaces"):
+				raycast_surfaces += 1
+			if child.name.contains("boundary"):
+				perimeter_count += 1
 			if child.name.begins_with("House left"):
 				house_count += 1
 			if child.name.begins_with("Roof access ramp"):
@@ -33,8 +39,12 @@ func _run() -> void:
 			if child.name.begins_with("MOVABLE_CANDIDATE"):
 				blockers += 1
 	_check(walker != null, "CharacterBody3D exists")
+	_check(level.get_node_or_null("PlayerSpawn3D") is Marker3D, "Human spawn marker exists")
+	_check(level.get_node_or_null("CpuSpawn3D") is Marker3D, "CPU spawn marker exists")
 	_check(camera != null, "Camera3D exists")
 	_check(box_count >= 65, "Village geometry populated")
+	_check(raycast_surfaces == box_count, "Every static physical surface is tagged for future drawing")
+	_check(perimeter_count >= 4, "Four enclosing outer walls")
 	_check(house_count >= 4, "Four village houses")
 	_check(ramp_count >= 4, "Four potential roof routes")
 	_check(blockers >= 2, "Movable candidate geometry present in both zones")
