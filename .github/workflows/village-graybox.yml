@@ -1,0 +1,50 @@
+name: Village Graybox - Godot 4.4
+
+on:
+  push:
+    branches: [feature/3d-village-graybox]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  graybox:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned Godot 4.4 stable
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          unzip -q Godot_v4.4-stable_linux.x86_64.zip
+          chmod +x ./Godot_v4.4-stable_linux.x86_64
+          ./Godot_v4.4-stable_linux.x86_64 --version
+      - name: Parse and import all scenes
+        run: |
+          set -euo pipefail
+          ./Godot_v4.4-stable_linux.x86_64 --headless --path . --editor --quit --log-file graybox-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' graybox-import.log
+      - name: Graybox structure smoke
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/VillageGrayboxSmokeTest.gd --log-file graybox-smoke.log
+          grep -q 'GRAYBOX AUTOMATED STRUCTURE CHECK PASS' graybox-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' graybox-smoke.log
+      - name: Existing Play vs CPU regression
+        run: |
+          set -euo pipefail
+          timeout 240s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/KattipaayPlayableSmokeTest.gd --log-file original-smoke.log
+          grep -q 'KATTIPAAY_SMOKE: PASS' original-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' original-smoke.log
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: village-graybox-test-logs
+          path: |
+            graybox-import.log
+            graybox-smoke.log
+            original-smoke.log
+          if-no-files-found: ignore
