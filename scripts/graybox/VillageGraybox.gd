@@ -47,7 +47,7 @@ func _make_light() -> void:
 
 func _add_box(label: String, pos: Vector3, size: Vector3, color: Color, tilt: Vector3 = Vector3.ZERO) -> StaticBody3D:
 	var body := StaticBody3D.new()
-	body.name = label.validate_node_name()
+	body.name = "%s_%d" % [label.validate_node_name(), get_child_count()]
 	body.add_to_group("graybox_surfaces")
 	if label.begins_with("MOVABLE_CANDIDATE"):
 		body.add_to_group("future_movable_props")
