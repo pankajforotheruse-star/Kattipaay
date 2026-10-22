@@ -48,6 +48,9 @@ func _make_light() -> void:
 func _add_box(label: String, pos: Vector3, size: Vector3, color: Color, tilt: Vector3 = Vector3.ZERO) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = label.validate_node_name()
+	body.add_to_group("graybox_surfaces")
+	if label.begins_with("MOVABLE_CANDIDATE"):
+		body.add_to_group("future_movable_props")
 	body.position = pos
 	body.rotation = tilt
 	var shape := BoxShape3D.new()
@@ -90,6 +93,11 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Ruined shed lintel", Vector3(cx + 13, 2.6, 13), Vector3(6, 0.5, 0.45), wall)
 	_add_box("Bush cover", Vector3(cx - 15, 0.45, -17), Vector3(3.4, 0.9, 2.7), Color(0.29, 0.45, 0.22))
 	_add_box("MOVABLE_CANDIDATE_Crate", Vector3(cx - 8, 0.6, 6), Vector3(1.2, 1.2, 1.2), Color(0.61, 0.42, 0.18))
+	_add_box("Stone steps lower", Vector3(cx - 16, 0.24, -6), Vector3(2.5, 0.48, 1.5), Color(0.47, 0.42, 0.35))
+	_add_box("Stone steps upper", Vector3(cx - 16, 0.52, -4.5), Vector3(2.5, 1.04, 1.5), Color(0.47, 0.42, 0.35))
+	_add_box("Haystack obstacle", Vector3(cx + 17, 0.8, -4), Vector3(2.5, 1.6, 2.5), Color(0.69, 0.53, 0.25))
+	_add_box("Cart base", Vector3(cx - 7, 0.45, -14), Vector3(3.7, 0.9, 2.2), Color(0.42, 0.29, 0.17))
+	_add_box("Cart screen", Vector3(cx - 7, 1.35, -15.1), Vector3(3.7, 1.0, 0.22), Color(0.42, 0.29, 0.17))
 	_add_box("Territory marker", Vector3(cx, 0.05, 0), Vector3(2, 0.1, 2), Color(0.18, 0.45, 0.8) if index == 0 else Color(0.85, 0.35, 0.17))
 
 func _build_house(x: float, z: float, wall: Color) -> void:
