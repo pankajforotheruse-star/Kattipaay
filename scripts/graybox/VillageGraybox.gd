@@ -25,6 +25,7 @@ func _ready() -> void:
 	_add_box("South divider", Vector3(0, 1.5, 15.0), Vector3(0.65, 3.0, 19.0), Color(0.8, 0.7, 0.49))
 	for i in range(2):
 		_build_zone(ZONE_CENTERS[i], i)
+		_add_marker("PlayerSpawn3D" if i == 0 else "CpuSpawn3D", Vector3(ZONE_CENTERS[i], 0.85, 0))
 	_make_walker()
 	_make_ui()
 	_validate_layout()
@@ -107,6 +108,7 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	_add_box("House back", Vector3(x, 1.6, z - 3.5), Vector3(7, 3.2, 0.5), wall)
 	_add_box("Front left", Vector3(x - 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_box("Front right", Vector3(x + 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
+	_add_marker("RoofAnchor_%d_%d" % [int(x), int(z)], Vector3(x, 3.85, z))
 	_add_box("Flat roof", Vector3(x, 3.45, z), Vector3(7.7, 0.35, 7.7), Color(0.55, 0.37, 0.28))
 	_add_box("Roof parapet", Vector3(x, 3.95, z - 3.7), Vector3(7.7, 0.9, 0.4), wall)
 	# Inclined solid ramp is actually walkable, unlike decorative stairs.
@@ -212,3 +214,11 @@ func _validate_layout() -> void:
 	assert(ZONE_CENTERS.size() == 2)
 	assert(walker != null and camera != null)
 	print("VillageGraybox: scene ready for manual exploration; physics and rooftop tests remain pending")
+
+## World-space waypoints for future territory and navigation adapters.
+## These markers do not move the existing CPU or change gameplay rules.
+func _add_marker(marker_name: String, marker_position: Vector3) -> void:
+	var marker := Marker3D.new()
+	marker.name = marker_name
+	marker.position = marker_position
+	add_child(marker)
