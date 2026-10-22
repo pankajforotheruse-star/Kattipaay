@@ -11,6 +11,7 @@ var pitch := -0.25
 var velocity_y := 0.0
 var spawn_index := 0
 var info: Label
+var crouched := false
 
 func _ready() -> void:
 	_make_light()
@@ -26,6 +27,7 @@ func _ready() -> void:
 		_build_zone(ZONE_CENTERS[i], i)
 	_make_walker()
 	_make_ui()
+	_validate_layout()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _make_light() -> void:
@@ -82,6 +84,12 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Stone", Vector3(cx - 14, 0.65, 12), Vector3(2.5, 1.3, 2.5), Color(0.43, 0.42, 0.39))
 	_add_box("Tree trunk", Vector3(cx + 15, 2.1, -13), Vector3(1, 4.2, 1), Color(0.33, 0.21, 0.12))
 	_add_box("Tree crown", Vector3(cx + 15, 4.5, -13), Vector3(5, 2, 5), Color(0.27, 0.43, 0.23))
+	_add_box("Raised platform", Vector3(cx - 15, 0.7, -2), Vector3(5, 1.4, 5), Color(0.48, 0.37, 0.27))
+	_add_box("Ruined shed rear", Vector3(cx + 13, 1.3, 17), Vector3(6, 2.6, 0.45), wall)
+	_add_box("Ruined shed left", Vector3(cx + 10, 1.0, 15), Vector3(0.45, 2.0, 4), wall)
+	_add_box("Ruined shed lintel", Vector3(cx + 13, 2.6, 13), Vector3(6, 0.5, 0.45), wall)
+	_add_box("Bush cover", Vector3(cx - 15, 0.45, -17), Vector3(3.4, 0.9, 2.7), Color(0.29, 0.45, 0.22))
+	_add_box("MOVABLE_CANDIDATE_Crate", Vector3(cx - 8, 0.6, 6), Vector3(1.2, 1.2, 1.2), Color(0.61, 0.42, 0.18))
 	_add_box("Territory marker", Vector3(cx, 0.05, 0), Vector3(2, 0.1, 2), Color(0.18, 0.45, 0.8) if index == 0 else Color(0.85, 0.35, 0.17))
 
 func _build_house(x: float, z: float, wall: Color) -> void:
@@ -97,7 +105,7 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	var rise := 3.45
 	var run := 10.0
 	var angle := atan(rise / run)
-	_add_box("Roof access ramp", Vector3(x + 4.15, rise * 0.5, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
+	_add_box("Roof access ramp", Vector3(x + 3.7, rise * 0.5, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
 	# Ramp upper end overlaps the rooftop edge; verify this transition in-engine.
 
 func _make_walker() -> void:
@@ -135,6 +143,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * 0.003
 		pitch = clampf(pitch - event.relative.y * 0.003, -0.9, 0.3)
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_C:
+			_toggle_crouch()
 		if event.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		if event.keycode == KEY_TAB:
@@ -152,7 +162,7 @@ func _physics_process(delta: float) -> void:
 	var forward := Vector3(-sin(yaw), 0, -cos(yaw))
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
 	var move := (right * direction.x - forward * direction.y)
-	var speed := 8.0 if Input.is_key_pressed(KEY_SHIFT) else 5.0
+	var speed := (8.0 if Input.is_key_pressed(KEY_SHIFT) else 5.0) * (0.5 if crouched else 1.0)
 	walker.velocity.x = move.x * speed
 	walker.velocity.z = move.z * speed
 	if walker.is_on_floor():
@@ -167,4 +177,30 @@ func _physics_process(delta: float) -> void:
 	var offset := Vector3(sin(yaw) * 6.5 * cos(pitch), 2.3 - sin(pitch) * 6.5, cos(yaw) * 6.5 * cos(pitch))
 	camera.global_position = target + offset
 	camera.look_at(target)
-	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | Tab swap zone | Esc release mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
+	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | Tab swap zone | Esc release mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
+
+func _toggle_crouch() -> void:
+	var collider := walker.get_node("CollisionShape3D") as CollisionShape3D
+	var capsule := collider.shape as CapsuleShape3D
+	if crouched:
+		var query := PhysicsShapeQueryParameters3D.new()
+		var standing := CapsuleShape3D.new()
+		standing.radius = 0.35
+		standing.height = 1.7
+		query.shape = standing
+		query.transform = Transform3D(Basis.IDENTITY, walker.global_position)
+		query.exclude = [walker.get_rid()]
+		if not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
+			return
+		capsule.height = 1.7
+		collider.position.y = 0.0
+		crouched = false
+	else:
+		capsule.height = 1.1
+		collider.position.y = -0.3
+		crouched = true
+
+func _validate_layout() -> void:
+	assert(ZONE_CENTERS.size() == 2)
+	assert(walker != null and camera != null)
+	print("VillageGraybox: scene ready for manual exploration; physics and rooftop tests remain pending")
