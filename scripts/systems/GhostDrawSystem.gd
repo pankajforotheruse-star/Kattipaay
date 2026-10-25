@@ -201,7 +201,7 @@ func _process(_delta: float) -> void:
 		return
 
 	_check_discovery()
-	_update_proximity_presentation(delta)
+	_update_proximity_presentation(_delta)
 
 
 func _exit_tree() -> void:
@@ -353,7 +353,10 @@ func probe_reveal_flags(points: Array, searcher_pos: Vector2, wall_concealed: bo
 func probe_register_line(points: Array, wall_concealed: bool, shadow_concealed: bool) -> int:
 	var line := ChalkLine.new()
 	line.id = _generate_line_id()
-	line.points = points
+	var typed_points: Array[Vector2] = []
+	for p in points:
+		typed_points.append(p)
+	line.points = typed_points
 	line.chalk_type = ChalkLine.ChalkType.GHOST
 	line.decay_duration = ChalkLine.GHOST_DECAY_SENTINEL
 	line.is_ghost = true
