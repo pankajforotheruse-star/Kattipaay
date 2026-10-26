@@ -196,7 +196,8 @@ static func cover_site_for_line(points: Array) -> Dictionary:
 ## cannot be discovered until its ACTUAL cover is inspected. A found stroke
 ## may then be crossed out as one child's single chalk mark.
 static func can_reveal_line(points: Array, searcher_pos: Vector2,
-		wall_concealed: bool, inspected: Dictionary = {}) -> bool:
+		wall_concealed: bool, inspected: Dictionary = {},
+		hidden_cover_id: String = "") -> bool:
 	if points.size() < 2:
 		return false
 	var has_real_wall := is_wall_concealed(points)
@@ -217,9 +218,15 @@ static func can_reveal_line(points: Array, searcher_pos: Vector2,
 				elif kind == COVER_ROOF:
 					radius = REVEAL_RADIUS_ROOF
 				elif is_inspectable_cover(kind):
-					if not inspected.has(str(cover["id"])):
-						continue
-					radius = REVEAL_RADIUS_INSPECTED
+					if hidden_cover_id == "surface":
+						# A mark placed on top of a closed brick is exposed.
+						radius = REVEAL_RADIUS_OPEN
+					else:
+						# A mark genuinely underneath or on the backside
+						# requires lifting the public object at that spot.
+						if not inspected.has(str(cover["id"])):
+							continue
+						radius = REVEAL_RADIUS_INSPECTED
 			elif wall_concealed and not has_real_wall:
 				# Preserve backward compatibility with stored legacy packets
 				# whose wc=true flag exists without geometry available.
