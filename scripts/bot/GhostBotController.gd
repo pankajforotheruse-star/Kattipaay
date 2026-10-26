@@ -339,6 +339,8 @@ func _on_solo_search_phase_started(payload: Dictionary) -> void:
 
 
 func _tick_cpu_defender_sneak(delta: float) -> void:
+	if not bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false)):
+		return
 	if _cpu_sneaks_placed >= MAX_CPU_SNEAKS or _ghost_sys == null:
 		return
 	if _ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
