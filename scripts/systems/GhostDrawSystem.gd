@@ -447,7 +447,7 @@ func _check_cpu_sneak_notices() -> void:
 		# requirements as an ordinary hidden mark, with no X-ray shortcut.
 		var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
 		if not (cover.can_notice_sneak(sneak_line.points, searcher.global_position,
-				sneak_line.wall_concealed) if cover else HidingRules.is_revealed(
+				sneak_line.wall_concealed, sneak_line.hidden_cover_id) if cover else HidingRules.is_revealed(
 					sneak_line.points, searcher.global_position, sneak_line.wall_concealed)):
 			continue
 		_cpu_sneak_notice_checked[sneak_line.id] = true
@@ -513,7 +513,7 @@ func _check_discovery() -> void:
 					continue
 				center = actor.global_position
 			var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
-			var visible := cover.can_reveal(line.points, center, line.wall_concealed) if cover else \
+			var visible := cover.can_reveal(line.points, center, line.wall_concealed, line.hidden_cover_id) if cover else \
 					HidingRules.is_revealed(line.points, center, line.wall_concealed)
 			if visible:
 				discovered_ids.append(line.id)
@@ -663,7 +663,7 @@ func _create_ghost_line_node(line: ChalkLine) -> void:
 
 	var ln := _acquire_ghost_line_node()
 	ln.name = "GhostChalkLine_%d" % line.id
-	ln.z_index = 10
+	ln.z_index = 14 if line.hidden_cover_id == "surface" else 10
 
 	# Pre-discovery: faint opacity. Post-discovery: full visibility.
 	if line.is_discovered:
