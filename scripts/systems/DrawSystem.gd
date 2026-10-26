@@ -442,6 +442,25 @@ func _finish_drawing() -> void:
     # Commit A (hiding): classify the stroke against the shared wall geometry --
     # wall-concealed lines reveal at the smaller radius to the searcher.
     line.wall_concealed = HidingRules.is_wall_concealed(line.points)
+    if GameState.solo_vs_cpu:
+        # Drawing under a brick/leaf requires physically lifting it first.
+        # A stroke drawn ON TOP while the object is closed stays visible,
+        # and cannot claim magical backside concealment.
+        var cover_sys := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
+        if cover_sys:
+            for site in HidingRules.get_cover_sites(false):
+                if not HidingRules.is_inspectable_cover(int(site["kind"])):
+                    continue
+                var area: Rect2 = site["rect"]
+                var intersects := false
+                for point in line.points:
+                    if area.has_point(point):
+                        intersects = true
+                        break
+                if intersects:
+                    var opened := cover_sys.opened_for_hiding()
+                    line.hidden_cover_id = str(site["id"]) if opened.has(str(site["id"])) else "surface"
+                    break
     line.widths = smoothed_widths
     line.chalk_type = _current_chalk_type
     line.player_id = _drawing_entity_id
@@ -639,7 +658,9 @@ func _remove_preview_line() -> void:
 func _create_line2d_node(line: ChalkLine) -> Line2D:
     var ln := _acquire_line_node()
     ln.name = "ChalkLine_%d" % line.id
-    ln.z_index = 11  # Above ground, just below entities
+    # Exposed chalk ON TOP of a brick must render over the pile, whereas
+    # chalk drawn on its hidden backside renders underneath until inspection.
+    ln.z_index = 14 if line.hidden_cover_id == "surface" else 11
     ln.width = line.get_base_width()
     ln.default_color = line.get_chalk_color()
     ln.texture_mode = Line2D.LINE_TEXTURE_NONE
