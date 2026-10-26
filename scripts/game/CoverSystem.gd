@@ -86,11 +86,14 @@ func opened_for_hiding() -> Dictionary:
 func inspected_sites() -> Dictionary:
 	return _inspected.duplicate()
 
-func can_reveal(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
-	return HidingRules.can_reveal_line(points, searcher_pos, wall_concealed, _inspected)
+func can_reveal(points: Array, searcher_pos: Vector2,
+		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
+	return HidingRules.can_reveal_line(points, searcher_pos, wall_concealed,
+		_inspected, hidden_cover_id)
 
-func can_notice_sneak(points: Array, searcher_pos: Vector2, wall_concealed: bool) -> bool:
-	return can_reveal(points, searcher_pos, wall_concealed)
+func can_notice_sneak(points: Array, searcher_pos: Vector2,
+		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
+	return can_reveal(points, searcher_pos, wall_concealed, hidden_cover_id)
 
 ## Searcher must actually be within INSPECTION_RADIUS of the public cover.
 ## Tapping a faraway cover while en route cannot inspect it.
