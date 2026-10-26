@@ -46,6 +46,9 @@ var _cover_sys: CoverSystem = null
 var _search_profile: Dictionary = SEARCH_PROFILES[1]
 var _sweep_lane_spacing: float = 210.0
 var _search_waypoints: Array[Vector2] = []
+var _local_investigation: Array[Vector2] = []
+var _search_rng := RandomNumberGenerator.new()
+var _round_scan_flip: bool = false
 var _waypoint_index: int = 0
 var _pause_timer: float = 0.0
 var _sweep_speed: float = DEFAULT_SWEEP_SPEED
@@ -106,6 +109,9 @@ func _on_search_phase_started(payload: Dictionary) -> void:
 	_waypoint_index = 0
 	_pause_timer = 0.0
 	_unresolved_sneaks.clear()
+	_local_investigation.clear()
+	_search_rng.randomize()
+	_round_scan_flip = _search_rng.randf() > 0.5
 	if not _active:
 		return
 	_read_settings()
@@ -192,8 +198,15 @@ func _process(delta: float) -> void:
 	_check_sneak_notices()
 	var revealed_ids := probe_revealed_line_ids(_draw_sys.get_active_lines(), _npc.global_position)
 	if not revealed_ids.is_empty():
+		var discovered := _find_line(revealed_ids[0])
+		var found_pos := HidingRules.nearest_point_on_line(
+			discovered.points, _npc.global_position) if discovered else _npc.global_position
 		if _draw_sys.strike_line(revealed_ids[0]):
-			_pause_timer = float(_search_profile["strike_pause"])
+			# A CHILDHOOD STRIKER DOES NOT silently click a mark and leave:
+			# announce the find, pause, then examine nearby public hiding
+			# places. The only line coordinate used is one already found.
+			_queue_local_investigation(found_pos)
+			_pause_timer = float(_search_profile["strike_pause"]) + 0.35
 			_npc.set_meta("has_target", false)
 		return
 	_follow_search_route()
@@ -254,8 +267,10 @@ func _build_search_waypoints(zone: Rect2, from_pos: Vector2) -> Array[Vector2]:
 		cursor = sites[closest]
 		waypoints.append(cursor)
 		sites.remove_at(closest)
-	var bottom_first := cursor.y >= zone.get_center().y
-	var right_first := cursor.x >= zone.get_center().x
+	# Start from a varied corner each round; repeated matches do not replay
+	# exactly the same rows even on the same difficulty.
+	var bottom_first := (_search_rng.randf() < 0.5) if _active else cursor.y >= zone.get_center().y
+	var right_first := (_search_rng.randf() < 0.5) if _active else cursor.x >= zone.get_center().x
 	for row in range(lanes.size()):
 		var lane_index := lanes.size() - row - 1 if bottom_first else row
 		var y := lanes[lane_index]
@@ -266,6 +281,18 @@ func _build_search_waypoints(zone: Rect2, from_pos: Vector2) -> Array[Vector2]:
 
 
 func _follow_search_route() -> void:
+	# Local investigation is justified by an ALREADY FOUND line, never
+	# remote knowledge of another mark. The CPU checks adjacent publicly
+	# visible cover before resuming its varied terrain sweep.
+	if not _local_investigation.is_empty():
+		var nearby: Vector2 = _local_investigation[0]
+		if _npc.global_position.distance_to(nearby) <= WAYPOINT_REACHED_RADIUS:
+			_local_investigation.pop_front()
+			if _local_investigation.is_empty():
+				return
+			nearby = _local_investigation[0]
+		_walk_to(nearby)
+		return
 	if _search_waypoints.is_empty():
 		return
 	var target := _search_waypoints[_waypoint_index]
@@ -326,6 +353,28 @@ func _apply_notice_penalty(sneak_line: ChalkLine) -> void:
 	})
 	_pause_timer = NOTICE_PAUSE_SECONDS
 	print("CpuSearchController: NOTICED sneak line %d — penalty lines %s" % [sneak_line.id, str(penalized)])
+
+
+## Search around a genuine discovery, not at unseen chalk coordinates.
+func _queue_local_investigation(found_at: Vector2) -> void:
+	_local_investigation.clear()
+	var zone := ZoneLayout.PLAYER_ZONE
+	var nearby_sites: Array[Vector2] = []
+	for site in HidingRules.get_cover_sites(false):
+		var center: Vector2 = site["rect"].get_center()
+		if center.distance_to(found_at) <= 380.0:
+			nearby_sites.append(center)
+	# Inspect probable surroundings and near walls to emulate looking for
+	# additional chalk beside a discovered mark. Fewer checks on Easy.
+	var desired := int(_search_profile["cover_stops"])
+	nearby_sites.shuffle()
+	for i in range(mini(desired, nearby_sites.size())):
+		_local_investigation.append(nearby_sites[i])
+	var checks := mini(3, maxi(1, desired - 1))
+	for _i in range(checks):
+		var offset := Vector2.RIGHT.rotated(_search_rng.randf_range(0.0, TAU)) \
+				* _search_rng.randf_range(65.0, 205.0)
+		_local_investigation.append(ZoneLayout.clamp_to_zone(found_at + offset, zone))
 
 
 func _walk_to(target: Vector2) -> void:
