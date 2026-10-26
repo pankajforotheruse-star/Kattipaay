@@ -372,7 +372,10 @@ func _tick_cpu_defender_sneak(delta: float) -> void:
 		return
 	if _cpu_sneaks_placed >= MAX_CPU_SNEAKS or _ghost_sys == null:
 		return
-	if _ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
+	# An opt-in legacy sneak should still work when the new CPU has drawn
+	# more than fifty base lines. No arbitrary solo ghost storage ceiling.
+	if not GameState.solo_vs_cpu and \
+			_ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
 		return
 	_cpu_sneak_timer -= delta
 	if _cpu_sneak_timer > 0.0:
