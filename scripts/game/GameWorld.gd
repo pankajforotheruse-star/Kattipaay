@@ -28,6 +28,25 @@ func _ready() -> void:
 	move_child(scenery, 0)
 	_align_wall_art_with_concealment_geometry()
 	if GameState.solo_vs_cpu:
+		# Shared navigable, collidable walls for the striker AND defender.
+		# All chalk hiding sites have a walkable approach; no player may
+		# walk through solid compound walls to reveal a hidden stroke.
+		var navigation := VillageNavigation.new()
+		navigation.name = "VillageNavigation"
+		add_child(navigation)
+		for id in [1, 2]:
+			var body := get_entity(id) as CharacterBody2D
+			if body == null:
+				continue
+			body.collision_layer = 1
+			body.collision_mask = 2
+			var collider := CollisionShape2D.new()
+			collider.name = "VillageActorCollider"
+			var capsule := CircleShape2D.new()
+			capsule.radius = 12.0
+			collider.shape = capsule
+			body.add_child(collider)
+	if GameState.solo_vs_cpu:
 		# Shared, discoverable public cover. Creation precedes solo controllers
 		# so both human and CPU search systems see the same inspection state.
 		var covers := CoverSystem.new()
