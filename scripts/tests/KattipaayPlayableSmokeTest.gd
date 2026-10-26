@@ -259,26 +259,21 @@ func _run_test() -> void:
 func _assert_randomized_cpu_quotas() -> void:
 	# A substantial range must be genuine randomness, not just a new
 	# fixed number in each difficulty. No artificial 50-line cutoff.
-	var bot := GhostBotController.new()
+	var rng := RandomNumberGenerator.new()
 	var bounds := [Vector2i(50, 100), Vector2i(65, 120),
 		Vector2i(85, 150), Vector2i(110, 180)]
 	for level in range(4):
-		bot.difficulty = level
 		var seen := {}
 		for i in range(36):
-			bot._rng.seed = 7000 + level * 1000 + i * 17
-			bot.call("_roll_solo_target")
-			var count := int(bot.call("_target_cpu_lines"))
+			rng.seed = 7000 + level * 1000 + i * 17
+			var count := CpuDrawingPolicy.roll_count(level, rng)
 			if count < bounds[level].x or count > bounds[level].y:
 				_fail("Sampled CPU quota outside difficulty range")
-				bot.free()
 				return
 			seen[count] = true
 		if seen.size() < 10:
 			_fail("CPU difficulty target was predictable: %d unique draws" % seen.size())
-			bot.free()
 			return
-	bot.free()
 	print("KATTIPAAY_SMOKE: CPU_QUOTA_RANDOMNESS_OK")
 
 
