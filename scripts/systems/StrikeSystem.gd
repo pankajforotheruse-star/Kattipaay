@@ -147,7 +147,7 @@ func try_strike_at(world_pos: Vector2, radius: float) -> bool:
 		if not line.is_discovered or line.is_struck:
 			continue
 		var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
-		if not (cover.can_reveal(line.points, searcher.global_position, line.wall_concealed)
+		if not (cover.can_reveal(line.points, searcher.global_position, line.wall_concealed, line.hidden_cover_id)
 				if cover else HidingRules.is_revealed(
 					line.points, searcher.global_position, line.wall_concealed)):
 			continue
@@ -177,7 +177,7 @@ func strike_ghost_line(line_id: int) -> bool:
 			if line.id == line_id and line.is_discovered and not line.is_struck:
 				var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
 				var physically_visible := cover.can_reveal(
-					line.points, searcher.global_position, line.wall_concealed) if cover else \
+					line.points, searcher.global_position, line.wall_concealed, line.hidden_cover_id) if cover else \
 						HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed)
 				if not physically_visible:
 					continue
