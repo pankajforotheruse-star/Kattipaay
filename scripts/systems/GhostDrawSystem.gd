@@ -364,7 +364,10 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 		return
 
 	for line_data in lines_data:
-		if _active_ghost_lines.size() >= MAX_GHOST_LINES:
+		# Old 50-line network/ghost cap is not a childhood-game mechanic.
+		# The solo CPU uses its independently sampled difficulty-specific
+		# target and does not silently discard any of those strokes.
+		if not GameState.solo_vs_cpu and _active_ghost_lines.size() >= MAX_GHOST_LINES:
 			break
 		if not line_data is Dictionary or not ChalkLine.is_valid_network_payload(line_data):
 			push_warning("GhostDrawSystem: rejected malformed ghost-line payload")
