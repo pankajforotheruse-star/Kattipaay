@@ -99,6 +99,12 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## identical rule for both sides.
 @export var wall_concealed: bool = false
 
+## Empty means an ordinary/legacy cover-aware mark. A named cover id means
+## it was drawn while that particular brick or leaf pile was lifted.
+## "surface" means the mark was drawn ON TOP of a closed object, so it is
+## visible without flipping it. This metadata follows network round-trips.
+@export var hidden_cover_id: String = ""
+
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
 
@@ -219,6 +225,7 @@ func to_network_dict() -> Dictionary:
         "gd": is_discovered,        # is_discovered
         "wc": wall_concealed,       # wall_concealed (Commit A hiding)
         "sn": is_sneak,             # defender sneaked while opponent searched
+        "hc": hidden_cover_id,      # explicit lift/underside vs surface
     }
     # Estimated size: ~20 bytes overhead + (simplified_points * 4) + (simplified_points * 1)
     # For 10 simplified points: 20 + 40 + 10 = ~70 bytes. Well under 500.
@@ -248,6 +255,9 @@ static func is_valid_network_payload(data: Dictionary) -> bool:
         return false
     if typeof(data.get("pid", -1)) != TYPE_INT:
         return false
+    var cover = data.get("hc", "")
+    if typeof(cover) != TYPE_STRING or cover.length() > 64:
+        return false
     return true
 
 
@@ -274,6 +284,7 @@ func from_network_dict(data: Dictionary) -> void:
     is_discovered = data.get("gd", false)
     wall_concealed = bool(data.get("wc", false))
     is_sneak = bool(data.get("sn", false))
+    hidden_cover_id = str(data.get("hc", ""))
 
     # Decode positions
     points.clear()
