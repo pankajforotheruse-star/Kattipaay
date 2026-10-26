@@ -283,8 +283,9 @@ func _on_draw_start(payload: Dictionary) -> void:
         return
     if not GameState.solo_vs_cpu and (_chalk_exhausted or _match_time_exceeded):
         return
-    if _active_lines.size() >= MAX_ACTIVE_LINES:
-        # Remove oldest line to make room (GDD §4: oldest line fades when limit reached)
+    # Solo has NO quota. Every accepted stroke in the drawing clock survives.
+    # MAX_ACTIVE_LINES is retained only for legacy non-solo prototype modes.
+    if not GameState.solo_vs_cpu and _active_lines.size() >= MAX_ACTIVE_LINES:
         _remove_oldest_line()
     if not GameState.solo_vs_cpu and _chalk_remaining <= 0.0:
         return
@@ -521,8 +522,9 @@ func _add_line(line: ChalkLine) -> void:
     var line_node := _create_line2d_node(line)
     _line_nodes[line.id] = line_node
 
-    # Enforce max line limit
-    if _active_lines.size() > MAX_ACTIVE_LINES:
+    # Never silently delete the human's oldest childhood-game line.
+    # Time, not an arbitrary line counter, limits solo drawing.
+    if not GameState.solo_vs_cpu and _active_lines.size() > MAX_ACTIVE_LINES:
         _remove_oldest_line()
 
 
