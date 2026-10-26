@@ -150,6 +150,8 @@ func _run_test() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_argue_stall_seconds", 1.0)
 	# Deterministically cover CPU's LEGAL defender-argue path.
 	ProjectSettings.set_setting("chalk_gaon/cpu_argue_chance", 1.0)
+	ProjectSettings.set_setting("chalk_gaon/solo_cheating_enabled", false)
+	ProjectSettings.set_setting("chalk_gaon/cpu_line_target", -1)
 	print("KATTIPAAY_SMOKE: PACING_OVERRIDES_SET drawing=8 meeting_call=1 search=5 winner_hold=1 argue_stall=1")
 
 	if change_scene_to_file(MAIN_SCENE) != OK:
@@ -212,6 +214,10 @@ func _run_test() -> void:
 		return
 	scoring_mgr.call("reset_match")
 	print("KATTIPAAY_SMOKE: TIE_DECISION_OK")
+	_assert_randomized_cpu_quotas()
+	if _failed:
+		quit(1)
+		return
 
 	# ── Pass 1: NORMAL — full R6 chain + audit MAJOR-1 (human lines survive)
 	# ── and MAJOR-2's counterpart (CPU sweep strike wiring).
@@ -248,6 +254,32 @@ func _run_test() -> void:
 
 	print("KATTIPAAY_SMOKE: PASS")
 	quit(0)
+
+
+func _assert_randomized_cpu_quotas() -> void:
+	# A substantial range must be genuine randomness, not just a new
+	# fixed number in each difficulty. No artificial 50-line cutoff.
+	var bot := GhostBotController.new()
+	var bounds := [Vector2i(50, 100), Vector2i(65, 120),
+		Vector2i(85, 150), Vector2i(110, 180)]
+	for level in range(4):
+		bot.difficulty = level
+		var seen := {}
+		for i in range(36):
+			bot._rng.seed = 7000 + level * 1000 + i * 17
+			bot.call("_roll_solo_target")
+			var count := int(bot.call("_target_cpu_lines"))
+			if count < bounds[level].x or count > bounds[level].y:
+				_fail("Sampled CPU quota outside difficulty range")
+				bot.free()
+				return
+			seen[count] = true
+		if seen.size() < 10:
+			_fail("CPU difficulty target was predictable: %d unique draws" % seen.size())
+			bot.free()
+			return
+	bot.free()
+	print("KATTIPAAY_SMOKE: CPU_QUOTA_RANDOMNESS_OK")
 
 
 ## The legacy prototype home/tutorial previously advertised unavailable PvE,
@@ -467,13 +499,17 @@ func _run_match_pass(diff_label: String, draw_human_lines: bool) -> void:
 			return
 		print("KATTIPAAY_SMOKE: SOLO_CHALK_PERSISTS_OK")
 	var cpu_base_count := int(ghost_sys.call("get_active_ghost_lines").size())
-	var expected_cpu_lines := {"EASY": 8, "NORMAL": 12, "HARD": 16, "NIGHTMARE": 20}
-	var expected_count := int(expected_cpu_lines.get(diff_label, -1))
-	if cpu_base_count != expected_count:
-		_fail("CPU base-line count for %s: expected %d, got %d" % [
-			diff_label, expected_count, cpu_base_count])
+	var bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
+	var bounds := {"EASY": Vector2i(50, 100), "NORMAL": Vector2i(65, 120),
+		"HARD": Vector2i(85, 150), "NIGHTMARE": Vector2i(110, 180)}
+	var quota: Vector2i = bounds.get(diff_label, Vector2i(-1, -1))
+	var sampled := int(bot.call("_target_cpu_lines")) if bot else -1
+	if sampled < quota.x or sampled > quota.y or cpu_base_count != sampled:
+		_fail("CPU %s: sampled %d of [%d,%d] but drew %d" % [
+			diff_label, sampled, quota.x, quota.y, cpu_base_count])
 		return
-	print("KATTIPAAY_SMOKE: CPU_BASE_LINES_OK difficulty=%s count=%d" % [diff_label, cpu_base_count])
+	print("KATTIPAAY_SMOKE: CPU_RANDOM_RANGE_OK difficulty=%s count=%d" % [
+		diff_label, cpu_base_count])
 	if draw_human_lines:
 		# External draw events must not sneak an ordinary line through MEETING.
 		var before_meeting_lines := int(draw_sys.call("get_active_lines").size())
@@ -1198,6 +1234,9 @@ func _run_sneak_defender_pass(diff_label: String) -> void:
 	# read live from ProjectSettings at each roll; 0.0 is forced later).
 	ProjectSettings.set_setting("chalk_gaon/cpu_sweep_speed", 700.0)
 	ProjectSettings.set_setting("chalk_gaon/cpu_sneak_notice_chance", 1.0)
+	# Previously optional cheat rules are DISABLED in the normal MVP.
+	# This one backwards-compatibility regression explicitly opts in.
+	ProjectSettings.set_setting("chalk_gaon/solo_cheating_enabled", true)
 
 	print("KATTIPAAY_SMOKE: PASS_START difficulty=%s slice4-defender(SNEAK)" % diff_label)
 
