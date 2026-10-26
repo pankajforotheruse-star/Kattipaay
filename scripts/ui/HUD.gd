@@ -645,7 +645,11 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         if _hint_counter_label:
             _hint_counter_label.show()
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         _selected_target_id = -1
     elif from_state == GameState.MatchState.SEARCHING:
         _is_searching = false
@@ -739,7 +743,11 @@ func _on_search_phase_started(payload: Dictionary) -> void:
         if _argue_button:
             _argue_button.hide()  # human is the searcher, not the defender
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         if _hint_counter_label:
             _hint_counter_label.show()
     else:
@@ -750,7 +758,11 @@ func _on_search_phase_started(payload: Dictionary) -> void:
         if _argue_button:
             _refresh_argue_button()
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         if _hint_counter_label:
             _hint_counter_label.hide()
 
