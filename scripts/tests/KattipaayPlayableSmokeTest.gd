@@ -913,8 +913,12 @@ func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
 		return
 	print("KATTIPAAY_SMOKE: REMOTE_STRIKE_BLOCKED_OK")
 
-	# Sneak near an actual player avatar: the CPU may draw it, but it only
-	# incurs the local penalty once the searcher is physically close.
+	# The opt-in legacy sneaking test must deliberately choose an OPEN place:
+	# under a closed brick/shade it would correctly be hidden and would NOT
+	# be caught, regardless of the human standing nearby.
+	var before_probe: Vector2 = player.global_position
+	player.global_position = Vector2(1250.0, 1350.0)
+	player.set_meta("has_target", false)
 	var resource := load("res://scripts/systems/ChalkLine.gd") as GDScript
 	var attempted = resource.new()
 	var sneak_pts: Array[Vector2] = [
@@ -938,6 +942,7 @@ func _exercise_human_search_security(world: Node, ghost_sys: Node) -> void:
 		if int(candidate.get("id")) == sneak_id:
 			_fail("Human failed to catch CPU sneak at actual avatar location")
 			return
+	player.global_position = before_probe
 	print("KATTIPAAY_SMOKE: CPU_SNEAK_CAUGHT_OK sneak=%d" % sneak_id)
 
 
