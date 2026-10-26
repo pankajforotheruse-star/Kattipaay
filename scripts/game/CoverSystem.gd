@@ -7,6 +7,10 @@ class_name CoverSystem
 extends Node2D
 
 var _inspected: Dictionary = {}
+var _opened_for_hiding: Dictionary = {}
+var _draw_tap_start := Vector2.ZERO
+var _draw_tap_moved: float = 0.0
+var _draw_tap_active := false
 var _cpu_attempted: Dictionary = {}
 var _cpu_rng := RandomNumberGenerator.new()
 var _feedback: String = ""
@@ -20,16 +24,64 @@ func _ready() -> void:
 	z_index = 22
 	EventBus.on(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_started)
 	EventBus.on(EventBus.EV_INPUT_MOVE_START, _on_human_tap)
+	EventBus.on(EventBus.EV_INPUT_DRAW_START, _on_hider_draw_start)
+	EventBus.on(EventBus.EV_INPUT_DRAW_UPDATE, _on_hider_draw_update)
+	EventBus.on(EventBus.EV_INPUT_DRAW_END, _on_hider_draw_end)
 
 func _exit_tree() -> void:
 	EventBus.off(EventBus.EV_GAME_SEARCH_PHASE_STARTED, _on_search_started)
 	EventBus.off(EventBus.EV_INPUT_MOVE_START, _on_human_tap)
+	EventBus.off(EventBus.EV_INPUT_DRAW_START, _on_hider_draw_start)
+	EventBus.off(EventBus.EV_INPUT_DRAW_UPDATE, _on_hider_draw_update)
+	EventBus.off(EventBus.EV_INPUT_DRAW_END, _on_hider_draw_end)
 
 func _on_search_started(_payload: Dictionary) -> void:
+	# Hiding finishes when the clock expires; remaining open surfaces are
+	# put back into place so searchers see ordinary-looking public objects.
+	_opened_for_hiding.clear()
 	_inspected.clear()
 	_cpu_attempted.clear()
 	_feedback = ""
 	queue_redraw()
+
+## During the human's own DRAW phase, a short tap on a visible brick/leaf
+## flips/lifts it. Draw under/behind it with the next drag; tap again to
+## replace it. This is an explicit manipulation, not an invisible power-up.
+func _on_hider_draw_start(payload: Dictionary) -> void:
+	if not GameState.solo_vs_cpu or GameState.get_match_state() != GameState.MatchState.DRAWING:
+		return
+	_draw_tap_active = true
+	_draw_tap_start = payload.get("position", Vector2.ZERO)
+	_draw_tap_moved = 0.0
+
+func _on_hider_draw_update(payload: Dictionary) -> void:
+	if _draw_tap_active:
+		_draw_tap_moved = maxf(_draw_tap_moved,
+			_draw_tap_start.distance_to(payload.get("position", _draw_tap_start)))
+
+func _on_hider_draw_end(_payload: Dictionary) -> void:
+	if not _draw_tap_active:
+		return
+	_draw_tap_active = false
+	if _draw_tap_moved > 12.0 or GameState.get_match_state() != GameState.MatchState.DRAWING:
+		return
+	for site in HidingRules.get_cover_sites(false):
+		if not HidingRules.is_inspectable_cover(int(site["kind"])):
+			continue
+		if (site["rect"] as Rect2).has_point(_draw_tap_start):
+			var id := str(site["id"])
+			if _opened_for_hiding.has(id):
+				_opened_for_hiding.erase(id)
+			else:
+				_opened_for_hiding[id] = true
+			queue_redraw()
+			print("CoverSystem: human flipped %s; opened=%s" % [
+				id, str(_opened_for_hiding.has(id))])
+			return
+
+func opened_for_hiding() -> Dictionary:
+	return _opened_for_hiding.duplicate()
+
 
 func inspected_sites() -> Dictionary:
 	return _inspected.duplicate()
@@ -119,7 +171,8 @@ func _draw() -> void:
 		if kind == HidingRules.COVER_TREE:
 			draw_ellipse(region.get_center(), region.size * 0.5, Color(0.08, 0.18, 0.10, 0.30))
 			continue
-		var checked := _inspected.has(str(site["id"]))
+		var checked := _inspected.has(str(site["id"])) or \
+				_opened_for_hiding.has(str(site["id"]))
 		var color := Color(0.29, 0.42, 0.18, 0.85) if kind == HidingRules.COVER_LEAVES else Color(0.58, 0.40, 0.28, 0.95)
 		if checked:
 			color.a = 0.24
