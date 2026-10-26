@@ -235,6 +235,31 @@ func _run() -> void:
 		_game_state.set("current_match", MATCH_DRAWING)
 		print(PREFIX + "DEFENDER_SUPERVISION_OK")
 
+	# Public object hiding is only fair if a striker can physically reach
+	# and inspect its nearest ground-accessible edge. No site is isolated by
+	# compound wall collision, and both roles share the exact same graph.
+	var navigation := world.get_node_or_null("VillageNavigation") as Node
+	_check(navigation != null, "solid wall pathfinding is enabled")
+	if navigation:
+		for site in HidingRules.get_all_cover_sites():
+			var region: Rect2 = site["rect"]
+			var approach: Vector2 = navigation.call("reachable_approach", region.get_center())
+			_check(bool(navigation.call("is_walkable", approach)),
+				"public cover has accessible ground approach")
+			var start: Vector2 = ZoneLayout.SEARCH_ENTRY_HUMAN if \
+					str(site["id"]).begins_with("cpu-") else ZoneLayout.SEARCH_ENTRY_CPU
+			var route: PackedVector2Array = navigation.call("find_route", start, approach)
+			_check(route.size() > 0 and route[-1].distance_to(approach) < 20.0,
+				"searcher can reach every team's covered hiding spot")
+		for wall in HidingRules.get_all_walls():
+			var center: Vector2 = (wall as Rect2).get_center()
+			_check(not bool(navigation.call("is_walkable", center)),
+				"compound-wall center is actually solid")
+			var edge: Vector2 = navigation.call("reachable_approach", center)
+			_check(bool(navigation.call("is_walkable", edge)),
+				"chalk on a wall can be inspected from its reachable edge")
+		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
+
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
 	var player_sm := player.get_node_or_null("EntityStateMachine") as Node
