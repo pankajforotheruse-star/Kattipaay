@@ -146,6 +146,8 @@ const COVER_WALL := 1
 const COVER_TREE := 2
 const COVER_LEAVES := 3
 const COVER_BRICKS := 4
+const COVER_ROOF := 5
+const REVEAL_RADIUS_ROOF := 115.0
 const REVEAL_RADIUS_TREE := 105.0
 const INSPECTION_RADIUS := 100.0
 const REVEAL_RADIUS_INSPECTED := 100.0
@@ -160,6 +162,9 @@ static func get_cover_sites(cpu_zone: bool = false) -> Array[Dictionary]:
 		{"id": prefix + "leaves-b", "kind": COVER_LEAVES, "rect": Rect2(1730, 515 + dy, 155, 95)},
 		{"id": prefix + "bricks-a", "kind": COVER_BRICKS, "rect": Rect2(820, 235 + dy, 150, 85)},
 		{"id": prefix + "bricks-b", "kind": COVER_BRICKS, "rect": Rect2(1360, 390 + dy, 150, 85)},
+		# Low shed roofs: reachable/observable from surrounding ground.
+		{"id": prefix + "roof-a", "kind": COVER_ROOF, "rect": Rect2(1110, 95 + dy, 170, 100)},
+		{"id": prefix + "roof-b", "kind": COVER_ROOF, "rect": Rect2(2030, 495 + dy, 155, 100)},
 	]
 
 static func get_all_cover_sites() -> Array[Dictionary]:
@@ -172,7 +177,7 @@ static func get_all_cover_sites() -> Array[Dictionary]:
 static func cover_site_for_line(points: Array) -> Dictionary:
 	if points.size() < 2:
 		return {}
-	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE]:
+	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE, COVER_ROOF]:
 		for site in get_all_cover_sites():
 			if int(site["kind"]) != kind:
 				continue
@@ -209,6 +214,8 @@ static func can_reveal_line(points: Array, searcher_pos: Vector2,
 					radius = REVEAL_RADIUS_OCCLUDED
 				elif kind == COVER_TREE:
 					radius = REVEAL_RADIUS_TREE
+				elif kind == COVER_ROOF:
+					radius = REVEAL_RADIUS_ROOF
 				elif is_inspectable_cover(kind):
 					if not inspected.has(str(cover["id"])):
 						continue
@@ -224,7 +231,7 @@ static func can_reveal_line(points: Array, searcher_pos: Vector2,
 
 static func cover_site_at(p: Vector2) -> Dictionary:
 	# Moveable covers must win over walls/shadow if an object overlaps.
-	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE]:
+	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE, COVER_ROOF]:
 		for site in get_all_cover_sites():
 			if int(site["kind"]) != kind:
 				continue
