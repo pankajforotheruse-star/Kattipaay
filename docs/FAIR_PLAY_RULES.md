@@ -1,4 +1,4 @@
-# Kattipaay — fair Play vs CPU rules and difficulty profiles
+> **Historical document from the earlier fairness branch.** On `feat/childhood-authentic-loop`, the later owner instructions of 2026-10-26 take precedence. See [CHILDHOOD_MVP_RULES.md](CHILDHOOD_MVP_RULES.md) for unlimited human strokes, randomized CPU ranges, brick flipping, defender following and deferred cheating. This section below is preserved for design history and should not be treated as the latest game policy.\n\n# Kattipaay — fair Play vs CPU rules and difficulty profiles
 
 Godot target: **4.4 stable**. Branch `feat/fair-cover-search-loop`. This spec covers the **actual code**, not discarded ghost/accusation prototype features.
 
