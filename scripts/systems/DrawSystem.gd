@@ -1041,7 +1041,8 @@ func _emit_chalk_meter_if_changed() -> void:
 ## extra lines (tagged is_sneak, counted as surviving lines at scoring).
 func _on_search_phase_started(payload: Dictionary) -> void:
     var searcher: int = payload.get("searcher", -1)
-    sneak_mode = GameState.solo_vs_cpu and searcher == 2
+    sneak_mode = GameState.solo_vs_cpu and searcher == 2 and bool(ProjectSettings.get_setting(
+        "chalk_gaon/solo_cheating_enabled", false))
     _sneak_lines_used = 0
     _emit_sneak_meter()
 
