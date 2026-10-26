@@ -285,20 +285,20 @@ func _follow_search_route() -> void:
 	# remote knowledge of another mark. The CPU checks adjacent publicly
 	# visible cover before resuming its varied terrain sweep.
 	if not _local_investigation.is_empty():
-		var nearby: Vector2 = _local_investigation[0]
+		var nearby: Vector2 = _reachable_target(_local_investigation[0])
 		if _npc.global_position.distance_to(nearby) <= WAYPOINT_REACHED_RADIUS:
 			_local_investigation.pop_front()
 			if _local_investigation.is_empty():
 				return
-			nearby = _local_investigation[0]
+			nearby = _reachable_target(_local_investigation[0])
 		_walk_to(nearby)
 		return
 	if _search_waypoints.is_empty():
 		return
-	var target := _search_waypoints[_waypoint_index]
+	var target := _reachable_target(_search_waypoints[_waypoint_index])
 	if _npc.global_position.distance_to(target) <= WAYPOINT_REACHED_RADIUS:
 		_waypoint_index = (_waypoint_index + 1) % _search_waypoints.size()
-		target = _search_waypoints[_waypoint_index]
+		target = _reachable_target(_search_waypoints[_waypoint_index])
 	_walk_to(target)
 
 
@@ -375,6 +375,14 @@ func _queue_local_investigation(found_at: Vector2) -> void:
 		var offset := Vector2.RIGHT.rotated(_search_rng.randf_range(0.0, TAU)) \
 				* _search_rng.randf_range(65.0, 205.0)
 		_local_investigation.append(ZoneLayout.clamp_to_zone(found_at + offset, zone))
+
+
+func _reachable_target(point: Vector2) -> Vector2:
+	# Wall center or enclosed hiding spot is never an unreachable command.
+	# Striker approaches the nearest freely walkable inspection edge instead.
+	var world := _npc.get_tree().current_scene if _npc else null
+	var nav := world.get_node_or_null("VillageNavigation") as VillageNavigation if world else null
+	return nav.reachable_approach(point) if nav else point
 
 
 func _walk_to(target: Vector2) -> void:
