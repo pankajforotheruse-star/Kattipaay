@@ -284,8 +284,8 @@ func _roll_solo_target() -> void:
 	# One roll per match, not one roll per frame. Scripted tests may override
 	# this target deliberately, normal players always get a fresh seeded range.
 	var override := int(ProjectSettings.get_setting("chalk_gaon/cpu_line_target", -1))
-	var bounds: Vector2i = CPU_LINE_RANGES.get(difficulty, CPU_LINE_RANGES[1])
-	_solo_draw_target = override if override >= 0 else _rng.randi_range(bounds.x, bounds.y)
+	var bounds: Vector2i = CpuDrawingPolicy.bounds_for(difficulty)
+	_solo_draw_target = CpuDrawingPolicy.roll_count(difficulty, _rng, override)
 	_solo_draw_elapsed = 0.0
 	_solo_lines_emitted = 0
 	_recent_hiding_spots.clear()
