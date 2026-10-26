@@ -158,6 +158,83 @@ func _run() -> void:
 		_game_state.set("solo_active_searcher", -1)
 		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
 
+	# Real human solo mode has NO 50-line cap: adding 65 valid marks must
+	# never evict the first one to make room for a later one.
+	var first_id := 3000
+	for i in range(65):
+		var chalk := ChalkLine.new()
+		chalk.id = first_id + i
+		chalk.player_id = 1
+		chalk.points = [Vector2(100 + i * 12, 90),
+			Vector2(130 + i * 12, 94)]
+		chalk.widths = [3.0, 3.0]
+		chalk.created_at = float(i)
+		draw.call("_add_line", chalk)
+	var all_lines: Array = draw.call("get_active_lines")
+	_check(all_lines.size() >= 65,
+		"65 valid human strokes accepted without artificial quota")
+	_check(all_lines.any(func(item: ChalkLine) -> bool: return item.id == first_id),
+		"oldest human mark never auto-evicted")
+	draw.call("clear_all_lines")
+	print(PREFIX + "UNLIMITED_HUMAN_MARKS_OK")
+
+	# Manipulation of a physical brick while drawing: tap to flip open,
+	# draw on its backside, tap to replace, then require a searcher to lift
+	# it again. Drawing while closed instead must be classified exposed.
+	if cover != null:
+		var brick: Dictionary = HidingRules.get_cover_sites(false)[4]
+		var center: Vector2 = (brick["rect"] as Rect2).get_center()
+		cover.call("_on_hider_draw_start", {"position": center})
+		cover.call("_on_hider_draw_end", {})
+		_check((cover.call("opened_for_hiding") as Dictionary).has(str(brick["id"])),
+			"tap opens flipped brick for backside drawing")
+		var stroke: Array[Vector2] = [center - Vector2(22, 0),
+			center + Vector2(22, 0)]
+		root.get_node("EventBus").call("emit", "input.draw_start",
+			{"entity_id": 1, "position": stroke[0]})
+		root.get_node("EventBus").call("emit", "input.draw_update",
+			{"entity_id": 1, "position": stroke[1]})
+		root.get_node("EventBus").call("emit", "input.draw_end", {"entity_id": 1})
+		var under: Array = draw.call("get_active_lines")
+		_check(under.size() == 1 and str(under[0].hidden_cover_id) == str(brick["id"]),
+			"line drawn on flipped brick has actual underside metadata")
+		cover.call("_on_hider_draw_start", {"position": center})
+		cover.call("_on_hider_draw_end", {})
+		_check((cover.call("opened_for_hiding") as Dictionary).is_empty(),
+			"brick was replaced after hidden drawing")
+		_check(not bool(cover.call("can_reveal", stroke, center, false,
+			str(brick["id"]))), "replaced brick hides actual underside chalk")
+		_check(bool(cover.call("can_reveal", stroke, center, false,
+			"surface")), "line drawn visibly ON TOP of closed brick is exposed")
+		draw.call("clear_all_lines")
+		print(PREFIX + "FLIPPED_BRICK_UNDERSIDE_OK")
+
+	var escort := world.get_node_or_null("DefenderEscort")
+	_check(escort != null, "supervising defender-follow controller installed")
+	if escort != null:
+		_game_state.set("current_match", MATCH_SEARCHING)
+		escort.call("_on_search_started", {"searcher": 2, "defender": 1})
+		escort.set("_manual_override", 0.0)
+		var prev_cpu: Vector2 = cpu.global_position
+		var prev_player: Vector2 = player.global_position
+		cpu.global_position = ZoneLayout.clamp_to_player_zone(
+			prev_player + Vector2(360, 0))
+		escort.call("_process", 0.1)
+		_check(bool(player.get_meta("has_target", false)),
+			"human defender follows CPU striker to supervise")
+		var followed_target: Vector2 = player.get_meta("target_position")
+		_check(followed_target.distance_to(cpu.global_position) < 200.0,
+			"defender follows from nearby rather than teleporting")
+		escort.call("_on_human_move", {"entity_id": 1})
+		_check(float(escort.get("_manual_override")) > 2.0,
+			"human tap takes control away from automatic follow")
+		escort.call("_on_search_ended", {})
+		cpu.global_position = prev_cpu
+		player.global_position = prev_player
+		player.set_meta("has_target", false)
+		_game_state.set("current_match", MATCH_DRAWING)
+		print(PREFIX + "DEFENDER_SUPERVISION_OK")
+
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
 	var player_sm := player.get_node_or_null("EntityStateMachine") as Node
