@@ -171,6 +171,14 @@ func _draw() -> void:
 		if kind == HidingRules.COVER_TREE:
 			draw_ellipse(region.get_center(), region.size * 0.5, Color(0.08, 0.18, 0.10, 0.30))
 			continue
+		if kind == HidingRules.COVER_ROOF:
+			draw_rect(region, Color(0.39, 0.29, 0.22, 0.57), true)
+			draw_rect(region, Color(0.19, 0.17, 0.15, 0.75), false, 3.0)
+			for dx in range(14, int(region.size.x), 28):
+				draw_line(region.position + Vector2(dx, 5),
+					region.position + Vector2(dx, region.size.y - 5),
+					Color(0.20, 0.15, 0.13, 0.31), 1.0)
+			continue
 		var checked := _inspected.has(str(site["id"])) or \
 				_opened_for_hiding.has(str(site["id"]))
 		var color := Color(0.29, 0.42, 0.18, 0.85) if kind == HidingRules.COVER_LEAVES else Color(0.58, 0.40, 0.28, 0.95)
