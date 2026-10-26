@@ -130,7 +130,18 @@ var _cpu_placement_count: int = 0
 var _cpu_sneak_timer: float = 0.0
 var _cpu_sneaks_placed: int = 0
 const MAX_CPU_SNEAKS := 3
-const CPU_LINE_TARGETS := {0: 8, 1: 12, 2: 16, 3: 20}
+# Owner requirement: substantial RANDOM ranges. Chosen higher-tier values are
+# AI-proposed balance starting points, not owner-approved win-rate guarantees.
+const CPU_LINE_RANGES := {
+	0: Vector2i(50, 100),
+	1: Vector2i(65, 120),
+	2: Vector2i(85, 150),
+	3: Vector2i(110, 180),
+}
+var _solo_draw_target: int = -1
+var _solo_draw_elapsed: float = 0.0
+var _solo_lines_emitted: int = 0
+const MAX_SOLO_BATCHES_PER_FRAME := 40
 ## Difficulty changes how many PUBLIC cover objects the CPU chooses, not
 ## the reveal physics. The human is free to use exactly the same sites.
 const CPU_COVER_ANCHOR_SHARE := {0: 0.15, 1: 0.30, 2: 0.55, 3: 0.75}
@@ -259,25 +270,43 @@ func _ai_tick(delta: float) -> void:
 ## distribute them through the actual phase duration (incl. fast CI pacing).
 ## The CPU never sees the player's hidden coordinates to decide its count.
 func _target_cpu_lines() -> int:
+	if GameState.solo_vs_cpu:
+		if _solo_draw_target < 0:
+			_roll_solo_target()
+		return _solo_draw_target
+	return MAX_ACTIVE_GHOST_LINES
+
+
+func _roll_solo_target() -> void:
+	# One roll per match, not one roll per frame. Scripted tests may override
+	# this target deliberately, normal players always get a fresh seeded range.
 	var override := int(ProjectSettings.get_setting("chalk_gaon/cpu_line_target", -1))
-	var target := override if override >= 0 else int(CPU_LINE_TARGETS.get(difficulty, 12))
-	return clampi(target, 2, MAX_ACTIVE_GHOST_LINES)
+	var bounds: Vector2i = CPU_LINE_RANGES.get(difficulty, CPU_LINE_RANGES[1])
+	_solo_draw_target = override if override >= 0 else _rng.randi_range(bounds.x, bounds.y)
+	_solo_draw_elapsed = 0.0
+	_solo_lines_emitted = 0
+	print("GhostBot: sampled %d solo strokes in range %s" % [_solo_draw_target, bounds])
 
 
 func _tick_cpu_drawing(delta: float) -> void:
 	if not _ghost_sys:
 		return
-	if _ghost_sys.get_active_ghost_lines().size() >= _target_cpu_lines():
-		return
-	_cpu_draw_timer -= delta
-	if _cpu_draw_timer > 0.0:
-		return
-	var drawing_seconds := float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40.0))
-	var pairs := maxi(1, int(ceil(float(_target_cpu_lines()) / float(LINES_PER_PLACEMENT))))
-	_cpu_draw_timer = maxf(0.7, (drawing_seconds - 0.3) / float(pairs))
-	# Each pair gets its own independent hiding site across the CPU territory.
-	_placement_anchor = _choose_public_hiding_anchor()
-	_execute_placement()
+	var duration := maxf(0.1, float(ProjectSettings.get_setting(
+		"chalk_gaon/solo_drawing_seconds", 40.0)))
+	_solo_draw_elapsed += delta
+	# A smooth randomized rate curve lets the CPU draw steadily through the
+	# same 40s clock as the human without the old 0.7s minimum that silently
+	# capped it at a handful of lines. Short CI phases use the same formula.
+	var progress := clampf(_solo_draw_elapsed / maxf(0.1, duration - 0.15), 0.0, 1.0)
+	var expected := mini(_target_cpu_lines(), int(ceil(progress * _target_cpu_lines())))
+	var batches := 0
+	while _solo_lines_emitted < expected and batches < MAX_SOLO_BATCHES_PER_FRAME:
+		_placement_anchor = _choose_public_hiding_anchor()
+		var before := _solo_lines_emitted
+		_execute_placement()
+		if _solo_lines_emitted <= before:
+			break
+		batches += 1
 
 
 ## Select from the same public locations a human sees. Never inspect hidden
@@ -349,7 +378,9 @@ func _can_place() -> bool:
 		return false
 	if not _ghost_sys.is_ghost_draw_available():
 		return false
-	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= mini(MAX_ACTIVE_GHOST_LINES, _target_cpu_lines())
+	if GameState.solo_vs_cpu:
+		return _solo_lines_emitted < _target_cpu_lines()
+	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= MAX_ACTIVE_GHOST_LINES
 
 
 func _execute_placement() -> void:
@@ -374,6 +405,13 @@ func _execute_placement() -> void:
 	anchor = _clamp_to_cpu_zone(anchor)
 
 	var dicts := _build_line_dicts(anchor)
+	if GameState.solo_vs_cpu:
+		var left := _target_cpu_lines() - _solo_lines_emitted
+		if dicts.size() > left:
+			dicts.resize(left)
+		if dicts.is_empty():
+			return
+		_solo_lines_emitted += dicts.size()
 	EventBus.emit(EventBus.EV_NETWORK_GHOST_LINES_PLACED, {
 		"lines": dicts,
 		"owner_id": GHOST_ENTITY_ID,
@@ -631,6 +669,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	if to_state == GameState.MatchState.DRAWING:
 		_reset_round_memory()
 		_cpu_draw_timer = 0.2
+		if GameState.solo_vs_cpu:
+			_roll_solo_target()
 		_fallback_timer = 0.0
 		_placement_delay = 0.0
 		_placement_due = false
