@@ -27,7 +27,7 @@ Additional existing wall-anchor bias is applied during pair generation. Thus per
 
 ## Known acceptance gaps and limitations
 
-- Physical house/brick art and obstacle collision/navigation are still prototype-level. Current world permits reaching all sites because the searcher can navigate straight through decorative scenery, but **that is not realistic movement**. True static obstacles with obstacle-aware paths are a distinct major acceptance item; do not mark them complete from CI.
+- **Actual compound walls are now solid** for both striker and defender, with a shared Godot 4.4 AStarGrid2D path through accessible inspection approaches. CI verifies routes to every declared public hiding object. However, **houses, roof access, thrown bricks and other scene props still need physical collision/art refinement**; the current interaction is an accessible top-down abstraction, not a final realistic obstacle model.
 - Tapping to flip is an accessible top-down abstraction of picking up or turning a brick. Individual 3D brick faces, roof climbing, throwing a brick face-down, authentic animations and touch UX feedback beyond color fade are not yet present.
 - Unlimited human mark count is implemented without arbitrary quotas, **not with physically infinite memory**. Android load testing with several hundred strokes and prolonged sessions must establish safe frame-rate/memory behavior. Do not silently drop user marks to meet performance targets.
 - The owner deferred cheat penalties (5-mark deduction) and full 4–5-member team surveillance. Existing simple ARGUE/distraction is not a full multi-child interaction system.
@@ -36,6 +36,6 @@ Additional existing wall-anchor bias is applied during pair generation. Thus per
 
 ## Merge/sanity gate
 
-Godot `4.4.stable.official`: full editor import and all-scene audit; deterministic geometry/visibility/serialization tests; component tests (65 marks, flip/backside, defender follow); five accelerated full matches with target range assertions; baseline secret/config security scan; all six GitHub CI jobs green. **Headless CI is not a substitute for physical Android playtesting or measured game balance.**
+Godot `4.4.stable.official`: full editor import and all-scene audit; deterministic geometry/visibility/serialization tests; component tests (65 marks, flip/backside, defender follow, solid-wall navigation and reachable approach to all hiding sites); five accelerated full matches with target range assertions; baseline secret/config security scan; all six GitHub CI jobs green. **Headless CI is not a substitute for physical Android playtesting or measured game balance.**
 
 Do not merge draft PR #35 (or PR #34) into main without explicit owner approval.
