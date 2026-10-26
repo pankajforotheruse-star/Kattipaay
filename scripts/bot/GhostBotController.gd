@@ -144,7 +144,10 @@ var _solo_lines_emitted: int = 0
 const MAX_SOLO_BATCHES_PER_FRAME := 40
 ## Difficulty changes how many PUBLIC cover objects the CPU chooses, not
 ## the reveal physics. The human is free to use exactly the same sites.
-const CPU_COVER_ANCHOR_SHARE := {0: 0.15, 1: 0.30, 2: 0.55, 3: 0.75}
+const CPU_COVER_ANCHOR_SHARE := {0: 0.30, 1: 0.48, 2: 0.64, 3: 0.78}
+# A few conspicuous decoys waste the searcher's limited time on purpose.
+const CPU_DECOY_SHARE := {0: 0.26, 1: 0.18, 2: 0.13, 3: 0.09}
+var _recent_hiding_spots: Array[Vector2] = []
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
 var _placement_delay: float = 0.0
@@ -285,6 +288,7 @@ func _roll_solo_target() -> void:
 	_solo_draw_target = override if override >= 0 else _rng.randi_range(bounds.x, bounds.y)
 	_solo_draw_elapsed = 0.0
 	_solo_lines_emitted = 0
+	_recent_hiding_spots.clear()
 	print("GhostBot: sampled %d solo strokes in range %s" % [_solo_draw_target, bounds])
 
 
@@ -312,16 +316,41 @@ func _tick_cpu_drawing(delta: float) -> void:
 ## Select from the same public locations a human sees. Never inspect hidden
 ## human marks to place CPU marks. This is a draw-phase strategy only.
 func _choose_public_hiding_anchor() -> Vector2:
-	if _rng.randf() < float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.30)):
-		var sites := HidingRules.get_cover_sites(true)
-		var site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
-		var region: Rect2 = site["rect"]
-		return Vector2(
-			_rng.randf_range(region.position.x + 12.0, region.end.x - 12.0),
-			_rng.randf_range(region.position.y + 12.0, region.end.y - 12.0))
-	return Vector2(
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 130.0, ZoneLayout.CPU_ZONE.end.x - 130.0),
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 100.0, ZoneLayout.CPU_ZONE.end.y - 100.0))
+	var anchor := Vector2.ZERO
+	# Biased randomness with decoys, public object-hiding and open ground.
+	# Spread placements across the map rather than piling hundreds of marks
+	# into one deterministic cluster.
+	for _attempt in range(16):
+		var roll := _rng.randf()
+		var decoy_chance := float(CPU_DECOY_SHARE.get(difficulty, 0.2))
+		var hide_chance := float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.5))
+		if roll < decoy_chance:
+			# Easily found lines toward the alley tempt the striker to waste
+			# precious seconds, precisely as children sometimes did.
+			anchor = Vector2(_rng.randf_range(160.0, 2230.0),
+				_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 50.0,
+					ZoneLayout.CPU_ZONE.position.y + 130.0))
+		elif roll < decoy_chance + hide_chance:
+			var sites := HidingRules.get_cover_sites(true)
+			var site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
+			var region: Rect2 = site["rect"]
+			anchor = Vector2(_rng.randf_range(region.position.x + 8.0, region.end.x - 8.0),
+				_rng.randf_range(region.position.y + 8.0, region.end.y - 8.0))
+		else:
+			anchor = Vector2(_rng.randf_range(120.0, 2280.0),
+				_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 80.0,
+					ZoneLayout.CPU_ZONE.end.y - 90.0))
+		var too_close := false
+		for old_pos in _recent_hiding_spots:
+			if anchor.distance_squared_to(old_pos) < 75.0 * 75.0:
+				too_close = true
+				break
+		if not too_close:
+			break
+	_recent_hiding_spots.append(anchor)
+	if _recent_hiding_spots.size() > 35:
+		_recent_hiding_spots.pop_front()
+	return ZoneLayout.clamp_to_cpu_zone(anchor)
 
 
 func get_cpu_placement_count() -> int:
