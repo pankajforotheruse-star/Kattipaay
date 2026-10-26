@@ -136,6 +136,130 @@ static func random_wall_anchor_for_zone(cpu_zone: bool, rng: RandomNumberGenerat
 		rng.randf_range(wall.position.y, wall.position.y + wall.size.y)
 	)
 
+# ── Shared, public cover layout and symmetric search resolution ──────────────
+# A line under movable leaves/bricks NEVER reveals through passive proximity.
+# Both searchers must first inspect that PUBLIC cover object at arm's reach.
+# Tree shade is passive but requires closer examination than open ground.
+# The geometry is mirrored, and difficulty never changes these rules.
+const COVER_GROUND := 0
+const COVER_WALL := 1
+const COVER_TREE := 2
+const COVER_LEAVES := 3
+const COVER_BRICKS := 4
+const COVER_ROOF := 5
+const REVEAL_RADIUS_ROOF := 115.0
+const REVEAL_RADIUS_TREE := 105.0
+const INSPECTION_RADIUS := 100.0
+const REVEAL_RADIUS_INSPECTED := 100.0
+
+static func get_cover_sites(cpu_zone: bool = false) -> Array[Dictionary]:
+	var dy := ZoneLayout.CPU_ZONE.position.y if cpu_zone else 0.0
+	var prefix := "cpu-" if cpu_zone else "player-"
+	return [
+		{"id": prefix + "tree-a", "kind": COVER_TREE, "rect": Rect2(250, 360 + dy, 230, 155)},
+		{"id": prefix + "tree-b", "kind": COVER_TREE, "rect": Rect2(1900, 310 + dy, 220, 170)},
+		{"id": prefix + "leaves-a", "kind": COVER_LEAVES, "rect": Rect2(480, 155 + dy, 155, 95)},
+		{"id": prefix + "leaves-b", "kind": COVER_LEAVES, "rect": Rect2(1730, 515 + dy, 155, 95)},
+		{"id": prefix + "bricks-a", "kind": COVER_BRICKS, "rect": Rect2(820, 235 + dy, 150, 85)},
+		{"id": prefix + "bricks-b", "kind": COVER_BRICKS, "rect": Rect2(1360, 390 + dy, 150, 85)},
+		# Low shed roofs: reachable/observable from surrounding ground.
+		{"id": prefix + "roof-a", "kind": COVER_ROOF, "rect": Rect2(1110, 95 + dy, 170, 100)},
+		{"id": prefix + "roof-b", "kind": COVER_ROOF, "rect": Rect2(2030, 495 + dy, 155, 100)},
+	]
+
+static func get_all_cover_sites() -> Array[Dictionary]:
+	var out := get_cover_sites(false)
+	out.append_array(get_cover_sites(true))
+	return out
+
+## The cover type is computed from PUBLIC geography, never secretly assigned
+## to the CPU or the human. A line crossing active cover must be inspected.
+static func cover_site_for_line(points: Array) -> Dictionary:
+	if points.size() < 2:
+		return {}
+	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE, COVER_ROOF]:
+		for site in get_all_cover_sites():
+			if int(site["kind"]) != kind:
+				continue
+			var region: Rect2 = site["rect"]
+			for i in range(points.size() - 1):
+				if _segment_intersects_rect(points[i], points[i + 1], region):
+					return site
+	return {}
+
+## One symmetric visibility predicate for BOTH opponents. The caller supplies
+## only the inspected cover ids that the current searcher physically opened.
+## No extra radius, X-ray knowledge or automatic cover inspection for CPU.
+## Sample each segment independently. A line that is 10px under a brick
+## and 200px on open ground is not magically hidden along all 210px. The
+## exposed part can be found without lifting the brick; the covered portion
+## cannot be discovered until its ACTUAL cover is inspected. A found stroke
+## may then be crossed out as one child's single chalk mark.
+static func can_reveal_line(points: Array, searcher_pos: Vector2,
+		wall_concealed: bool, inspected: Dictionary = {},
+		hidden_cover_id: String = "") -> bool:
+	if points.size() < 2:
+		return false
+	var has_real_wall := is_wall_concealed(points)
+	for i in range(points.size() - 1):
+		var a: Vector2 = points[i]
+		var b: Vector2 = points[i + 1]
+		var count := maxi(1, int(ceil(a.distance_to(b) / 18.0)))
+		for j in range(count + 1):
+			var sample := a.lerp(b, float(j) / float(count))
+			var radius := REVEAL_RADIUS_OPEN
+			var cover := cover_site_at(sample)
+			if not cover.is_empty():
+				var kind := int(cover["kind"])
+				if kind == COVER_WALL:
+					radius = REVEAL_RADIUS_OCCLUDED
+				elif kind == COVER_TREE:
+					radius = REVEAL_RADIUS_TREE
+				elif kind == COVER_ROOF:
+					radius = REVEAL_RADIUS_ROOF
+				elif is_inspectable_cover(kind):
+					if hidden_cover_id == "surface":
+						# A mark placed on top of a closed brick is exposed.
+						radius = REVEAL_RADIUS_OPEN
+					else:
+						# A mark genuinely underneath or on the backside
+						# requires lifting the public object at that spot.
+						if not inspected.has(str(cover["id"])):
+							continue
+						radius = REVEAL_RADIUS_INSPECTED
+			elif wall_concealed and not has_real_wall:
+				# Preserve backward compatibility with stored legacy packets
+				# whose wc=true flag exists without geometry available.
+				radius = REVEAL_RADIUS_OCCLUDED
+			if searcher_pos.distance_squared_to(sample) <= radius * radius:
+				return true
+	return false
+
+
+static func cover_site_at(p: Vector2) -> Dictionary:
+	# Moveable covers must win over walls/shadow if an object overlaps.
+	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE, COVER_ROOF]:
+		for site in get_all_cover_sites():
+			if int(site["kind"]) != kind:
+				continue
+			var rect: Rect2 = site["rect"]
+			if kind == COVER_TREE:
+				var d := p - rect.get_center()
+				var radii := rect.size * 0.5
+				if radii.x > 0 and radii.y > 0 and \
+						(d.x / radii.x) ** 2 + (d.y / radii.y) ** 2 <= 1.0:
+					return site
+			elif rect.has_point(p):
+				return site
+	for wall in get_all_walls():
+		var rect: Rect2 = wall
+		if rect.has_point(p):
+			return {"id": "wall", "kind": COVER_WALL, "rect": rect}
+	return {}
+
+static func is_inspectable_cover(kind: int) -> bool:
+	return kind == COVER_LEAVES or kind == COVER_BRICKS
+
 # ── Geometry helpers ──────────────────────────────────────────────────────────
 
 ## Segment-vs-rect intersection: true if either endpoint is inside the rect or

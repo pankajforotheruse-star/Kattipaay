@@ -243,6 +243,10 @@ func _create_chalk_label() -> void:
     _chalk_label.offset_right = -16
     _chalk_label.offset_bottom = 84
     add_child(_chalk_label)
+    # Drawing is limited by time and valid stroke count in the solo game,
+    # never a PvE "chalk stamina" bar.
+    if GameState.solo_vs_cpu:
+        _chalk_label.hide()
 
 
 func _create_argument_button() -> void:
@@ -641,7 +645,11 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         if _hint_counter_label:
             _hint_counter_label.show()
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         _selected_target_id = -1
     elif from_state == GameState.MatchState.SEARCHING:
         _is_searching = false
@@ -735,7 +743,11 @@ func _on_search_phase_started(payload: Dictionary) -> void:
         if _argue_button:
             _argue_button.hide()  # human is the searcher, not the defender
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         if _hint_counter_label:
             _hint_counter_label.show()
     else:
@@ -746,7 +758,11 @@ func _on_search_phase_started(payload: Dictionary) -> void:
         if _argue_button:
             _refresh_argue_button()
         if _silent_sneak_button:
-            _silent_sneak_button.show()
+            if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
+                    "chalk_gaon/solo_cheating_enabled", false)):
+                _silent_sneak_button.show()
+            else:
+                _silent_sneak_button.hide()
         if _hint_counter_label:
             _hint_counter_label.hide()
 
@@ -789,6 +805,20 @@ func _on_search_phase_ended(_payload: Dictionary) -> void:
 func _on_line_struck(payload: Dictionary) -> void:
     if _remaining_lines_label and payload.has("remaining"):
         _remaining_lines_label.text = "Lines left: %d" % int(payload.get("remaining", 0))
+    # The striker publicly announces what was found. The defender hears
+    # which mark is being removed and can physically supervise nearby.
+    if GameState.solo_vs_cpu and _search_banner_label \
+            and GameState.get_match_state() == GameState.MatchState.SEARCHING:
+        var defender := str(payload.get("defender", ""))
+        if defender == "human":
+            _search_banner_label.text = "CPU FOUND A CHALK LINE! Striking it out."
+            _search_banner_label.add_theme_color_override(
+                "font_color", Color(1.0, 0.55, 0.3, 1.0))
+        elif bool(payload.get("is_ghost", false)):
+            _search_banner_label.text = "YOU FOUND A CHALK LINE! Strike confirmed."
+            _search_banner_label.add_theme_color_override(
+                "font_color", Color(0.55, 0.96, 0.65, 1.0))
+        _search_banner_label.show()
 
 func _on_timer_expired(_payload: Dictionary) -> void:
     if _timer_label:

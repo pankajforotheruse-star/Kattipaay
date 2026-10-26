@@ -6,11 +6,11 @@ extends Control
 enum Step { DRAW = 0, HIDE = 1, TOSS = 2, SEARCH = 3, DEFEND = 4 }
 
 const STEP_DATA := [
-	{ "title": "DRAW", "body": "In your own half, drag one finger (or left mouse button) to draw as many chalk lines as you can before 40 seconds run out." },
-	{ "title": "HIDE", "body": "Place marks against compound walls to conceal them. Hidden wall marks require searching closer than marks on open ground." },
+	{ "title": "DRAW", "body": "Draw as many chalk marks as you can in 40 seconds. There is no line quota: every valid mark counts, even after fifty or a hundred strokes." },
+	{ "title": "HIDE", "body": "Choose clever spots: ground decoys, walls, low roofs or tree shade. Tap a fallen brick or leaf pile to lift it, draw beneath or on the back, then tap it again to replace it." },
 	{ "title": "TOSS", "body": "Meet at the central alley, call heads or tails, and find out who searches the other half first." },
-	{ "title": "SEARCH", "body": "During your 30-second search, tap to walk around the CPU's half. Get close enough to discover a mark, then tap it to strike it out." },
-	{ "title": "DEFEND", "body": "When the CPU searches your half, distract it with ARGUE and sneak up to three extra marks. Then swap roles. More surviving lines wins; equal totals are a draw." },
+	{ "title": "SEARCH", "body": "When you find a chalk line, announce and strike it out. Check nearby hiding places too. Walk close and tap fallen bricks or leaves to inspect them: closed covers can hide marks underneath." },
+	{ "title": "DEFEND", "body": "Follow the CPU striker around your own zone to supervise its finds, or tap to move yourself. Sneaky cheating is on hold in this MVP. After both searches, the side with more unstruck marks wins." },
 ]
 
 @onready var _dim_overlay: ColorRect = %DimOverlay

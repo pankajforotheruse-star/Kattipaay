@@ -28,18 +28,39 @@ func physics_update(delta: float) -> void:
 		return
 
 	var target: Vector2 = player.get_meta("target_position")
-	var direction := target - player.position
+	var world := player.get_tree().current_scene
+	var navigation := world.get_node_or_null("VillageNavigation") as VillageNavigation if world else null
+	var waypoint := target
+	if navigation:
+		# Both striker and defender use identical obstacle-safe routes.
+		var cached: Vector2 = player.get_meta("_nav_goal", Vector2.INF)
+		var route: PackedVector2Array = player.get_meta("_nav_route", PackedVector2Array())
+		if not cached.is_finite() or cached.distance_to(target) > 4.0:
+			route = navigation.find_route(player.global_position, target)
+			player.set_meta("_nav_goal", target)
+			player.set_meta("_nav_route", route)
+		if route.is_empty():
+			player.velocity = Vector2.ZERO
+			player.set_meta("has_target", false)
+			machine.transition_to("idle")
+			return
+		while not route.is_empty() and \
+				player.global_position.distance_to(route[0]) < 13.0:
+			route.remove_at(0)
+		player.set_meta("_nav_route", route)
+		if route.is_empty():
+			player.velocity = Vector2.ZERO
+			player.set_meta("has_target", false)
+			machine.transition_to("idle")
+			return
+		waypoint = route[0]
+	var direction := waypoint - player.global_position
 	var distance := direction.length()
-
 	if distance < _arrival_threshold:
-		# Arrived — snap to target and go idle
-		player.position = target
 		player.velocity = Vector2.ZERO
 		player.set_meta("has_target", false)
 		machine.transition_to("idle")
 		return
-
-	# Move toward target
 	var speed: float = player.get_meta("move_speed", 200.0)
 	player.velocity = direction.normalized() * speed
 	player.move_and_slide()
