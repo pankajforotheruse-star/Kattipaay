@@ -33,6 +33,11 @@ func _ready() -> void:
 		var covers := CoverSystem.new()
 		covers.name = "CoverSystem"
 		add_child(covers)
+		# Defender physically shadows the striker instead of standing
+		# magically in the middle of the zone throughout the search.
+		var escort := DefenderEscort.new()
+		escort.name = "DefenderEscort"
+		add_child(escort)
 
 	# The scene presets entity ids (Player=1, NPC1=2). Seed the allocator above
 	# the highest registered id so later-spawned entities never collide with
