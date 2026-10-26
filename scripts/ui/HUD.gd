@@ -805,6 +805,20 @@ func _on_search_phase_ended(_payload: Dictionary) -> void:
 func _on_line_struck(payload: Dictionary) -> void:
     if _remaining_lines_label and payload.has("remaining"):
         _remaining_lines_label.text = "Lines left: %d" % int(payload.get("remaining", 0))
+    # The striker publicly announces what was found. The defender hears
+    # which mark is being removed and can physically supervise nearby.
+    if GameState.solo_vs_cpu and _search_banner_label \
+            and GameState.get_match_state() == GameState.MatchState.SEARCHING:
+        var defender := str(payload.get("defender", ""))
+        if defender == "human":
+            _search_banner_label.text = "CPU FOUND A CHALK LINE! Striking it out."
+            _search_banner_label.add_theme_color_override(
+                "font_color", Color(1.0, 0.55, 0.3, 1.0))
+        elif bool(payload.get("is_ghost", false)):
+            _search_banner_label.text = "YOU FOUND A CHALK LINE! Strike confirmed."
+            _search_banner_label.add_theme_color_override(
+                "font_color", Color(0.55, 0.96, 0.65, 1.0))
+        _search_banner_label.show()
 
 func _on_timer_expired(_payload: Dictionary) -> void:
     if _timer_label:
