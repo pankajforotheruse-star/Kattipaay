@@ -4,7 +4,7 @@
 **Status:** Working requirements (consolidated from owner directives, business plan, WORKFLOW.md, meeting-phase-plan.md, and the owner's 2026-10-11 MVP restatement + 2026-10-15 hiding spec)
 **Repo:** pankajforotheruse-star/Kattipaay — `/home/team/shared/chalk-gaon-prototype`
 
-> This document is the single consolidated statement of what is being built. Where older docs (GDD, README) conflict with it, the rules below are authoritative because they come from the owner's later directives. The owner's 10-item deviation audit (2026-10-15) is tracked in Appendix C with per-item status — do not skip items; each is either closed, in flight, decided, or awaiting an owner decision.
+> **2026-10-26 owner revision (development branch only):** The user's latest explicit instructions supersede older 50-line caps, fixed 8/12/16/20 CPU targets and MVP sneak-cheating assumptions. In `feat/childhood-authentic-loop`, authoritative updated rules are in [CHILDHOOD_MVP_RULES.md](CHILDHOOD_MVP_RULES.md): unlimited valid human strokes within 40s, randomized CPU ranges, physical brick flipping, defender supervision, per-segment hiding and cheating penalties deferred. The historical items below are retained until this branch is approved; do not treat their old implementation statuses as current.\n\n> This document is the single consolidated statement of what is being built. Where older docs (GDD, README) conflict with it, the rules below are authoritative because they come from the owner's later directives. The owner's 10-item deviation audit (2026-10-15) is tracked in Appendix C with per-item status — do not skip items; each is either closed, in flight, decided, or awaiting an owner decision.
 
 ---
 
