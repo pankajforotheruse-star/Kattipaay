@@ -185,22 +185,63 @@ static func cover_site_for_line(points: Array) -> Dictionary:
 ## One symmetric visibility predicate for BOTH opponents. The caller supplies
 ## only the inspected cover ids that the current searcher physically opened.
 ## No extra radius, X-ray knowledge or automatic cover inspection for CPU.
+## Sample each segment independently. A line that is 10px under a brick
+## and 200px on open ground is not magically hidden along all 210px. The
+## exposed part can be found without lifting the brick; the covered portion
+## cannot be discovered until its ACTUAL cover is inspected. A found stroke
+## may then be crossed out as one child's single chalk mark.
 static func can_reveal_line(points: Array, searcher_pos: Vector2,
 		wall_concealed: bool, inspected: Dictionary = {}) -> bool:
 	if points.size() < 2:
 		return false
-	var cover := cover_site_for_line(points)
-	var radius := reveal_radius_for(wall_concealed)
-	if not cover.is_empty():
-		var kind := int(cover["kind"])
-		if kind == COVER_TREE:
-			radius = REVEAL_RADIUS_TREE
-		elif kind == COVER_LEAVES or kind == COVER_BRICKS:
-			if not inspected.has(str(cover["id"])):
-				return false
-			radius = REVEAL_RADIUS_INSPECTED
-	var nearest := nearest_point_on_line(points, searcher_pos)
-	return searcher_pos.distance_to(nearest) <= radius
+	var has_real_wall := is_wall_concealed(points)
+	for i in range(points.size() - 1):
+		var a: Vector2 = points[i]
+		var b: Vector2 = points[i + 1]
+		var count := maxi(1, int(ceil(a.distance_to(b) / 18.0)))
+		for j in range(count + 1):
+			var sample := a.lerp(b, float(j) / float(count))
+			var radius := REVEAL_RADIUS_OPEN
+			var cover := cover_site_at(sample)
+			if not cover.is_empty():
+				var kind := int(cover["kind"])
+				if kind == COVER_WALL:
+					radius = REVEAL_RADIUS_OCCLUDED
+				elif kind == COVER_TREE:
+					radius = REVEAL_RADIUS_TREE
+				elif is_inspectable_cover(kind):
+					if not inspected.has(str(cover["id"])):
+						continue
+					radius = REVEAL_RADIUS_INSPECTED
+			elif wall_concealed and not has_real_wall:
+				# Preserve backward compatibility with stored legacy packets
+				# whose wc=true flag exists without geometry available.
+				radius = REVEAL_RADIUS_OCCLUDED
+			if searcher_pos.distance_squared_to(sample) <= radius * radius:
+				return true
+	return false
+
+
+static func cover_site_at(p: Vector2) -> Dictionary:
+	# Moveable covers must win over walls/shadow if an object overlaps.
+	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE]:
+		for site in get_all_cover_sites():
+			if int(site["kind"]) != kind:
+				continue
+			var rect: Rect2 = site["rect"]
+			if kind == COVER_TREE:
+				var d := p - rect.get_center()
+				var radii := rect.size * 0.5
+				if radii.x > 0 and radii.y > 0 and \
+						(d.x / radii.x) ** 2 + (d.y / radii.y) ** 2 <= 1.0:
+					return site
+			elif rect.has_point(p):
+				return site
+	for wall in get_all_walls():
+		var rect: Rect2 = wall
+		if rect.has_point(p):
+			return {"id": "wall", "kind": COVER_WALL, "rect": rect}
+	return {}
 
 static func is_inspectable_cover(kind: int) -> bool:
 	return kind == COVER_LEAVES or kind == COVER_BRICKS
