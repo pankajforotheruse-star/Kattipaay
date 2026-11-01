@@ -33,6 +33,7 @@ func _run() -> void:
 	# CPU path + perception are tested with real controllers in the smoke test.
 	_test_scoring_decisions()
 	_test_phase_timer()
+	_test_audit_geometry_and_input()
 	if _failures > 0:
 		print(PREFIX + "FAIL checks=%d failures=%d" % [_checks, _failures])
 		quit(1)
@@ -305,3 +306,43 @@ func _test_phase_timer() -> void:
 	_check(not timer.is_running(), "timer stops at zero rather than running negative")
 	timer.stop()
 	print(PREFIX + "PHASE_TIMER_OK")
+
+
+## Independent audit probes: exercise final-rendered geometry and the real
+## desktop input dispatcher, not just pure hiding predicates.
+func _test_audit_geometry_and_input() -> void:
+	var raw: Array[Vector2] = [
+		Vector2(156, 47), Vector2(162, 78),
+		Vector2(172, 52), Vector2(164, 1)]
+	var smoothed: Array[Vector2] = DrawSystem._catmull_rom_smooth(raw, 2.0)
+	var raw_max := 0.0
+	var final_max := 0.0
+	for p in raw:
+		raw_max = maxf(raw_max, p.length())
+	for p in smoothed:
+		final_max = maxf(final_max, p.length())
+	_check(raw_max <= HidingRules.SOLO_HAND_REACH,
+		"audit fixture has physically reachable raw vertices")
+	print(PREFIX + "AUDIT_SMOOTH_GEOMETRY raw_max=%.3f final_max=%.3f" % [
+		raw_max, final_max])
+	_check(final_max <= HidingRules.SOLO_HAND_REACH,
+		"final Catmull-Rom curve must remain within the same hand reach")
+	var input_manager := root.get_node_or_null("InputManager")
+	var bus := root.get_node_or_null("EventBus")
+	_check(input_manager != null and bus != null, "input and event bus available")
+	if input_manager == null or bus == null:
+		return
+	var seen_moves: Array = []
+	var callback := func(payload: Dictionary) -> void:
+		seen_moves.append(payload)
+	bus.call("on", "input.move_start", callback)
+	input_manager.set("_mouse_is_anchor", false)
+	input_manager.set("_mouse_is_drawing", false)
+	input_manager.call("_handle_mouse_draw_start", Vector2(200, 180))
+	input_manager.call("_handle_mouse_draw_end", Vector2(200, 180))
+	bus.call("off", "input.move_start", callback)
+	input_manager.set("_mouse_is_anchor", false)
+	input_manager.set("_mouse_is_drawing", false)
+	print(PREFIX + "AUDIT_DESKTOP_DRAW_MOVE_EVENTS count=%d" % seen_moves.size())
+	_check(seen_moves.is_empty(),
+		"starting a desktop DRAW gesture must not emit a MOVE command")
