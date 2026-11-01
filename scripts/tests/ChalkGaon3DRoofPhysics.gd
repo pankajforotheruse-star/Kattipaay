@@ -41,17 +41,17 @@ func _run() -> void:
 		var on_roof := false
 		for target in [crest.global_position, anchor.global_position]:
 			for frame in range(430):
-				var planar := target - actor.global_position
+				var planar: Vector3 = target - actor.global_position
 				planar.y = 0.0
 				if planar.length() < 0.65 and actor.global_position.y > (target.y - 1.2):
 					break
-				var direction := planar.normalized()
+				var direction: Vector3 = planar.normalized()
 				actor.velocity.x = direction.x * 4.3
 				actor.velocity.z = direction.z * 4.3
 				if actor.is_on_floor():
 					actor.velocity.y = -0.1
 				else:
-					actor.velocity.y -= 17.5 * get_physics_process_delta_time()
+					actor.velocity.y -= 17.5 * 1.0 / float(Engine.physics_ticks_per_second)
 				actor.move_and_slide()
 				if actor.global_position.y > 3.0:
 					rose = true
