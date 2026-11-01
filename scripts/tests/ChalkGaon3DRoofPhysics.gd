@@ -22,7 +22,8 @@ func _run() -> void:
 		var suffix: String = anchor.name.trim_prefix("RoofAnchor_")
 		var foot := world.get_node_or_null("RampBase_" + suffix) as Marker3D
 		var crest := world.get_node_or_null("RampTop_" + suffix) as Marker3D
-		if foot == null or crest == null:
+		var entry := world.get_node_or_null("RoofEntry_" + suffix) as Marker3D
+		if foot == null or crest == null or entry == null:
 			failed.append("Missing ramp waypoints " + suffix)
 			continue
 		var actor := CharacterBody3D.new()
@@ -39,7 +40,7 @@ func _run() -> void:
 		await physics_frame
 		var rose := false
 		var on_roof := false
-		for target in [crest.global_position, anchor.global_position]:
+		for target in [crest.global_position, entry.global_position, anchor.global_position]:
 			var last_progress: Vector3 = actor.global_position
 			for frame in range(430):
 				var planar: Vector3 = target - actor.global_position
