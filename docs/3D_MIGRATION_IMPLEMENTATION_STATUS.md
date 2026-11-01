@@ -18,7 +18,7 @@ Continue to use existing `SoloMatchDriver.gd`, `GameState.gd`, `ScoringManager.g
 
 ## How to inspect
 
-Open `scenes/graybox/village_graybox.tscn` and run current scene (F6) in Godot 4.4 stable. Move with WASD, orbit with mouse, Space jump, Shift sprint, C crouch, Tab switch debug territory. Press F to toggle drawing mode (cursor visible) and drag left mouse on a nearby physical wall, ground or roof. **Drawing is only permitted on the PLAYER territory in this demonstration.**
+Open `scenes/graybox/village_graybox.tscn` and run current scene (F6) in Godot 4.4 stable. Move with WASD, orbit with mouse, Space jump, Shift sprint, C crouch, Tab switch debug territory. Press F to toggle drawing mode (cursor visible) and drag left mouse on a nearby physical wall, ground or roof. Press G to toggle a *debug-only* drawing/search phase, and Tab to swap the debug role/territory. Drawing is disabled during debug search; actual defender sneaking is not ported. **Drawing is only permitted on the PLAYER territory in this demonstration.**
 
 This is a **3D drawing prototype**, not a full migrated playable round. Rendering, mouse interaction and occlusion need interactive inspection.
 
