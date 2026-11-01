@@ -110,7 +110,7 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Cart screen", Vector3(cx - 7, 1.35, -15.1), Vector3(3.7, 1.0, 0.22), Color(0.42, 0.29, 0.17))
 	# Spawn paint is visual-only: the old collision box blocked the bot path graph at spawn.
 	var spawn_paint := _add_box("Territory marker", Vector3(cx, 0.05, 0), Vector3(2, 0.1, 2), Color(0.18, 0.45, 0.8) if index == 0 else Color(0.85, 0.35, 0.17))
-	(spawn_paint.get_node("CollisionShape3D") as CollisionShape3D).disabled = true
+	(spawn_paint.get_child(0) as CollisionShape3D).disabled = true
 
 func _build_house(x: float, z: float, wall: Color) -> void:
 	# U-shaped room with doorway gap; roof provides a drawing-ready overhead surface.
