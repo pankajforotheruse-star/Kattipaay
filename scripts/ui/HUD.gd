@@ -61,6 +61,8 @@ var _search_warning_tween: Tween = null
 
 var _remaining_lines_label: Label = null
 var _search_banner_label: Label = null
+var _draw_action_button: Button = null
+var _announcement_left: float = 0.0
 
 # ── Silent Sneak UI Elements ──────────────────────────────────────────────────
 
@@ -141,11 +143,16 @@ func _ready() -> void:
     _create_search_warning_label()
     _create_remaining_lines_label()
     _create_search_banner_label()
+    _create_draw_action_button()
 
-    _update_info("Tap anywhere to move the RED player.\nBLUE player patrols automatically.\nGreen grid = 100px squares.")
+    _update_info("Move to a hiding place, then switch to DRAW and mark it.")
 
 
 func _process(delta: float) -> void:
+    if _announcement_left > 0.0 and GameState.current != GameState.State.PAUSED:
+        _announcement_left -= delta
+        if _announcement_left <= 0.0 and _search_banner_label:
+            _search_banner_label.text = "SEARCH: walk, inspect nearby cover, then strike found chalk"
     # Argument button cooldown tick
     if _argument_on_cooldown:
         _argument_cooldown_timer -= delta
@@ -212,6 +219,39 @@ func _exit_tree() -> void:
     EventBus.off(EventBus.EV_GAME_SCORE_CHANGED, _on_score_changed)  # audit m4
 
 # ── UI Creation ───────────────────────────────────────────────────────────────
+
+func _create_draw_action_button() -> void:
+    _draw_action_button = Button.new()
+    _draw_action_button.name = "DrawOrMove"
+    _draw_action_button.text = "MODE: DRAW"
+    _draw_action_button.anchor_left = 0.0
+    _draw_action_button.anchor_right = 0.0
+    _draw_action_button.anchor_top = 1.0
+    _draw_action_button.anchor_bottom = 1.0
+    _draw_action_button.offset_left = 16.0
+    _draw_action_button.offset_right = 192.0
+    _draw_action_button.offset_top = -105.0
+    _draw_action_button.offset_bottom = -42.0
+    _draw_action_button.add_theme_font_size_override("font_size", 21)
+    _draw_action_button.pressed.connect(_on_draw_mode_pressed)
+    _draw_action_button.hide()
+    add_child(_draw_action_button)
+
+
+func _on_draw_mode_pressed() -> void:
+    if not GameState.solo_vs_cpu or GameState.get_match_state() != GameState.MatchState.DRAWING:
+        return
+    InputManager.set_solo_draw_move_mode(not InputManager.solo_draw_move_mode)
+    _refresh_draw_action()
+
+
+func _refresh_draw_action() -> void:
+    if _draw_action_button:
+        _draw_action_button.text = "MODE: MOVE" if InputManager.solo_draw_move_mode else "MODE: DRAW"
+    if GameState.solo_vs_cpu:
+        _update_info("MOVE: tap a hiding place; switch to DRAW when nearby." if InputManager.solo_draw_move_mode
+            else "DRAW: mark near your character. Tap a brick/leaf pile to lift it.")
+
 
 func _create_timer_label() -> void:
     _timer_label = Label.new()
@@ -629,10 +669,20 @@ func _on_match_state_changed(payload: Dictionary) -> void:
     # Show the obvious desktop control hint so the owner/player knows that
     # left-drag draws during DRAWING (vs. moves during SEARCHING).
     if to_state == GameState.MatchState.DRAWING:
-        _update_info("DRAW: hold LEFT mouse button and drag to draw your chalk lines.")
+        if GameState.solo_vs_cpu:
+            InputManager.set_solo_draw_move_mode(false)
+            if _draw_action_button:
+                _draw_action_button.show()
+            _refresh_draw_action()
+        else:
+            _update_info("DRAW: left-drag to draw chalk.")
     elif to_state == GameState.MatchState.SEARCHING:
-        _update_info("SEARCH: left-click / drag to move; tap revealed ghost lines to strike them out.")
+        if _draw_action_button:
+            _draw_action_button.hide()
+        _update_info("SEARCH: move, inspect cover nearby and tap discovered lines.")
 
+    if to_state != GameState.MatchState.DRAWING and _draw_action_button:
+        _draw_action_button.hide()
     # Toggle argument button visibility
     if to_state == GameState.MatchState.SEARCHING:
         _is_searching = true
@@ -809,6 +859,7 @@ func _on_line_struck(payload: Dictionary) -> void:
     # which mark is being removed and can physically supervise nearby.
     if GameState.solo_vs_cpu and _search_banner_label \
             and GameState.get_match_state() == GameState.MatchState.SEARCHING:
+        _announcement_left = 2.3
         var defender := str(payload.get("defender", ""))
         if defender == "human":
             _search_banner_label.text = "CPU FOUND A CHALK LINE! Striking it out."
