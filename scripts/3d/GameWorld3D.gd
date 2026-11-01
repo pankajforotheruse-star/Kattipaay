@@ -6,6 +6,9 @@ const DRAW_TIME := 40.0
 const MEETING_TIME := 5.0
 const SEARCH_TIME := 30.0
 const BOT_SPEED := 4.2
+const CPU_SEARCH_SPEEDS := [3.0, 3.6, 4.2, 4.7]
+const CPU_INSPECTION_RADII := [2.0, 2.4, 2.8, 3.0]
+const CPU_STRIKE_DELAYS := [1.3, 0.9, 0.65, 0.45]
 const HUMAN_ID := 1
 const CPU_ID := 2
 
@@ -41,6 +44,10 @@ var bot_follow_refresh := 0.0
 var human_idle_seconds := 0.0
 var checked_public_covers: Dictionary = {}
 var cpu_roof_attempted := false
+var cpu_speed := BOT_SPEED
+var cpu_inspection_radius := 2.8
+var cpu_strike_delay := 0.9
+var cpu_strike_cooldown := 0.0
 var find_interact_requested := false
 var coin_call := -1
 var coin_face := -1
@@ -60,6 +67,9 @@ func _ready() -> void:
 	phase_left = configured_draw_seconds
 	cheating_enabled = bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false))
 	var difficulty := clampi(GameState.cpu_difficulty, 0, 3)
+	cpu_speed = float(CPU_SEARCH_SPEEDS[difficulty])
+	cpu_inspection_radius = float(CPU_INSPECTION_RADII[difficulty])
+	cpu_strike_delay = float(CPU_STRIKE_DELAYS[difficulty])
 	var ranges := [Vector2i(50, 100), Vector2i(65, 120), Vector2i(85, 150), Vector2i(110, 180)]
 	var count_range: Vector2i = ranges[difficulty]
 	cpu_target = rng.randi_range(count_range.x, count_range.y)
@@ -181,6 +191,7 @@ func _process(delta: float) -> void:
 		clock_warning_count += 1
 		message = "LAST 5 SECONDS!"
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
+	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
 		if cpu_idle_time <= 0.0:
@@ -260,8 +271,8 @@ func _advance_bot() -> void:
 			cpu_route_index += 1
 		else:
 			var direction := horizontal.normalized()
-			cpu_body.velocity.x = direction.x * BOT_SPEED
-			cpu_body.velocity.z = direction.z * BOT_SPEED
+			cpu_body.velocity.x = direction.x * cpu_speed
+			cpu_body.velocity.z = direction.z * cpu_speed
 	else:
 		cpu_body.velocity.x = 0.0
 		cpu_body.velocity.z = 0.0
@@ -309,16 +320,19 @@ func _attempt_cpu_draw() -> void:
 		return
 
 func _cpu_inspect() -> void:
+	if cpu_strike_cooldown > 0.0:
+		return
 	_inspect_nearby_public_cover()
 	# CPU never chooses a waypoint from the player's hidden stroke coordinates.
 	# It only looks for actually visible strokes at its current physical eye.
 	var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
 	for stroke in saved_human_lines:
-		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 2.8):
+		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, cpu_inspection_radius):
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
+			cpu_strike_cooldown = cpu_strike_delay
 			break
 
 func _human_strike_visible() -> void:
@@ -364,6 +378,7 @@ func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
 	checked_public_covers.clear()
 	cpu_roof_attempted = false
+	cpu_strike_cooldown = 0.0
 	phase_left = configured_search_seconds
 	human_idle_seconds = 0.0
 	bot_follow_refresh = 0.0
