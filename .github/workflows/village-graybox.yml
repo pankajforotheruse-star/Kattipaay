@@ -38,6 +38,12 @@ jobs:
           timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DMigrationTest.gd --log-file 3d-migration-smoke.log
           grep -q 'CHALK_GAON_3D: PASS' 3d-migration-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-migration-smoke.log
+      - name: Owner parity regression (score, coin, quota, cheating)
+        run: |
+          set -euo pipefail
+          timeout 80s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DParity.gd --log-file 3d-parity.log
+          grep -q 'CHALK_GAON_3D_PARITY: PASS' 3d-parity.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-parity.log
       - name: CPU physical chalk balance benchmark
         continue-on-error: true
         run: |
@@ -86,6 +92,7 @@ jobs:
             3d-migration-smoke.log
             3d-roof-physics.log
             3d-balance.log
+            3d-parity.log
             3d-round.log
             3d-end-to-end.log
           if-no-files-found: ignore
