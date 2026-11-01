@@ -190,7 +190,9 @@ func _run() -> void:
 				_check(generated.points.size() >= 2, "CPU generated chalk decodes")
 				for point in generated.points:
 					_check(HidingRules.can_reach_point(cpu.global_position, point),
-						"CPU chalk point is reachable and not through walls")
+						"CPU reachable mark actor=%s point=%s d=%.1f" % [
+							str(cpu.global_position), str(point),
+							cpu.global_position.distance_to(point)])
 		print(PREFIX + "CPU_PHYSICAL_CHALK_REACH_OK")
 
 
