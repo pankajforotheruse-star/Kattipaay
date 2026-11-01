@@ -135,6 +135,10 @@ func _run_test() -> void:
 	# reads these in _ready (get_setting with defaults) and CoinDeciderOverlay
 	# reads solo_meeting_flip_duration; the engine instance (or CI job) keeps
 	# its project.godot defaults for everything else.
+	# The legacy synthetic end-to-end harness injects strokes at distant
+	# coordinates to check round flow. Disable hand-reach ONLY for that
+	# synthetic harness; MvpComponentSuite separately tests the real default.
+	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", -1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_drawing_seconds", 8.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_call_timeout_seconds", 1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_max_seconds", 4.0)
