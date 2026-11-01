@@ -32,6 +32,12 @@ jobs:
           timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/VillageGrayboxSmokeTest.gd --log-file graybox-smoke.log
           grep -q 'GRAYBOX AUTOMATED STRUCTURE CHECK PASS' graybox-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' graybox-smoke.log
+      - name: 3D stroke and territory logic regression
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DMigrationTest.gd --log-file 3d-migration-smoke.log
+          grep -q 'CHALK_GAON_3D: PASS' 3d-migration-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-migration-smoke.log
       - name: Existing Play vs CPU regression
         run: |
           set -euo pipefail
@@ -47,4 +53,5 @@ jobs:
             graybox-import.log
             graybox-smoke.log
             original-smoke.log
+            3d-migration-smoke.log
           if-no-files-found: ignore
