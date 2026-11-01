@@ -98,7 +98,7 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Ruined shed left", Vector3(cx + 10, 1.0, 15), Vector3(0.45, 2.0, 4), wall)
 	_add_box("Ruined shed lintel", Vector3(cx + 13, 2.6, 13), Vector3(6, 0.5, 0.45), wall)
 	_add_box("Bush cover", Vector3(cx - 15, 0.45, -17), Vector3(3.4, 0.9, 2.7), Color(0.29, 0.45, 0.22))
-	_add_box("MOVABLE_CANDIDATE_Crate", Vector3(cx - 8, 0.6, 6), Vector3(1.2, 1.2, 1.2), Color(0.61, 0.42, 0.18))
+	_add_movable_crate(Vector3(cx - 8, 0.6, 6))
 	_add_box("Stone steps lower", Vector3(cx - 16, 0.24, -6), Vector3(2.5, 0.48, 1.5), Color(0.47, 0.42, 0.35))
 	_add_box("Stone steps upper", Vector3(cx - 16, 0.52, -4.5), Vector3(2.5, 1.04, 1.5), Color(0.47, 0.42, 0.35))
 	_add_box("Haystack obstacle", Vector3(cx + 17, 0.8, -4), Vector3(2.5, 1.6, 2.5), Color(0.69, 0.53, 0.25))
@@ -259,3 +259,29 @@ func _make_draw_controller() -> void:
 func _process(_delta: float) -> void:
 	if draw_controller != null:
 		draw_controller.enabled = drawing_mode and debug_phase == "DRAWING"
+
+## Physically movable concealment props. RigidBody3D provides real collision,
+## friction and raycast occlusion; strokes parented here follow the object.
+func _add_movable_crate(at: Vector3) -> void:
+	var body := RigidBody3D.new()
+	body.name = "MovableCrate_%d" % get_child_count()
+	body.position = at
+	body.mass = 12.0
+	body.linear_damp = 2.5
+	body.angular_damp = 3.0
+	body.add_to_group("graybox_surfaces")
+	body.add_to_group("future_movable_props")
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(1.2, 1.2, 1.2)
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+	var cube := BoxMesh.new()
+	cube.size = shape.size
+	var skin := MeshInstance3D.new()
+	skin.mesh = cube
+	var paint := StandardMaterial3D.new()
+	paint.albedo_color = Color(0.61, 0.42, 0.18)
+	skin.material_override = paint
+	body.add_child(skin)
+	add_child(body)
