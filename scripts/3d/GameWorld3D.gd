@@ -604,9 +604,10 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		var suffix := marker.name.trim_prefix("RoofAnchor_")
 		var base := get_node_or_null("RampBase_" + suffix) as Marker3D
 		var top := get_node_or_null("RampTop_" + suffix) as Marker3D
-		if base == null or top == null:
+		var entry := get_node_or_null("RoofEntry_" + suffix) as Marker3D
+		if base == null or top == null or entry == null:
 			continue
-		targets.append({"roof": marker, "base": base, "top": top})
+		targets.append({"roof": marker, "base": base, "top": top, "entry": entry})
 	targets.shuffle()
 	for route in targets:
 		var start: Vector3 = (route["base"] as Marker3D).global_position
@@ -617,6 +618,7 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		cpu_path = ground_path
 		cpu_path.append(start)
 		cpu_path.append((route["top"] as Marker3D).global_position)
+		cpu_path.append((route["entry"] as Marker3D).global_position)
 		cpu_path.append((route["roof"] as Marker3D).global_position)
 		cpu_route_index = 0
 		message = "CPU exploring a public rooftop route"
