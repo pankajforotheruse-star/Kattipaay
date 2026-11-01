@@ -129,7 +129,7 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	var rise := 3.45
 	var run := 10.0
 	var angle := atan(rise / run)
-	_add_box("Roof access ramp", Vector3(x + 4.6, rise * 0.5, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
+	_add_box("Roof access ramp", Vector3(x + 4.6, rise * 0.5 - 0.25, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
 	# Ramp upper end overlaps the rooftop edge; verify this transition in-engine.
 
 func _make_walker() -> void:
