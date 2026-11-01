@@ -27,6 +27,9 @@ func _run() -> void:
 			push_error("Difficulty %d target %d out of range" % [difficulty, target])
 			ok = false
 		var start_pos: Vector3 = game.cpu_body.global_position
+		if not (game.cpu_speed > 0.0 and game.cpu_inspection_radius > 0.0 and game.cpu_strike_delay > 0.0):
+			push_error("Difficulty %d has invalid physical search profile" % difficulty)
+			ok = false
 		await create_timer(5.0).timeout
 		var travelled: float = game.cpu_body.global_position.distance_to(start_pos)
 		var made: int = game.drawn_cpu_count
