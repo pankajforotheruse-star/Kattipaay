@@ -2,7 +2,7 @@ name: Village Graybox - Godot 4.4
 
 on:
   push:
-    branches: [feature/3d-village-graybox]
+    branches: [feature/3d-village-graybox, feature/chalk-gaon-3d-migration]
   workflow_dispatch:
 
 permissions:
