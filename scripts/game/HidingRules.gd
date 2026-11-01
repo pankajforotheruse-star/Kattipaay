@@ -246,7 +246,7 @@ static func has_clear_sight(observer: Vector2, target: Vector2) -> bool:
 		return false
 	for wall_candidate in get_all_walls():
 		var wall: Rect2 = wall_candidate
-		var hit: Variant = wall.intersects_segment(observer, target)
+		var hit: Variant = first_rect_edge_hit(observer, target, wall)
 		if hit == null:
 			continue
 		var first_hit: Vector2 = hit
@@ -262,6 +262,30 @@ static func has_clear_sight(observer: Vector2, target: Vector2) -> bool:
 		if nav and not nav.has_clear_prop_sight(observer, target):
 			return false
 	return true
+
+
+## Returns the first crossing of a line segment with the four rectangle
+## edges. Uses Geometry2D's supported Godot 4.4 segment intersection API.
+## When the observer is already inside, the first hit is the observer.
+static func first_rect_edge_hit(start: Vector2, end: Vector2,
+		area: Rect2) -> Variant:
+	if area.has_point(start):
+		return start
+	var corners := [
+		area.position, Vector2(area.end.x, area.position.y),
+		area.end, Vector2(area.position.x, area.end.y)]
+	var nearest: Variant = null
+	var best := INF
+	for i in range(4):
+		var hit: Variant = Geometry2D.segment_intersects_segment(
+			start, end, corners[i], corners[(i + 1) % 4])
+		if hit != null:
+			var point: Vector2 = hit
+			var distance := start.distance_squared_to(point)
+			if distance < best:
+				best = distance
+				nearest = point
+	return nearest
 
 
 ## Physical hand/chalk reach, shared by drawing and manipulating props.
