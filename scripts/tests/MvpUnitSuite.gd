@@ -167,6 +167,21 @@ func _test_fair_cover_rules() -> void:
 	_check(not HidingRules.can_reveal_line(exposed,
 		Vector2(brick_rect.end.x + 70, brick_rect.get_center().y), false),
 		"covered segment cannot X-ray neighboring region")
+	# Obstacle visibility: close distance is NOT proof of seeing through
+	# a solid wall. A near-side wall face remains discoverable.
+	_check(not HidingRules.has_clear_sight(
+		Vector2(700, 450), Vector2(700, 560)),
+		"compound wall blocks line of sight to chalk behind it")
+	_check(HidingRules.has_clear_sight(
+		Vector2(700, 450), Vector2(700, 484)),
+		"chalk on near-facing wall surface is inspectable")
+	_check(not HidingRules.has_clear_sight(
+		Vector2(700, 550), Vector2(700, 484)),
+		"opposite wall face cannot be X-rayed")
+	_check(not HidingRules.can_reach_point(
+		Vector2(700, 450), Vector2(700, 510), 180.0),
+		"physical hand cannot pass through solid wall")
+	print(PREFIX + "WALL_OCCLUSION_AND_REACH_OK")
 	print(PREFIX + "FAIR_COVER_SYMMETRY_OK")
 
 
