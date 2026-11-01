@@ -6,7 +6,7 @@ const CELL_SIZE := 1.25
 var graph := AStarGrid2D.new()
 var built := false
 
-func build(physics: PhysicsDirectSpaceState3D, zone: int) -> void:
+func build(physics: PhysicsDirectSpaceState3D, zone: int, ignored_bodies: Array[RID] = []) -> void:
 	graph.region = Rect2i(-43, -19, 86, 38)
 	graph.cell_size = Vector2.ONE * CELL_SIZE
 	graph.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
@@ -23,6 +23,7 @@ func build(physics: PhysicsDirectSpaceState3D, zone: int) -> void:
 				continue
 			var query := PhysicsShapeQueryParameters3D.new()
 			query.shape = capsule
+			query.exclude = ignored_bodies
 			query.transform = Transform3D(Basis.IDENTITY, world_point + Vector3(0, 0.85, 0))
 			if not physics.intersect_shape(query, 1).is_empty():
 				graph.set_point_solid(cell, true)
