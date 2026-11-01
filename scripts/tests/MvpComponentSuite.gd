@@ -176,6 +176,24 @@ func _run() -> void:
 	_check(HidingRules.can_reach_point(Vector2(200, 300), Vector2(260, 300)),
 		"valid nearby drawing remains allowed")
 	print(PREFIX + "PHYSICAL_DRAW_REACH_OK")
+	# CPU uses exactly the same arm reach and obstruction test while drawing.
+	var bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
+	_check(bot != null, "live CPU hider exists")
+	if bot:
+		for _attempt in range(12):
+			var anchor: Vector2 = bot.call("_choose_public_hiding_anchor")
+			_check(anchor.distance_to(cpu.global_position) <= HidingRules.SOLO_HAND_REACH,
+				"CPU cannot select remote draw anchor")
+			var packets: Array = bot.call("_build_line_dicts", anchor)
+			for packet in packets:
+				var generated := ChalkLine.new()
+				generated.from_network_dict(packet)
+				_check(generated.points.size() >= 2, "CPU generated chalk decodes")
+				for point in generated.points:
+					_check(HidingRules.can_reach_point(cpu.global_position, point),
+						"CPU chalk point is reachable and not through walls")
+		print(PREFIX + "CPU_PHYSICAL_CHALK_REACH_OK")
+
 
 	# Real human solo mode has NO 50-line cap: adding 65 valid marks must
 	# never evict the first one to make room for a later one.
@@ -206,6 +224,22 @@ func _run() -> void:
 		var before_brick: Vector2 = player.global_position
 		player.global_position = center + Vector2(0, 65)
 		player.set_meta("has_target", false)
+		# CPU may not magically claim an underside without standing at it.
+		var cpu_site: Dictionary = HidingRules.get_cover_sites(true)[4]
+		var cpu_center: Vector2 = (cpu_site["rect"] as Rect2).get_center()
+		var saved_cpu: Vector2 = cpu.global_position
+		_check(str(cover.call("cpu_open_for_hiding",
+			str(cpu_site["id"]), cpu_center)).is_empty(),
+			"CPU cannot remotely flip another site's brick")
+		cpu.global_position = cpu_center + Vector2(0, 60)
+		var flipped := str(cover.call("cpu_open_for_hiding",
+			str(cpu_site["id"]), cpu.global_position))
+		_check(flipped == str(cpu_site["id"]),
+			"CPU can legitimately flip nearby cover")
+		cover.call("cpu_close_after_hiding", flipped)
+		_check(not (cover.call("opened_for_hiding") as Dictionary).has(flipped),
+			"CPU replaces cover immediately after drawing")
+		cpu.global_position = saved_cpu
 		cover.call("_on_hider_draw_start", {"position": center})
 		cover.call("_on_hider_draw_end", {})
 		_check((cover.call("opened_for_hiding") as Dictionary).has(str(brick["id"])),
@@ -281,6 +315,14 @@ func _run() -> void:
 			var edge: Vector2 = navigation.call("reachable_approach", center)
 			_check(bool(navigation.call("is_walkable", edge)),
 				"chalk on a wall can be inspected from its reachable edge")
+		var house := world.get_node_or_null("Props/PlayerZoneProps/House01") as Sprite2D
+		var well := world.get_node_or_null("Props/PlayerZoneProps/Well") as Sprite2D
+		_check(house != null and well != null, "visible house and well exist")
+		if house and well:
+			_check(not bool(navigation.call("is_walkable", house.global_position)),
+				"visible house footprint blocks physical movement")
+			_check(not bool(navigation.call("is_walkable", well.global_position)),
+				"visible well footprint blocks physical movement")
 		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
 
 	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", original_reach)
