@@ -77,8 +77,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_F:
 			if phase != "DRAWING" and not (phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
 				return
-		if event.keycode == KEY_E and phase == "SEARCHING":
-			find_interact_requested = true
+		if event.keycode == KEY_E:
+			if phase == "SEARCHING" and searcher == HUMAN_ID:
+				find_interact_requested = true
+			else:
+				_push_nearby_crate()
 		if event.keycode == KEY_Q and phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1:
 			argument_uses += 1
 			argument_delay = 3.0
@@ -295,3 +298,19 @@ func _update_hud() -> void:
 	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find  Q argue\n%s\n%s" % [
 		phase, maxf(0.0, phase_left), drawn_cpu_count, saved_human_lines.size(),
 		"Searcher: HUMAN" if searcher == HUMAN_ID else "Searcher: CPU", message]
+
+func _push_nearby_crate() -> void:
+	var origin := walker.global_position + Vector3(0, 1.0, 0)
+	var direction := -camera.global_transform.basis.z
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 3.0)
+	query.exclude = [walker.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return
+	var body := hit.get("collider") as RigidBody3D
+	if body == null or not body.is_in_group("future_movable_props"):
+		return
+	if body.global_position.distance_to(walker.global_position) > 3.2:
+		return
+	body.apply_central_impulse(Vector3(direction.x, 0, direction.z).normalized() * 22.0)
+	message = "Moved wooden crate"
