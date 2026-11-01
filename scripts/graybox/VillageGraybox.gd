@@ -127,7 +127,7 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	# Keep a physical parapet but leave the ramp landing unobstructed.
 	_add_box("Roof parapet", Vector3(x - 0.9, 3.95, z - 3.7), Vector3(5.5, 0.9, 0.4), wall)
 	# A bridge connects the side-mounted ramp to the roof without crossing the house wall.
-	_add_box("Roof ramp landing", Vector3(x + 4.5, 3.46, z - 3.6), Vector3(2.8, 0.28, 1.0), Color(0.53, 0.46, 0.36))
+	_add_box("Roof ramp landing", Vector3(x + 3.8, 3.46, z - 3.6), Vector3(2.0, 0.28, 1.0), Color(0.53, 0.46, 0.36))
 	# Inclined solid ramp is actually walkable, unlike decorative stairs.
 	var rise := 3.45
 	var run := 10.0
