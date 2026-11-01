@@ -12,6 +12,8 @@ var velocity_y := 0.0
 var spawn_index := 0
 var info: Label
 var crouched := false
+var draw_controller: DrawController3D
+var drawing_mode := false
 
 func _ready() -> void:
 	_make_light()
@@ -28,6 +30,7 @@ func _ready() -> void:
 		_add_marker("PlayerSpawn3D" if i == 0 else "CpuSpawn3D", Vector3(ZONE_CENTERS[i], 0.85, 0))
 	_make_walker()
 	_make_ui()
+	_make_draw_controller()
 	_validate_layout()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -153,6 +156,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * 0.003
 		pitch = clampf(pitch - event.relative.y * 0.003, -0.9, 0.3)
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F:
+			drawing_mode = not drawing_mode
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if drawing_mode else Input.MOUSE_MODE_CAPTURED
 		if event.keycode == KEY_C:
 			_toggle_crouch()
 		if event.keycode == KEY_ESCAPE:
@@ -161,14 +167,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			spawn_index = 1 - spawn_index
 			walker.global_position = Vector3(ZONE_CENTERS[spawn_index], 1.3, 0)
 			walker.velocity = Vector3.ZERO
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton and event.pressed and not drawing_mode:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _physics_process(delta: float) -> void:
 	var direction := Vector2.ZERO
+	if drawing_mode:
+		direction = Vector2.ZERO
 	direction.x = float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
 	direction.y = float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)) - float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP))
 	direction = direction.normalized()
+	if drawing_mode:
+		direction = Vector2.ZERO
 	var forward := Vector3(-sin(yaw), 0, -cos(yaw))
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
 	var move := (right * direction.x - forward * direction.y)
@@ -193,7 +203,7 @@ func _physics_process(delta: float) -> void:
 		desired_camera_position = camera_hit["position"] + camera_hit["normal"] * 0.2
 	camera.global_position = desired_camera_position
 	camera.look_at(target)
-	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | Tab swap zone | Esc release mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
+	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | F draw toggle | Tab swap zone | Esc free mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
 
 func _toggle_crouch() -> void:
 	var collider := walker.get_node("CollisionShape3D") as CollisionShape3D
@@ -228,3 +238,14 @@ func _add_marker(marker_name: String, marker_position: Vector3) -> void:
 	marker.name = marker_name
 	marker.position = marker_position
 	add_child(marker)
+
+func _make_draw_controller() -> void:
+	draw_controller = DrawController3D.new()
+	draw_controller.name = "DrawController3D"
+	add_child(draw_controller)
+	draw_controller.configure(camera, walker)
+	draw_controller.enabled = false
+
+func _process(_delta: float) -> void:
+	if draw_controller != null:
+		draw_controller.enabled = drawing_mode
