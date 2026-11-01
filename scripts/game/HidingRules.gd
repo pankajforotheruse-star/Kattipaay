@@ -255,6 +255,12 @@ static func has_clear_sight(observer: Vector2, target: Vector2) -> bool:
 		# never counts as a legitimate chalk discovery.
 		if first_hit.distance_to(target) > 9.0:
 			return false
+	if GameState.solo_vs_cpu:
+		var tree := Engine.get_main_loop() as SceneTree
+		var world := tree.current_scene if tree else null
+		var nav := world.get_node_or_null("VillageNavigation") as VillageNavigation if world else null
+		if nav and not nav.has_clear_prop_sight(observer, target):
+			return false
 	return true
 
 
