@@ -18,6 +18,10 @@ func _ready() -> void:
 
 	# Find all entities in the scene and register them
 	_register_existing_entities()
+	if GameState.solo_vs_cpu:
+		var prototype_grid := get_node_or_null("GridOverlay") as CanvasItem
+		if prototype_grid:
+			prototype_grid.hide()
 
 	# Commit A (hiding): static scenery (ground-tint surfaces + compound walls)
 	# drawn below entities. Geometry lives in HidingRules; this node only
