@@ -258,6 +258,20 @@ static func has_clear_sight(observer: Vector2, target: Vector2) -> bool:
 	return true
 
 
+## Physical hand/chalk reach, shared by drawing and manipulating props.
+## Difficulty does not alter the radius. Test suites can override the normal
+## 180px through ProjectSettings, but production defaults never teleport ink.
+const SOLO_HAND_REACH := 180.0
+
+static func can_reach_point(actor_pos: Vector2, point: Vector2,
+		reach: float = SOLO_HAND_REACH) -> bool:
+	if not actor_pos.is_finite() or not point.is_finite():
+		return false
+	if actor_pos.distance_squared_to(point) > reach * reach:
+		return false
+	return has_clear_sight(actor_pos, point)
+
+
 static func cover_site_at(p: Vector2) -> Dictionary:
 	# Moveable covers must win over walls/shadow if an object overlaps.
 	for kind in [COVER_LEAVES, COVER_BRICKS, COVER_TREE, COVER_ROOF]:
