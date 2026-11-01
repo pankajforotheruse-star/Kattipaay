@@ -118,18 +118,18 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	_add_box("Front left", Vector3(x - 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_box("Front right", Vector3(x + 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_marker("RoofAnchor_%d_%d" % [int(x), int(z)], Vector3(x, 3.85, z))
-	_add_marker("RampBase_%d_%d" % [int(x), int(z)], Vector3(x + 4.6, 0.85, z + 7.3))
-	_add_marker("RampTop_%d_%d" % [int(x), int(z)], Vector3(x + 4.6, 3.90, z - 3.2))
+	_add_marker("RampBase_%d_%d" % [int(x), int(z)], Vector3(x + 5.3, 0.85, z + 7.3))
+	_add_marker("RampTop_%d_%d" % [int(x), int(z)], Vector3(x + 5.3, 3.90, z - 3.2))
 	_add_box("Flat roof", Vector3(x, 3.45, z), Vector3(7.7, 0.35, 7.7), Color(0.55, 0.37, 0.28))
 	# Keep a physical parapet but leave the ramp landing unobstructed.
 	_add_box("Roof parapet", Vector3(x - 0.9, 3.95, z - 3.7), Vector3(5.5, 0.9, 0.4), wall)
 	# A bridge connects the side-mounted ramp to the roof without crossing the house wall.
-	_add_box("Roof ramp landing", Vector3(x + 4.3, 3.46, z - 3.6), Vector3(2.0, 0.28, 1.0), Color(0.53, 0.46, 0.36))
+	_add_box("Roof ramp landing", Vector3(x + 4.5, 3.46, z - 3.6), Vector3(2.8, 0.28, 1.0), Color(0.53, 0.46, 0.36))
 	# Inclined solid ramp is actually walkable, unlike decorative stairs.
 	var rise := 3.45
 	var run := 10.0
 	var angle := atan(rise / run)
-	_add_box("Roof access ramp", Vector3(x + 4.6, rise * 0.5 - 0.25, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
+	_add_box("Roof access ramp", Vector3(x + 5.3, rise * 0.5 - 0.25, z + 1.5), Vector3(1.9, 0.45, sqrt(run * run + rise * rise)), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
 	# Ramp upper end overlaps the rooftop edge; verify this transition in-engine.
 
 func _make_walker() -> void:
