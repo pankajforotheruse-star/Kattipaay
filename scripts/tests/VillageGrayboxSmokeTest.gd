@@ -36,8 +36,8 @@ func _run() -> void:
 				house_count += 1
 			if child.name.begins_with("Roof access ramp"):
 				ramp_count += 1
-			if child.name.begins_with("MOVABLE_CANDIDATE"):
-				blockers += 1
+		if child is RigidBody3D and child.is_in_group("future_movable_props"):
+			blockers += 1
 	_check(walker != null, "CharacterBody3D exists")
 	_check(level.get_node_or_null("PlayerSpawn3D") is Marker3D, "Human spawn marker exists")
 	_check(level.get_node_or_null("CpuSpawn3D") is Marker3D, "CPU spawn marker exists")
