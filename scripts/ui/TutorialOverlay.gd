@@ -6,8 +6,8 @@ extends Control
 enum Step { DRAW = 0, HIDE = 1, TOSS = 2, SEARCH = 3, DEFEND = 4 }
 
 const STEP_DATA := [
-	{ "title": "DRAW", "body": "Draw as many chalk marks as you can in 40 seconds. There is no line quota: every valid mark counts, even after fifty or a hundred strokes." },
-	{ "title": "HIDE", "body": "Choose clever spots: ground decoys, walls, low roofs or tree shade. Tap a fallen brick or leaf pile to lift it, draw beneath or on the back, then tap it again to replace it." },
+	{ "title": "DRAW", "body": "During 40 seconds, tap MODE: MOVE to walk to a hiding spot. Tap MODE: DRAW and drag to draw within your character's reach. All valid strokes count, with NO quota." },
+	{ "title": "HIDE", "body": "Move close to a visible wall, tree shade, low roof, brick or leaf pile. To hide chalk under a brick, switch to DRAW, tap the nearby object to lift it, draw there, then tap again to replace it." },
 	{ "title": "TOSS", "body": "Meet at the central alley, call heads or tails, and find out who searches the other half first." },
 	{ "title": "SEARCH", "body": "When you find a chalk line, announce and strike it out. Check nearby hiding places too. Walk close and tap fallen bricks or leaves to inspect them: closed covers can hide marks underneath." },
 	{ "title": "DEFEND", "body": "Follow the CPU striker around your own zone to supervise its finds, or tap to move yourself. Sneaky cheating is on hold in this MVP. After both searches, the side with more unstruck marks wins." },
