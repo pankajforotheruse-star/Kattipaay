@@ -146,7 +146,10 @@ func try_strike_at(world_pos: Vector2, radius: float) -> bool:
 		# already have been discovered AND be within actual avatar reach.
 		if not line.is_discovered or line.is_struck:
 			continue
-		if not HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed):
+		var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
+		if not (cover.can_reveal(line.points, searcher.global_position, line.wall_concealed, line.hidden_cover_id)
+				if cover else HidingRules.is_revealed(
+					line.points, searcher.global_position, line.wall_concealed)):
 			continue
 		var d := _point_segment_distance_sq(world_pos, line.points)
 		if d <= best_d:
@@ -171,8 +174,13 @@ func strike_ghost_line(line_id: int) -> bool:
 			return false
 		var eligible := false
 		for line in _ghost_sys.get_active_ghost_lines():
-			if line.id == line_id and line.is_discovered and not line.is_struck \
-					and HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed):
+			if line.id == line_id and line.is_discovered and not line.is_struck:
+				var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
+				var physically_visible := cover.can_reveal(
+					line.points, searcher.global_position, line.wall_concealed, line.hidden_cover_id) if cover else \
+						HidingRules.is_revealed(line.points, searcher.global_position, line.wall_concealed)
+				if not physically_visible:
+					continue
 				eligible = true
 				break
 		if not eligible:

@@ -24,6 +24,9 @@ var touch_to_move_enabled: bool = true
 ## Enabled only during the CPU's search of the player zone (the defender stays
 ## in stance - movement stays locked via touch_to_move_enabled = false).
 var sneak_draw_enabled: bool = false
+## The DRAW-phase action mode is explicit on mobile and desktop; no
+## teleport-drawing. Toggling MOVE lets the child walk to a hiding place.
+var solo_draw_move_mode: bool = false
 
 ## Entity ID of the local player (set by GameWorld when player spawns).
 var local_entity_id: int = 1
@@ -109,7 +112,9 @@ func _process(_delta: float) -> void:
 		_poll_accelerometer()
 
 
-func _input(event: InputEvent) -> void:
+## Only world gestures belong here. GUI button touches are consumed first,
+## so tapping MOVE/DRAW, ARGUE or coin toss never paints/moves behind UI.
+func _unhandled_input(event: InputEvent) -> void:
 	# A paused match must ignore every in-world gesture, even during human
 	# defender sneak mode; GUI buttons remain handled by Control nodes.
 	if GameState.current == GameState.State.PAUSED \
@@ -148,7 +153,7 @@ func _input(event: InputEvent) -> void:
 				if Input.is_key_pressed(KEY_CTRL):
 					# Ctrl+Click = drawing finger
 					_handle_mouse_draw_start(event.position)
-				elif _is_drawing_state() or sneak_draw_enabled:
+				elif (_is_drawing_state() and not (GameState.solo_vs_cpu and solo_draw_move_mode)) or sneak_draw_enabled:
 					# In the DRAWING phase (or the defender SNEAK phase):
 					# left-hold-drag draws chalk, the intuitive
 					# desktop control (no hidden right-click/two-finger required).
@@ -183,7 +188,7 @@ func _handle_touch_down(index: int, screen_pos: Vector2) -> void:
 		"start_time": Time.get_ticks_msec() / 1000.0,
 	}
 
-	if ((GameState.solo_vs_cpu and _is_drawing_state()) or sneak_draw_enabled) \
+	if ((GameState.solo_vs_cpu and _is_drawing_state() and not solo_draw_move_mode) or sneak_draw_enabled) \
 			and _draw_touch_index == -1:
 		# Mobile Play VS CPU: ONE finger draws ordinary and defender-sneak
 		# strokes. The previous first-finger-moves/second-finger-draws
@@ -270,6 +275,21 @@ func _handle_touch_drag(index: int, screen_pos: Vector2) -> void:
 ## True when the match is in the DRAWING sub-state. During DRAWING a plain
 ## left-hold-drag draws chalk (the obvious desktop control); in every other
 ## match state the same gesture moves the player instead.
+func set_solo_draw_move_mode(enabled: bool) -> void:
+	if solo_draw_move_mode == enabled:
+		return
+	# Flush any active stroke before switching controls, never merge two
+	# fingers' paths into one chalk line across a mode switch.
+	if _draw_touch_index >= 0 or _mouse_is_drawing:
+		EventBus.emit(EventBus.EV_INPUT_DRAW_END, {"entity_id": local_entity_id})
+	_draw_touch_index = -1
+	_mouse_is_drawing = false
+	_anchor_touch_index = -1
+	_mouse_is_anchor = false
+	_active_touches.clear()
+	solo_draw_move_mode = enabled
+
+
 func _is_drawing_state() -> bool:
 	return GameState.get_match_state() == GameState.MatchState.DRAWING
 

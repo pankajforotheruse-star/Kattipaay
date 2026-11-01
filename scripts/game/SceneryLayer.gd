@@ -1,6 +1,6 @@
 # SceneryLayer.gd — static scenery renderer (Commit A, hiding mechanism)
 #
-# Draws the ground surfaces + compound walls defined by HidingRules so BOTH
+# Draws ground surfaces + compound walls; CoverSystem draws tree shade, leaves and bricks so BOTH
 # zones read as village ground with places to hide chalk lines, visible to
 # both sides from the start (owner Q2). Placeholder art: flat color rects,
 # solid/static, no animation. This node never invents layout — HidingRules is
