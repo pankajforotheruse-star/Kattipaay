@@ -112,7 +112,9 @@ func _process(_delta: float) -> void:
 		_poll_accelerometer()
 
 
-func _input(event: InputEvent) -> void:
+## Only world gestures belong here. GUI button touches are consumed first,
+## so tapping MOVE/DRAW, ARGUE or coin toss never paints/moves behind UI.
+func _unhandled_input(event: InputEvent) -> void:
 	# A paused match must ignore every in-world gesture, even during human
 	# defender sneak mode; GUI buttons remain handled by Control nodes.
 	if GameState.current == GameState.State.PAUSED \
