@@ -24,7 +24,7 @@
 - New scene `scenes/3d/game_world_3d.tscn` with standalone 3D match driver.
 - Human and physical CPU actors, 40-second default draw, meeting/coin choice, two 30-second search phases, role swap and survivor winner.
 - CPU 3D surface candidate discovery from **public geometry**; randomized target mark counts by difficulty per newer owner spec.
-- Physical CPU movement on collision-tested ground cells and line-of-sight detection from the actual CPU position.
+- Physical CPU movement on collision-tested ground cells, proposed ramp-to-roof itineraries, and line-of-sight detection from the actual CPU position.
 - CPU defender following and human defender assisted following when idle; basic physical cover inspection.
 - Optional legacy sneak/argument prototype code, but cheating defaults to **disabled** as directed in `docs/CHILDHOOD_MVP_RULES.md` on `feat/childhood-authentic-loop`.
 - Existing main menu retains the 2D Play vs CPU game and adds an optional clearly experimental 3D launch.
@@ -54,7 +54,7 @@
 These remain incomplete, incompletely tested or physically unverified, and must not be claimed complete just because headless CI is green:
 
 1. **Real-time complete round playtest** with both roles, not just accelerated state flow. Human reveal/strike, CPU mark generation reaching its ambitious 50-180 targets in 40 seconds, game pacing and balance require observation and metrics.
-2. **CPU roof/ladder/stair navigation:** current `GroundNavigation3D` intentionally covers accessible ground only; explicit vertical transitions and off-mesh climb movement are missing.
+2. **CPU roof/ladder/stair navigation:** a physical-ramp waypoint itinerary has now been added, but completion of actual uphill motion, route coverage, ladder actions and returns from roofs is unverified; the base `GroundNavigation3D` still covers ground only.
 3. **Authentic physical cover:** lifted crate is a prototype; small brick/leaf-pile interaction, valid under-face anchors, revert/restore collision safety, persistence of cover state, and CPU searching all covered hiding spots need better implementation and acceptance tests.
 4. **Full legacy match parity:** the 3D scene is an independent driver rather than an event-compatible integration of all `SoloMatchDriver` menus, sound, coin animation, pause/resume, rewards and overlays. Not all 2D state machines have been migrated.
 5. **CPU competence:** no proven search path coverage, rooftop search, CPU per-difficulty win-rate balancing, or measured behavior reaching the newer randomized mark target counts.
