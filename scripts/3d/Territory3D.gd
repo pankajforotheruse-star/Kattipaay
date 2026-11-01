@@ -28,6 +28,6 @@ static func can_enter(owner_id: int, position: Vector3, match_phase: String, sea
 		return zone == Zone.PASSAGE or absf(position.x) < 4.0
 	if match_phase == "SEARCHING":
 		if searcher_id == owner_id:
-			return zone == (Zone.CPU if owner_id == 1 else Zone.PLAYER) or zone == Zone.PASSAGE
+			return zone == Zone.PLAYER or zone == Zone.CPU or zone == Zone.PASSAGE
 		return zone == (Zone.PLAYER if owner_id == 1 else Zone.CPU)
 	return true
