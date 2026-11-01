@@ -143,8 +143,8 @@ func _process(delta: float) -> void:
 			_cpu_inspect()
 		else:
 			_reveal_nearby_cpu_strokes()
-		elif find_interact_requested:
-			_human_strike_visible()
+			if find_interact_requested:
+				_human_strike_visible()
 		find_interact_requested = false
 	if phase_left <= 0.0:
 		_advance_phase()
