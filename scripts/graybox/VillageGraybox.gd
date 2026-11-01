@@ -16,6 +16,10 @@ var draw_controller: DrawController3D
 var drawing_mode := false
 var debug_phase := "DRAWING"
 var debug_owner_id := 1
+var mobile_move := Vector2.ZERO
+var mobile_move_touch := -1
+var mobile_start := Vector2.ZERO
+var mobile_jump := false
 
 func _ready() -> void:
 	_make_light()
@@ -154,6 +158,20 @@ func _make_ui() -> void:
 	canvas.add_child(info)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and not drawing_mode:
+		if event.pressed and event.position.x < get_viewport().get_visible_rect().size.x * 0.45 and mobile_move_touch < 0:
+			mobile_move_touch = event.index
+			mobile_start = event.position
+		elif not event.pressed and event.index == mobile_move_touch:
+			mobile_move_touch = -1
+			mobile_move = Vector2.ZERO
+	if event is InputEventScreenDrag and not drawing_mode:
+		if event.index == mobile_move_touch:
+			mobile_move = (event.position - mobile_start) / 75.0
+			mobile_move = mobile_move.limit_length(1.0)
+		elif event.position.x >= get_viewport().get_visible_rect().size.x * 0.45:
+			yaw -= event.relative.x * 0.006
+			pitch = clampf(pitch - event.relative.y * 0.006, -0.9, 0.3)
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * 0.003
 		pitch = clampf(pitch - event.relative.y * 0.003, -0.9, 0.3)
@@ -182,7 +200,7 @@ func _physics_process(delta: float) -> void:
 		direction = Vector2.ZERO
 	direction.x = float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
 	direction.y = float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)) - float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP))
-	direction = direction.normalized()
+	direction = (direction + mobile_move).limit_length(1.0)
 	if drawing_mode:
 		direction = Vector2.ZERO
 	var forward := Vector3(-sin(yaw), 0, -cos(yaw))
@@ -192,7 +210,7 @@ func _physics_process(delta: float) -> void:
 	walker.velocity.x = move.x * speed
 	walker.velocity.z = move.z * speed
 	if walker.is_on_floor():
-		if Input.is_key_pressed(KEY_SPACE):
+		if Input.is_key_pressed(KEY_SPACE) or mobile_jump:
 			walker.velocity.y = 6.8
 		else:
 			walker.velocity.y = -0.1
