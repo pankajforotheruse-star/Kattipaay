@@ -144,6 +144,14 @@ func _ready() -> void:
     _create_remaining_lines_label()
     _create_search_banner_label()
     _create_draw_action_button()
+    if GameState.solo_vs_cpu:
+        # Ghost-era debug labels and arcade bonus counters are not rules of
+        # the childhood line-hiding game; leave only phase/timer/role info.
+        _state_label.hide()
+        if _hint_counter_label:
+            _hint_counter_label.hide()
+        if _score_label:
+            _score_label.hide()
 
     _update_info("Move to a hiding place, then switch to DRAW and mark it.")
 
@@ -693,7 +701,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
         if _argue_button:
             _argue_button.hide()  # phase event decides; defender may not be human
         if _hint_counter_label:
-            _hint_counter_label.show()
+            if not GameState.solo_vs_cpu:
+                _hint_counter_label.show()
+            else:
+                _hint_counter_label.hide()
         if _silent_sneak_button:
             if not GameState.solo_vs_cpu or bool(ProjectSettings.get_setting(
                     "chalk_gaon/solo_cheating_enabled", false)):
@@ -799,7 +810,10 @@ func _on_search_phase_started(payload: Dictionary) -> void:
             else:
                 _silent_sneak_button.hide()
         if _hint_counter_label:
-            _hint_counter_label.show()
+            if not GameState.solo_vs_cpu:
+                _hint_counter_label.show()
+            else:
+                _hint_counter_label.hide()
     else:
         # The CPU searches the HUMAN zone: the human is the defender - the
         # ARGUE button is the defender's one tool (calls request_defender_argue).
