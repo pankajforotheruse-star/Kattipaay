@@ -90,6 +90,11 @@ func _on_move_command(payload: Dictionary) -> void:
 func _on_move_stop(_payload: Dictionary) -> void:
 	if not is_local:
 		return
+	# TAP-TO-MOVE: in solo play, lifting a finger must not cancel the
+	# destination before the player actually travels there. The old code
+	# inadvertently required holding the screen throughout every walk.
+	if GameState.solo_vs_cpu:
+		return
 	set_meta("has_target", false)
 	if state_machine.current_state_name() == "walking":
 		state_machine.transition_to("idle")
