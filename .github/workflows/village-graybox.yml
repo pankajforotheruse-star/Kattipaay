@@ -44,6 +44,12 @@ jobs:
           timeout 145s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DRoofPhysics.gd --log-file 3d-roof-physics.log
           grep -q 'CHALK_GAON_3D_ROOFS: PASS' 3d-roof-physics.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-roof-physics.log
+      - name: CPU physical chalk balance benchmark
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DCpuBalance.gd --log-file 3d-balance.log
+          grep -q 'CHALK_GAON_3D_BALANCE_DIAGNOSTIC: PASS' 3d-balance.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-balance.log
       - name: Independent 3D round state smoke
         run: |
           set -euo pipefail
@@ -73,6 +79,7 @@ jobs:
             original-smoke.log
             3d-migration-smoke.log
             3d-roof-physics.log
+            3d-balance.log
             3d-round.log
             3d-end-to-end.log
           if-no-files-found: ignore
