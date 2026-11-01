@@ -158,10 +158,29 @@ func _run() -> void:
 		_game_state.set("solo_active_searcher", -1)
 		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
 
+	# Validate real hand reach BEFORE stress-inserting lots of human marks.
+	# The legacy synthetic end-to-end harness uses a separate test override.
+	var original_reach: float = float(ProjectSettings.get_setting(
+		"chalk_gaon/solo_draw_reach_px", HidingRules.SOLO_HAND_REACH))
+	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", HidingRules.SOLO_HAND_REACH)
+	var remote_start := Vector2(2300, 700)
+	root.get_node("EventBus").call("emit", "input.draw_start",
+		{"entity_id": 1, "position": remote_start})
+	root.get_node("EventBus").call("emit", "input.draw_update",
+		{"entity_id": 1, "position": remote_start + Vector2(48, 0)})
+	root.get_node("EventBus").call("emit", "input.draw_end", {"entity_id": 1})
+	_check(draw.call("get_active_lines").is_empty(),
+		"distant input cannot teleport chalk across territory")
+	_check(not HidingRules.can_reach_point(Vector2(700, 450), Vector2(700, 510), 180.0),
+		"walls block hand reach even inside nominal distance")
+	_check(HidingRules.can_reach_point(Vector2(200, 300), Vector2(260, 300)),
+		"valid nearby drawing remains allowed")
+	print(PREFIX + "PHYSICAL_DRAW_REACH_OK")
+
 	# Real human solo mode has NO 50-line cap: adding 65 valid marks must
 	# never evict the first one to make room for a later one.
 	var first_id := 3000
-	for i in range(65):
+	for i in range(500):
 		var chalk := ChalkLine.new()
 		chalk.id = first_id + i
 		chalk.player_id = 1
@@ -171,12 +190,12 @@ func _run() -> void:
 		chalk.created_at = float(i)
 		draw.call("_add_line", chalk)
 	var all_lines: Array = draw.call("get_active_lines")
-	_check(all_lines.size() >= 65,
-		"65 valid human strokes accepted without artificial quota")
+	_check(all_lines.size() >= 500,
+		"500 human marks retained without an arbitrary cap or eviction")
 	_check(all_lines.any(func(item: ChalkLine) -> bool: return item.id == first_id),
 		"oldest human mark never auto-evicted")
 	draw.call("clear_all_lines")
-	print(PREFIX + "UNLIMITED_HUMAN_MARKS_OK")
+	print(PREFIX + "UNLIMITED_HUMAN_MARKS_OK count=500")
 
 	# Manipulation of a physical brick while drawing: tap to flip open,
 	# draw on its backside, tap to replace, then require a searcher to lift
@@ -184,6 +203,9 @@ func _run() -> void:
 	if cover != null:
 		var brick: Dictionary = HidingRules.get_cover_sites(false)[4]
 		var center: Vector2 = (brick["rect"] as Rect2).get_center()
+		var before_brick: Vector2 = player.global_position
+		player.global_position = center + Vector2(0, 65)
+		player.set_meta("has_target", false)
 		cover.call("_on_hider_draw_start", {"position": center})
 		cover.call("_on_hider_draw_end", {})
 		_check((cover.call("opened_for_hiding") as Dictionary).has(str(brick["id"])),
@@ -207,6 +229,7 @@ func _run() -> void:
 		_check(bool(cover.call("can_reveal", stroke, center, false,
 			"surface")), "line drawn visibly ON TOP of closed brick is exposed")
 		draw.call("clear_all_lines")
+		player.global_position = before_brick
 		print(PREFIX + "FLIPPED_BRICK_UNDERSIDE_OK")
 
 	var escort := world.get_node_or_null("DefenderEscort")
@@ -260,6 +283,7 @@ func _run() -> void:
 				"chalk on a wall can be inspected from its reachable edge")
 		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
 
+	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", original_reach)
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
 	var player_sm := player.get_node_or_null("EntityStateMachine") as Node
