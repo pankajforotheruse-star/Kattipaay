@@ -330,7 +330,9 @@ func _choose_next_solo_visit() -> void:
 	if not npc:
 		return
 	var sites := HidingRules.get_cover_sites(true)
-	var destination := sites[_rng.randi_range(0, sites.size() - 1)]["rect"].get_center()
+	var chosen_site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
+	var chosen_rect: Rect2 = chosen_site["rect"]
+	var destination: Vector2 = chosen_rect.get_center()
 	if _rng.randf() < 0.23:
 		destination = Vector2(_rng.randf_range(150.0, 2250.0),
 			_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 90.0,
