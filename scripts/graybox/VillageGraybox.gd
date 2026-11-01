@@ -118,6 +118,8 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	_add_box("Front left", Vector3(x - 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_box("Front right", Vector3(x + 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_marker("RoofAnchor_%d_%d" % [int(x), int(z)], Vector3(x, 3.85, z))
+	_add_marker("RampBase_%d_%d" % [int(x), int(z)], Vector3(x + 3.7, 0.85, z + 7.1))
+	_add_marker("RampTop_%d_%d" % [int(x), int(z)], Vector3(x + 3.7, 3.90, z - 3.2))
 	_add_box("Flat roof", Vector3(x, 3.45, z), Vector3(7.7, 0.35, 7.7), Color(0.55, 0.37, 0.28))
 	_add_box("Roof parapet", Vector3(x, 3.95, z - 3.7), Vector3(7.7, 0.9, 0.4), wall)
 	# Inclined solid ramp is actually walkable, unlike decorative stairs.
