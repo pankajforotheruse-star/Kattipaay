@@ -10,6 +10,7 @@ const WORLD_CELLS := Vector2i(60, 45)
 
 var _grid: AStarGrid2D
 var _obstacles: Array[Rect2] = []
+var _prop_obstacles: Array[Rect2] = []
 
 func _ready() -> void:
 	_grid = AStarGrid2D.new()
@@ -33,6 +34,43 @@ func _ready() -> void:
 		hitbox.shape = shape
 		body.add_child(hitbox)
 		add_child(body)
+	# Use the actual relocated Sprite2D positions and scaled texture bounds.
+	# Every blocking prop therefore uses the SAME world-space geometry for
+	# collision, pathfinding and line-of-sight. Decorative-only canopies
+	# remain non-solid; their visible trunks are the physical obstructions.
+	var props := get_parent().get_node_or_null("Props")
+	if props:
+		for zone in props.get_children():
+			for visual in zone.get_children():
+				if not visual is Sprite2D:
+					continue
+				var sprite := visual as Sprite2D
+				var label := String(sprite.name)
+				var solid := label.begins_with("House") or label.begins_with("Well") \
+						or label.begins_with("Temple") or label.begins_with("BanyanTrunk") \
+						or label.begins_with("Charpai") or label.begins_with("ClayPot") \
+						or label.begins_with("Scarecrow")
+				if not solid or sprite.texture == null:
+					continue
+				var visual_size := sprite.texture.get_size() * sprite.scale.abs()
+				var collision_size := Vector2(
+					clampf(visual_size.x * 0.76, 22.0, 180.0),
+					clampf(visual_size.y * 0.60, 20.0, 135.0))
+				var rect := Rect2(sprite.global_position - collision_size * 0.5,
+					collision_size)
+				_prop_obstacles.append(rect)
+				_obstacles.append(rect.grow(ACTOR_MARGIN))
+				var obstacle := StaticBody2D.new()
+				obstacle.name = "Solid" + label
+				obstacle.collision_layer = 2
+				obstacle.collision_mask = 0
+				obstacle.position = sprite.global_position
+				var collider := CollisionShape2D.new()
+				var shape := RectangleShape2D.new()
+				shape.size = collision_size
+				collider.shape = shape
+				obstacle.add_child(collider)
+				add_child(obstacle)
 	for cell_y in range(WORLD_CELLS.y):
 		for cell_x in range(WORLD_CELLS.x):
 			var cell_id := Vector2i(cell_x, cell_y)
@@ -41,6 +79,26 @@ func _ready() -> void:
 				if obstacle.has_point(sample):
 					_grid.set_point_solid(cell_id, true)
 					break
+
+## Prop occlusion respects raised roof surfaces; roof marks are visible
+## from adjacent walkable ground, but a HOUSE between two ground marks
+## blocks sight just as a solid wall does.
+func has_clear_prop_sight(observer: Vector2, target: Vector2) -> bool:
+	for rect in _prop_obstacles:
+		var hit: Variant = rect.intersects_segment(observer, target)
+		if hit == null:
+			continue
+		if rect.has_point(target):
+			# Chalk on a visible facade/roof can be inspected from nearby;
+			# chalk on open ground behind the house cannot.
+			var site := HidingRules.cover_site_at(target)
+			if not site.is_empty() and int(site["kind"]) == HidingRules.COVER_ROOF:
+				continue
+		var first: Vector2 = hit
+		if first.distance_to(target) > 9.0:
+			return false
+	return true
+
 
 func is_walkable(point: Vector2) -> bool:
 	if not Rect2(Vector2.ZERO, ZoneLayout.WORLD_SIZE).has_point(point):
