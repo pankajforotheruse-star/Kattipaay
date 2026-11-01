@@ -38,6 +38,12 @@ jobs:
           timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DMigrationTest.gd --log-file 3d-migration-smoke.log
           grep -q 'CHALK_GAON_3D: PASS' 3d-migration-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-migration-smoke.log
+      - name: Independent 3D round state smoke
+        run: |
+          set -euo pipefail
+          timeout 100s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DRoundSmoke.gd --log-file 3d-round.log
+          grep -q 'CHALK_GAON_3D_ROUND: PASS' 3d-round.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-round.log
       - name: Existing Play vs CPU regression
         run: |
           set -euo pipefail
@@ -54,4 +60,5 @@ jobs:
             graybox-smoke.log
             original-smoke.log
             3d-migration-smoke.log
+            3d-round.log
           if-no-files-found: ignore
