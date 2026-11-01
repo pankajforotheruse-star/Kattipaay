@@ -580,10 +580,22 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float, rng: Rand
 		var cpu := _game_world.get_entity(2) as Node2D
 		if cpu:
 			for i in range(line.points.size()):
-				var off := line.points[i] - cpu.global_position
-				if off.length() > HidingRules.SOLO_HAND_REACH:
+				var candidate := line.points[i]
+				if not HidingRules.can_reach_point(cpu.global_position, candidate):
+					# Binary-search a reachable point on this same stroke ray.
+					# A wall never becomes permeable merely because a line
+					# endpoint fits inside a numerical 180px circle.
+					var valid := 0.0
+					var blocked := 1.0
+					for _step in range(9):
+						var portion := (valid + blocked) * 0.5
+						var probe := cpu.global_position.lerp(candidate, portion)
+						if HidingRules.can_reach_point(cpu.global_position, probe):
+							valid = portion
+						else:
+							blocked = portion
 					line.points[i] = ZoneLayout.clamp_to_cpu_zone(
-						cpu.global_position + off.normalized() * (HidingRules.SOLO_HAND_REACH - 12.0))
+						cpu.global_position.lerp(candidate, valid))
 		var site := HidingRules.cover_site_at(start)
 		if not site.is_empty() and HidingRules.is_inspectable_cover(int(site["kind"])):
 			line.hidden_cover_id = str(site["id"]) if \
