@@ -231,9 +231,31 @@ static func can_reveal_line(points: Array, searcher_pos: Vector2,
 				# Preserve backward compatibility with stored legacy packets
 				# whose wc=true flag exists without geometry available.
 				radius = REVEAL_RADIUS_OCCLUDED
-			if searcher_pos.distance_squared_to(sample) <= radius * radius:
+			if searcher_pos.distance_squared_to(sample) <= radius * radius \
+					and has_clear_sight(searcher_pos, sample):
 				return true
 	return false
+
+
+## Public, deterministic wall occlusion, identical for human and CPU.
+## A mark on a near-facing wall surface is visible only from that side;
+## a wall between the searcher and open-ground chalk blocks discovery.
+## Navigation and sight both use the canonical get_all_walls() geometry.
+static func has_clear_sight(observer: Vector2, target: Vector2) -> bool:
+	if not observer.is_finite() or not target.is_finite():
+		return false
+	for wall_candidate in get_all_walls():
+		var wall: Rect2 = wall_candidate
+		var hit: Variant = wall.intersects_segment(observer, target)
+		if hit == null:
+			continue
+		var first_hit: Vector2 = hit
+		# A near-facing surface is 0–9px behind the visible front face.
+		# Looking THROUGH a compound wall (including to its far face)
+		# never counts as a legitimate chalk discovery.
+		if first_hit.distance_to(target) > 9.0:
+			return false
+	return true
 
 
 static func cover_site_at(p: Vector2) -> Dictionary:
