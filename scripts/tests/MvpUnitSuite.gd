@@ -28,6 +28,7 @@ func _run() -> void:
 	_test_zone_invariants()
 	_test_visibility_boundaries()
 	_test_fair_cover_rules()
+	_test_cpu_count_randomness()
 	_test_chalk_roundtrip()
 	# CPU path + perception are tested with real controllers in the smoke test.
 	_test_scoring_decisions()
@@ -183,6 +184,30 @@ func _test_fair_cover_rules() -> void:
 		"physical hand cannot pass through solid wall")
 	print(PREFIX + "WALL_OCCLUSION_AND_REACH_OK")
 	print(PREFIX + "FAIR_COVER_SYMMETRY_OK")
+
+
+## 100 independent rounds per difficulty: sample exactly the requested
+## CPU count ranges, non-degenerate variation, and sensible ordering.
+## This is a statistical policy test, NOT a measured human win-rate claim.
+func _test_cpu_count_randomness() -> void:
+	var rng := RandomNumberGenerator.new()
+	var prior_mean := -1.0
+	for level in range(4):
+		rng.seed = 20261101 + level * 9107
+		var bounds := CpuDrawingPolicy.bounds_for(level)
+		var seen := {}
+		var total := 0
+		for i in range(100):
+			var count := CpuDrawingPolicy.roll_count(level, rng)
+			_check(count >= bounds.x and count <= bounds.y,
+				"100-round CPU quota sample within configured range")
+			total += count
+			seen[count] = true
+		var mean := float(total) / 100.0
+		_check(seen.size() > 22, "CPU quota avoids repetitive fixed outcomes")
+		_check(mean > prior_mean, "higher level samples more CPU strokes on average")
+		prior_mean = mean
+	print(PREFIX + "CPU_100_ROUND_SAMPLING_OK")
 
 
 func _test_chalk_roundtrip() -> void:
