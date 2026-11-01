@@ -36,6 +36,7 @@ var cpu_recent_positions := PackedVector3Array()
 var cheating_enabled := false
 var bot_follow_refresh := 0.0
 var human_idle_seconds := 0.0
+var checked_public_covers: Dictionary = {}
 var find_interact_requested := false
 var coin_call := -1
 var coin_face := -1
@@ -104,10 +105,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			if phase != "DRAWING" and not (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
 				return
 		if event.keycode == KEY_E:
-			if phase == "SEARCHING" and searcher == HUMAN_ID:
-				find_interact_requested = true
-			else:
-				_push_nearby_crate()
+			if not _toggle_aimed_cover():
+				if phase == "SEARCHING" and searcher == HUMAN_ID:
+					find_interact_requested = true
+				else:
+					_push_nearby_crate()
 		if event.keycode == KEY_Q and phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1:
 			argument_uses += 1
 			argument_delay = 3.0
@@ -276,6 +278,7 @@ func _attempt_cpu_draw() -> void:
 		return
 
 func _cpu_inspect() -> void:
+	_inspect_nearby_public_cover()
 	# CPU never chooses a waypoint from the player's hidden stroke coordinates.
 	# It only looks for actually visible strokes at its current physical eye.
 	var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
@@ -326,6 +329,7 @@ func _advance_phase() -> void:
 
 func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
+	checked_public_covers.clear()
 	phase_left = SEARCH_TIME
 	human_idle_seconds = 0.0
 	bot_follow_refresh = 0.0
@@ -508,3 +512,48 @@ func _mobile_button(root: Control, caption: String, right_offset: float, bottom_
 	control.offset_bottom = bottom_offset + 58.0
 	control.pressed.connect(action)
 	root.add_child(control)
+
+## Brick/crate cover is physically lifted and replaced. This is not a disguised
+## visibility flag: the rigid body actually moves, changing physics raycasts.
+func _toggle_cover_body(body: RigidBody3D) -> void:
+	var opened := bool(body.get_meta("cover_lifted", false))
+	if opened:
+		var base: Vector3 = body.get_meta("cover_base_position", body.global_position)
+		body.global_position = base
+		body.freeze = false
+		body.set_meta("cover_lifted", false)
+	else:
+		body.set_meta("cover_base_position", body.global_position)
+		body.freeze = true
+		body.global_position += Vector3.UP * 1.8
+		body.set_meta("cover_lifted", true)
+
+func _toggle_aimed_cover() -> bool:
+	var origin := walker.global_position + Vector3(0, 1.0, 0)
+	var direction := -camera.global_transform.basis.z
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 3.0)
+	query.exclude = [walker.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return false
+	var body := hit.get("collider") as RigidBody3D
+	if body == null or not body.is_in_group("future_movable_props"):
+		return false
+	if body.global_position.distance_to(walker.global_position) > 3.5:
+		return false
+	_toggle_cover_body(body)
+	message = "Lifted cover" if body.get_meta("cover_lifted", false) else "Replaced cover"
+	return true
+
+func _inspect_nearby_public_cover() -> void:
+	if phase != "SEARCHING" or searcher != CPU_ID:
+		return
+	for node in get_tree().get_nodes_in_group("future_movable_props"):
+		var body := node as RigidBody3D
+		if body == null or checked_public_covers.has(body.get_instance_id()):
+			continue
+		if cpu_body.global_position.distance_to(body.global_position) < 2.6:
+			checked_public_covers[body.get_instance_id()] = true
+			_toggle_cover_body(body)
+			message = "CPU physically inspected a nearby public cover"
+			return
