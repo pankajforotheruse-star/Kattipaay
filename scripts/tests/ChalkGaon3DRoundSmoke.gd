@@ -16,6 +16,10 @@ func _run() -> void:
 	_check(game.get_node_or_null("GhostOpponent3D") is CharacterBody3D, "Physical CPU character")
 	_check(game.get_node_or_null("DrawController3D") is DrawController3D, "3D raycasting drawer")
 	_check(game.phase == "DRAWING", "Drawing phase starts")
+	await process_frame
+	_check(game.cpu_nav.built, "CPU ground navigation built")
+	game._attempt_cpu_draw()
+	_check(game.drawn_cpu_count > 0, "CPU physically places 3D chalk on a village surface")
 	game._advance_phase()
 	_check(game.phase == "MEETING", "Meeting after drawing")
 	game._advance_phase()
