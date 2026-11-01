@@ -90,6 +90,33 @@ func _on_hider_draw_end(_payload: Dictionary) -> void:
 				id, str(_opened_for_hiding.has(id))])
 			return
 
+## CPU has exactly the same physical flip action as the human hider.
+## Called only at the CPU's actual position during the DRAW phase.
+func cpu_open_for_hiding(site_id: String, cpu_pos: Vector2) -> String:
+	if not GameState.solo_vs_cpu or GameState.get_match_state() != GameState.MatchState.DRAWING:
+		return ""
+	var cpu := get_parent().get_entity(2) as Node2D
+	if cpu == null or cpu.global_position.distance_to(cpu_pos) > 2.0:
+		return ""
+	for site in HidingRules.get_cover_sites(true):
+		if str(site["id"]) != site_id or \
+				not HidingRules.is_inspectable_cover(int(site["kind"])):
+			continue
+		var rect: Rect2 = site["rect"]
+		var reach := HidingRules.SOLO_HAND_REACH
+		if not HidingRules.can_reach_point(cpu_pos, rect.get_center(), reach):
+			return ""
+		_opened_for_hiding[site_id] = true
+		queue_redraw()
+		return site_id
+	return ""
+
+
+func cpu_close_after_hiding(site_id: String) -> void:
+	_opened_for_hiding.erase(site_id)
+	queue_redraw()
+
+
 func opened_for_hiding() -> Dictionary:
 	return _opened_for_hiding.duplicate()
 
