@@ -272,6 +272,19 @@ func _process(delta: float) -> void:
 
 ## Called when the second finger touches down while the first is held (draw gesture starts).
 ## payload: {entity_id: int, position: Vector2 (world-space), chalk_type: int}
+func _can_physically_draw_at(point: Vector2) -> bool:
+    if not GameState.solo_vs_cpu:
+        return true
+    # Override is only for legacy automated match simulations. It does not
+    # affect the default 180px physical interaction radius.
+    var reach := float(ProjectSettings.get_setting(
+        "chalk_gaon/solo_draw_reach_px", HidingRules.SOLO_HAND_REACH))
+    if reach < 0.0:
+        return true
+    var actor := _game_world.get_entity(1) as Node2D if _game_world else null
+    return actor != null and HidingRules.can_reach_point(actor.global_position, point, reach)
+
+
 func _on_draw_start(payload: Dictionary) -> void:
     # Solo drawing is legal only during DRAWING or the active defender sneak
     # window. Direct events during searching/meeting cannot create extra marks.
@@ -290,6 +303,18 @@ func _on_draw_start(payload: Dictionary) -> void:
     if not GameState.solo_vs_cpu and _chalk_remaining <= 0.0:
         return
 
+    var start_pos: Vector2 = payload.get("position", Vector2.ZERO)
+    if GameState.solo_vs_cpu:
+        if int(payload.get("entity_id", -1)) != 1 or not ZoneLayout.point_in_player_zone(start_pos):
+            return
+        if not _can_physically_draw_at(start_pos):
+            return
+        # Drawing and movement are mutually exclusive. Stop the avatar so
+        # every point is measured against a stable physical standing spot.
+        var actor := _game_world.get_entity(1) as CharacterBody2D if _game_world else null
+        if actor:
+            actor.set_meta("has_target", false)
+            actor.velocity = Vector2.ZERO
     _is_drawing = true
     _drawing_entity_id = payload.get("entity_id", -1)
     _current_chalk_type = ChalkType.WHITE if GameState.solo_vs_cpu else payload.get("chalk_type", ChalkType.WHITE)
@@ -323,6 +348,8 @@ func _on_draw_update(payload: Dictionary) -> void:
         return
 
     var pos: Vector2 = payload.get("position", Vector2.ZERO)
+    if GameState.solo_vs_cpu and not _can_physically_draw_at(pos):
+        return
     if GameState.get_match_state() == GameState.MatchState.DRAWING or sneak_mode:
         pos = ZoneLayout.clamp_to_player_zone(pos)
     var last_pos := _raw_draw_points[-1] if _raw_draw_points.size() > 0 else pos
@@ -427,6 +454,15 @@ func _finish_drawing() -> void:
         _remove_preview_line()
         _drawing_entity_id = -1
         return
+
+    # A forged or delayed input event must not append a mark outside the
+    # avatar's current arm reach, even if the preview looked legitimate.
+    if GameState.solo_vs_cpu:
+        for sample in _raw_draw_points:
+            if not _can_physically_draw_at(sample):
+                _remove_preview_line()
+                _drawing_entity_id = -1
+                return
 
     # --- Step 1: Catmull-Rom spline interpolation ---
     var smoothed := _catmull_rom_smooth(_raw_draw_points, SPLINE_SAMPLE_SPACING)
