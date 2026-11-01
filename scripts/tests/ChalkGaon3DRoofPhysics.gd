@@ -40,7 +40,9 @@ func _run() -> void:
 		await physics_frame
 		var rose := false
 		var on_roof := false
-		for target in [crest.global_position, entry.global_position, anchor.global_position]:
+		var stages: Array[Vector3] = [crest.global_position, entry.global_position, anchor.global_position]
+		for stage in range(stages.size()):
+			var target: Vector3 = stages[stage]
 			var last_progress: Vector3 = actor.global_position
 			for frame in range(430):
 				var planar: Vector3 = target - actor.global_position
@@ -62,6 +64,7 @@ func _run() -> void:
 					if actor.global_position.distance_to(last_progress) < 0.4:
 						break
 					last_progress = actor.global_position
+			print("ROOF_STAGE suffix=%s stage=%d position=%s target=%s" % [suffix, stage, str(actor.global_position), str(target)])
 		on_roof = actor.global_position.y > 3.1 and actor.global_position.distance_to(anchor.global_position) < 1.7
 		if not rose or not on_roof:
 			failed.append("%s unable to reach roof: %s" % [suffix, str(actor.global_position)])
