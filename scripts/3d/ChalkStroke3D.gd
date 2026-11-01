@@ -64,18 +64,36 @@ func rebuild_mesh() -> void:
 func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float = 12.0) -> bool:
 	if local_points.is_empty() or struck:
 		return false
-	for local_point in local_points:
-		var world_point := to_global(local_point)
-		if eye_position.distance_to(world_point) > max_distance:
-			continue
-		var query := PhysicsRayQueryParameters3D.create(eye_position, world_point + (eye_position - world_point).normalized() * 0.025)
-		var hit := physics.intersect_ray(query)
-		if hit.is_empty():
+	# Visibility is evaluated per visible stroke segment, not per entire mark
+	# and not merely by one stored endpoint. Long strokes can be partly hidden.
+	for i in range(local_points.size()):
+		if _sample_point_visible(local_points[i], eye_position, physics, max_distance):
 			return true
-		# A collider on the stroke's own parent surface is expected at the endpoint.
-		if get_parent() is CollisionObject3D and hit.get("collider") == get_parent():
-			if (hit["position"] as Vector3).distance_to(world_point) < 0.12:
+		if i == 0:
+			continue
+		var a := local_points[i - 1]
+		var b := local_points[i]
+		var subdivisions := mini(64, maxi(1, ceili(a.distance_to(b) / 0.2)))
+		for j in range(1, subdivisions):
+			var p := a.lerp(b, float(j) / float(subdivisions))
+			if _sample_point_visible(p, eye_position, physics, max_distance):
 				return true
+	return false
+
+func _sample_point_visible(p: Vector3, eye: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float) -> bool:
+	var target := to_global(p)
+	var dist := eye.distance_to(target)
+	if dist > max_distance or dist < 0.02:
+		return false
+	var direction := (eye - target) / dist
+	var query := PhysicsRayQueryParameters3D.create(eye, target + direction * 0.025)
+	var hit := physics.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	# A hit against the same surface only counts when it is at the actual chalk
+	# sample, not when the wall itself hides a stroke on the far face.
+	if get_parent() is CollisionObject3D and hit.get("collider") == get_parent():
+		return (hit["position"] as Vector3).distance_to(target) < 0.12
 	return false
 
 func to_save_dict() -> Dictionary:
