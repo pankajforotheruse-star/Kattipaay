@@ -31,6 +31,11 @@ var sneak_uses := 0
 var result := ""
 var drawn_cpu_count := 0
 var find_interact_requested := false
+var coin_call := -1
+var coin_face := -1
+var cpu_sneak_uses := 0
+var cpu_argue_uses := 0
+var human_strike_delay := 0.0
 
 func _ready() -> void:
 	super._ready()
@@ -71,6 +76,14 @@ func _make_cpu_body() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if phase == "MEETING" and event.keycode == KEY_H:
+			coin_call = 0
+			message = "You called HEADS"
+			return
+		if phase == "MEETING" and event.keycode == KEY_T:
+			coin_call = 1
+			message = "You called TAILS"
+			return
 		if event.keycode == KEY_G or event.keycode == KEY_TAB:
 			get_viewport().set_input_as_handled()
 			return
@@ -116,12 +129,16 @@ func _process(delta: float) -> void:
 		_update_hud()
 		return
 	phase_left -= delta
+	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
 		if cpu_idle_time <= 0.0:
 			_attempt_cpu_draw()
 			cpu_idle_time = 2.5
 	elif phase == "SEARCHING":
+		if searcher == HUMAN_ID and cpu_idle_time <= 0.0:
+			_cpu_defender_action()
+			cpu_idle_time = 3.5
 		if searcher == CPU_ID:
 			_cpu_inspect()
 		elif find_interact_requested:
@@ -143,7 +160,9 @@ func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 		var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
 		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0):
 			stroke.struck = true
-			message = "CPU caught a visible sneak"
+			stroke.visible = false
+			_penalize_nearby(stroke, saved_human_lines)
+			message = "CPU caught sneak: mark plus nearby lines removed"
 	saved_human_lines.append(stroke)
 
 func _choose_cpu_destination() -> void:
@@ -229,6 +248,9 @@ func _cpu_inspect() -> void:
 			break
 
 func _human_strike_visible() -> void:
+	if human_strike_delay > 0.0:
+		message = "CPU distracted you: wait before striking"
+		return
 	var eye := walker.global_position + Vector3(0, 1.45, 0)
 	for stroke in cpu_lines:
 		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5):
@@ -249,7 +271,11 @@ func _advance_phase() -> void:
 		cpu_body.global_position = Vector3(2, 0.85, 0)
 		message = "Meeting: coin toss decides the first searcher"
 	elif phase == "MEETING":
-		first_searcher = HUMAN_ID if rng.randi_range(0, 1) == 0 else CPU_ID
+		coin_face = rng.randi_range(0, 1)
+		if coin_call < 0:
+			coin_call = rng.randi_range(0, 1)
+		first_searcher = HUMAN_ID if coin_face == coin_call else CPU_ID
+		message = "Coin %s; %s searches first" % ["HEADS" if coin_face == 0 else "TAILS", "HUMAN" if first_searcher == HUMAN_ID else "CPU"]
 		search_number = 1
 		_begin_search(first_searcher)
 	elif phase == "SEARCHING" and search_number == 1:
@@ -271,6 +297,7 @@ func _begin_search(who: int) -> void:
 		walker.global_position = Vector3(-27, 0.85, 0)
 		cpu_body.global_position = Vector3(-3.5, 0.85, 0)
 	_choose_cpu_destination()
+	cpu_idle_time = 2.0
 	message = "Search %d: %s searches" % [search_number, "HUMAN" if who == HUMAN_ID else "CPU"]
 
 func _finish_match() -> void:
@@ -295,7 +322,7 @@ func _finish_match() -> void:
 func _update_hud() -> void:
 	if info == null:
 		return
-	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find  Q argue\n%s\n%s" % [
+	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin\n%s\n%s" % [
 		phase, maxf(0.0, phase_left), drawn_cpu_count, saved_human_lines.size(),
 		"Searcher: HUMAN" if searcher == HUMAN_ID else "Searcher: CPU", message]
 
@@ -314,3 +341,64 @@ func _push_nearby_crate() -> void:
 		return
 	body.apply_central_impulse(Vector3(direction.x, 0, direction.z).normalized() * 22.0)
 	message = "Moved wooden crate"
+
+func _cpu_defender_action() -> void:
+	# A limited defensive action occurs only while the human searches CPU territory.
+	if searcher != HUMAN_ID or phase != "SEARCHING":
+		return
+	if cpu_argue_uses < 1 and cpu_sneak_uses > 0:
+		cpu_argue_uses += 1
+		human_strike_delay = 3.0
+		message = "CPU argues: your strike action is delayed"
+		return
+	if cpu_sneak_uses >= 3:
+		return
+	var eye := walker.global_position + Vector3(0, 1.45, 0)
+	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position, 2.5)
+	for candidate in candidates:
+		var surface := candidate["surface"] as CollisionObject3D
+		var point: Vector3 = candidate["position"]
+		if cpu_body.global_position.distance_to(point) > 2.7:
+			continue
+		var normal: Vector3 = candidate["normal"]
+		var lateral := normal.cross(Vector3.UP).normalized()
+		if lateral.length_squared() < 0.01:
+			lateral = normal.cross(Vector3.RIGHT).normalized()
+		var second := point + lateral * 0.35
+		var query := PhysicsRayQueryParameters3D.create(second + normal * 0.3, second - normal * 0.3)
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty() or hit.get("collider") != surface:
+			continue
+		var stroke := ChalkStroke3D.new()
+		stroke.owner_id = CPU_ID
+		stroke.stroke_id = 20000 + cpu_sneak_uses
+		stroke.is_sneak = true
+		stroke.surface_id = str(surface.get_path())
+		surface.add_child(stroke)
+		stroke.add_surface_point(point, normal)
+		stroke.add_surface_point(hit["position"], hit["normal"])
+		cpu_lines.append(stroke)
+		cpu_sneak_uses += 1
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0):
+			stroke.struck = true
+			stroke.visible = false
+			_penalize_nearby(stroke, cpu_lines)
+			message = "You spotted CPU sneaking; nearby marks penalized"
+		else:
+			message = "CPU attempted a hidden defensive mark"
+		return
+
+func _penalize_nearby(caught: ChalkStroke3D, owned_lines: Array[ChalkStroke3D]) -> void:
+	if caught.local_points.is_empty():
+		return
+	var location := caught.to_global(caught.local_points[0])
+	var penalties := 0
+	for candidate in owned_lines:
+		if candidate == caught or not is_instance_valid(candidate) or candidate.struck or candidate.local_points.is_empty():
+			continue
+		if candidate.to_global(candidate.local_points[0]).distance_to(location) < 5.0:
+			candidate.struck = true
+			candidate.visible = false
+			penalties += 1
+			if penalties >= 2:
+				break
