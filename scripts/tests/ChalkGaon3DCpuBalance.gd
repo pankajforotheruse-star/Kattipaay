@@ -26,10 +26,15 @@ func _run() -> void:
 		if target < range_min or target > range_max:
 			push_error("Difficulty %d target %d out of range" % [difficulty, target])
 			ok = false
+		var start_pos: Vector3 = game.cpu_body.global_position
 		await create_timer(5.0).timeout
+		var travelled: float = game.cpu_body.global_position.distance_to(start_pos)
 		var made: int = game.drawn_cpu_count
 		var expected_by_elapsed := float(target) * 5.0 / 6.0
-		print("CPU_BALANCE_3D difficulty=%d target=%d actual=%d expected_by_elapsed=%.1f reach_rate=%.3f" % [difficulty, target, made, expected_by_elapsed, float(made) / float(maxi(target, 1))])
+		print("CPU_BALANCE_3D difficulty=%d target=%d actual=%d expected_by_elapsed=%.1f reach_rate=%.3f displacement_m=%.2f" % [difficulty, target, made, expected_by_elapsed, float(made) / float(maxi(target, 1)), travelled])
+		if travelled < 1.0:
+			push_error("Difficulty %d: physical CPU did not meaningfully move" % difficulty)
+			ok = false
 		if made <= 0:
 			push_error("Difficulty %d: CPU drew no physical lines" % difficulty)
 			ok = false
