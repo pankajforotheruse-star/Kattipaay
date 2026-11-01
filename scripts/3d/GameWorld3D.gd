@@ -141,6 +141,8 @@ func _process(delta: float) -> void:
 			cpu_idle_time = 3.5
 		if searcher == CPU_ID:
 			_cpu_inspect()
+		else:
+			_reveal_nearby_cpu_strokes()
 		elif find_interact_requested:
 			_human_strike_visible()
 		find_interact_requested = false
@@ -231,6 +233,7 @@ func _attempt_cpu_draw() -> void:
 		stroke.add_surface_point(point, normal)
 		stroke.add_surface_point(second["position"], second["normal"])
 		cpu_lines.append(stroke)
+		stroke.visible = false
 		drawn_cpu_count += 1
 		message = "CPU physically placed line %d" % drawn_cpu_count
 		return
@@ -378,6 +381,7 @@ func _cpu_defender_action() -> void:
 		stroke.add_surface_point(point, normal)
 		stroke.add_surface_point(hit["position"], hit["normal"])
 		cpu_lines.append(stroke)
+		stroke.visible = false
 		cpu_sneak_uses += 1
 		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0):
 			stroke.struck = true
@@ -402,3 +406,15 @@ func _penalize_nearby(caught: ChalkStroke3D, owned_lines: Array[ChalkStroke3D]) 
 			penalties += 1
 			if penalties >= 2:
 				break
+
+func _reveal_nearby_cpu_strokes() -> void:
+	if phase != "SEARCHING" or searcher != HUMAN_ID:
+		return
+	var eye := walker.global_position + Vector3(0, 1.45, 0)
+	for stroke in cpu_lines:
+		if not is_instance_valid(stroke) or stroke.struck or stroke.discovered:
+			continue
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5):
+			stroke.discovered = true
+			stroke.visible = true
+			message = "Chalk spotted nearby — press E to strike"
