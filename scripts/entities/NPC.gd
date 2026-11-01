@@ -57,9 +57,20 @@ func _ready() -> void:
 	_go_to_next_waypoint()
 
 func _draw() -> void:
-	var half := VISUAL_SIZE / 2.0
-	draw_rect(Rect2(-half, VISUAL_SIZE), npc_color)
-	draw_rect(Rect2(-half, VISUAL_SIZE), Color.BLACK, false, 2.0)
+	# Simple legible child silhouette instead of an arcade debug rectangle.
+	# The full character art pass can replace this procedural placeholder.
+	var skin := Color(0.86, 0.65, 0.45)
+	var ink := Color(0.13, 0.17, 0.20)
+	draw_line(Vector2(-5, 9), Vector2(-8, 21), ink, 4.0)
+	draw_line(Vector2(5, 9), Vector2(8, 21), ink, 4.0)
+	draw_line(Vector2(-7, -1), Vector2(-15, 7), skin, 4.0)
+	draw_line(Vector2(7, -1), Vector2(15, 7), skin, 4.0)
+	draw_circle(Vector2(0, 2), 10.0, npc_color)
+	draw_circle(Vector2(0, -13), 9.0, skin)
+	draw_arc(Vector2(0, -13), 9.0, PI, TAU, 16, ink, 2.5)
+	draw_circle(Vector2(-3, -13), 1.15, ink)
+	draw_circle(Vector2(3, -13), 1.15, ink)
+	draw_circle(Vector2(0, 2), 10.0, Color(0, 0, 0, 0.38), false, 1.4)
 
 func _physics_process(delta: float) -> void:
 	if GameState.solo_vs_cpu and (GameState.current == GameState.State.PAUSED \
