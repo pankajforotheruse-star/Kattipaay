@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://playground_3d/PlayerController3D.gd" id="1_player"]
 [ext_resource type="Script" path="res://playground_3d/ZoneManager3D.gd" id="2_zone"]
@@ -10,6 +10,10 @@ size = Vector3(12, 0.4, 26)
 size = Vector3(12, 0.4, 26)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+radius = 0.3
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
 radius = 0.3
 height = 1.8
 
@@ -46,7 +50,7 @@ script = ExtResource("1_player")
 shape = SubResource("CapsuleShape_player")
 
 [node name="HumanVisual" type="MeshInstance3D" parent="HumanPlayer"]
-mesh = SubResource("CapsuleShape_player")
+mesh = SubResource("CapsuleMesh_player")
 
 [node name="CpuPlayer" type="CharacterBody3D" parent="."]
 position = Vector3(3, 1.1, 8)
@@ -57,7 +61,7 @@ controllable = false
 shape = SubResource("CapsuleShape_player")
 
 [node name="CpuVisual" type="MeshInstance3D" parent="CpuPlayer"]
-mesh = SubResource("CapsuleShape_player")
+mesh = SubResource("CapsuleMesh_player")
 
 [node name="CompoundDivider" type="StaticBody3D" parent="."]
 position = Vector3(0, 1, -3)
