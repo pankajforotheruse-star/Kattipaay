@@ -98,9 +98,9 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Tree trunk", Vector3(cx + 15, 2.1, -13), Vector3(1, 4.2, 1), Color(0.33, 0.21, 0.12))
 	_add_box("Tree crown", Vector3(cx + 15, 4.5, -13), Vector3(5, 2, 5), Color(0.27, 0.43, 0.23))
 	_add_box("Raised platform", Vector3(cx - 15, 0.7, -2), Vector3(5, 1.4, 5), Color(0.48, 0.37, 0.27))
-	_add_box("Ruined shed rear", Vector3(cx + 13, 1.3, 17), Vector3(6, 2.6, 0.45), wall)
-	_add_box("Ruined shed left", Vector3(cx + 10, 1.0, 15), Vector3(0.45, 2.0, 4), wall)
-	_add_box("Ruined shed lintel", Vector3(cx + 13, 2.6, 13), Vector3(6, 0.5, 0.45), wall)
+	_add_box("Ruined shed rear", Vector3(cx + 20, 1.3, 17), Vector3(6, 2.6, 0.45), wall)
+	_add_box("Ruined shed left", Vector3(cx + 17, 1.0, 15), Vector3(0.45, 2.0, 4), wall)
+	_add_box("Ruined shed lintel", Vector3(cx + 20, 2.6, 13), Vector3(6, 0.5, 0.45), wall)
 	_add_box("Bush cover", Vector3(cx - 15, 0.45, -17), Vector3(3.4, 0.9, 2.7), Color(0.29, 0.45, 0.22))
 	_add_movable_crate(Vector3(cx - 8, 0.6, 6))
 	_add_box("Stone steps lower", Vector3(cx - 16, 0.24, -6), Vector3(2.5, 0.48, 1.5), Color(0.47, 0.42, 0.35))
@@ -124,7 +124,7 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	# Keep a physical parapet but leave the ramp landing unobstructed.
 	_add_box("Roof parapet", Vector3(x - 0.9, 3.95, z - 3.7), Vector3(5.5, 0.9, 0.4), wall)
 	# A bridge connects the side-mounted ramp to the roof without crossing the house wall.
-	_add_box("Roof ramp landing", Vector3(x + 4.3, 3.46, z - 3.1), Vector3(2.0, 0.28, 2.3), Color(0.53, 0.46, 0.36))
+	_add_box("Roof ramp landing", Vector3(x + 4.3, 3.46, z - 3.6), Vector3(2.0, 0.28, 1.0), Color(0.53, 0.46, 0.36))
 	# Inclined solid ramp is actually walkable, unlike decorative stairs.
 	var rise := 3.45
 	var run := 10.0
