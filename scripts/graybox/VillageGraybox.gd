@@ -14,6 +14,8 @@ var info: Label
 var crouched := false
 var draw_controller: DrawController3D
 var drawing_mode := false
+var debug_phase := "DRAWING"
+var debug_owner_id := 1
 
 func _ready() -> void:
 	_make_light()
@@ -163,8 +165,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_crouch()
 		if event.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		if event.keycode == KEY_G:
+			debug_phase = "SEARCHING" if debug_phase == "DRAWING" else "DRAWING"
 		if event.keycode == KEY_TAB:
 			spawn_index = 1 - spawn_index
+			debug_owner_id = 1 if spawn_index == 0 else 2
+			draw_controller.owner_id = debug_owner_id
 			walker.global_position = Vector3(ZONE_CENTERS[spawn_index], 1.3, 0)
 			walker.velocity = Vector3.ZERO
 	if event is InputEventMouseButton and event.pressed and not drawing_mode:
@@ -192,7 +198,11 @@ func _physics_process(delta: float) -> void:
 			walker.velocity.y = -0.1
 	else:
 		walker.velocity.y -= 17.5 * delta
+	var before_move := walker.global_position
 	walker.move_and_slide()
+	if not Territory3D.can_enter(debug_owner_id, walker.global_position, debug_phase, debug_owner_id):
+		walker.global_position = before_move
+		walker.velocity = Vector3.ZERO
 	var target := walker.global_position + Vector3(0, 1.1, 0)
 	var offset := Vector3(sin(yaw) * 6.5 * cos(pitch), 2.3 - sin(pitch) * 6.5, cos(yaw) * 6.5 * cos(pitch))
 	var desired_camera_position := target + offset
@@ -203,7 +213,7 @@ func _physics_process(delta: float) -> void:
 		desired_camera_position = camera_hit["position"] + camera_hit["normal"] * 0.2
 	camera.global_position = desired_camera_position
 	camera.look_at(target)
-	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | F draw toggle | Tab swap zone | Esc free mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
+	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | F draw | G phase | Tab role/zone | Esc free mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
 
 func _toggle_crouch() -> void:
 	var collider := walker.get_node("CollisionShape3D") as CollisionShape3D
