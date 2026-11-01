@@ -40,6 +40,7 @@ var cheating_enabled := false
 var bot_follow_refresh := 0.0
 var human_idle_seconds := 0.0
 var checked_public_covers: Dictionary = {}
+var cpu_roof_attempted := false
 var find_interact_requested := false
 var coin_call := -1
 var coin_face := -1
@@ -203,6 +204,10 @@ func _choose_cpu_destination() -> void:
 		return
 	var destination_zone := Territory3D.Zone.CPU if phase == "DRAWING" or searcher == HUMAN_ID else Territory3D.Zone.PLAYER
 	var nav := cpu_nav if destination_zone == Territory3D.Zone.CPU else human_nav
+	if phase == "SEARCHING" and searcher == CPU_ID and not cpu_roof_attempted:
+		cpu_roof_attempted = true
+		if _assign_physical_roof_route(nav):
+			return
 	var candidates := PackedVector3Array()
 	for i in range(24):
 		var x := rng.randf_range(5, 48) * (-1.0 if destination_zone == Territory3D.Zone.PLAYER else 1.0)
@@ -232,7 +237,7 @@ func _advance_bot() -> void:
 	if cpu_route_index < cpu_path.size():
 		var goal := cpu_path[cpu_route_index]
 		var horizontal := Vector3(goal.x - cpu_body.global_position.x, 0, goal.z - cpu_body.global_position.z)
-		if horizontal.length() < 0.65:
+		if horizontal.length() < 0.65 and absf(cpu_body.global_position.y - goal.y) < 1.3:
 			cpu_route_index += 1
 		else:
 			var direction := horizontal.normalized()
@@ -337,6 +342,7 @@ func _advance_phase() -> void:
 func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
 	checked_public_covers.clear()
+	cpu_roof_attempted = false
 	phase_left = configured_search_seconds
 	human_idle_seconds = 0.0
 	bot_follow_refresh = 0.0
@@ -564,3 +570,34 @@ func _inspect_nearby_public_cover() -> void:
 			_toggle_cover_body(body)
 			message = "CPU physically inspected a nearby public cover"
 			return
+
+## Roof access is a physical itinerary: walk to the ramp base, ascend the
+## colliding slope, then explore the roof. Never teleport an AI onto it.
+func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
+	var targets: Array[Dictionary] = []
+	for marker in get_children():
+		if not (marker is Marker3D) or not marker.name.begins_with("RoofAnchor_"):
+			continue
+		if Territory3D.zone_of(marker.global_position) != Territory3D.Zone.PLAYER:
+			continue
+		var suffix := marker.name.trim_prefix("RoofAnchor_")
+		var base := get_node_or_null("RampBase_" + suffix) as Marker3D
+		var top := get_node_or_null("RampTop_" + suffix) as Marker3D
+		if base == null or top == null:
+			continue
+		targets.append({"roof": marker, "base": base, "top": top})
+	targets.shuffle()
+	for route in targets:
+		var start: Vector3 = (route["base"] as Marker3D).global_position
+		var entrance := start + Vector3(0, 0, 1.3)
+		var ground_path := nav.find_path(cpu_body.global_position, entrance)
+		if ground_path.is_empty():
+			continue
+		cpu_path = ground_path
+		cpu_path.append(start)
+		cpu_path.append((route["top"] as Marker3D).global_position)
+		cpu_path.append((route["roof"] as Marker3D).global_position)
+		cpu_route_index = 0
+		message = "CPU exploring a public rooftop route"
+		return true
+	return false
