@@ -108,7 +108,9 @@ func _build_zone(cx: float, index: int) -> void:
 	_add_box("Haystack obstacle", Vector3(cx + 17, 0.8, -4), Vector3(2.5, 1.6, 2.5), Color(0.69, 0.53, 0.25))
 	_add_box("Cart base", Vector3(cx - 7, 0.45, -14), Vector3(3.7, 0.9, 2.2), Color(0.42, 0.29, 0.17))
 	_add_box("Cart screen", Vector3(cx - 7, 1.35, -15.1), Vector3(3.7, 1.0, 0.22), Color(0.42, 0.29, 0.17))
-	_add_box("Territory marker", Vector3(cx, 0.05, 0), Vector3(2, 0.1, 2), Color(0.18, 0.45, 0.8) if index == 0 else Color(0.85, 0.35, 0.17))
+	# Spawn paint is visual-only: the old collision box blocked the bot path graph at spawn.
+	var spawn_paint := _add_box("Territory marker", Vector3(cx, 0.05, 0), Vector3(2, 0.1, 2), Color(0.18, 0.45, 0.8) if index == 0 else Color(0.85, 0.35, 0.17))
+	(spawn_paint.get_node("CollisionShape3D") as CollisionShape3D).disabled = true
 
 func _build_house(x: float, z: float, wall: Color) -> void:
 	# U-shaped room with doorway gap; roof provides a drawing-ready overhead surface.
@@ -119,7 +121,8 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	_add_box("Front right", Vector3(x + 2.6, 1.6, z + 3.5), Vector3(1.8, 3.2, 0.5), wall)
 	_add_marker("RoofAnchor_%d_%d" % [int(x), int(z)], Vector3(x, 3.85, z))
 	_add_marker("RampBase_%d_%d" % [int(x), int(z)], Vector3(x + 5.3, 0.85, z + 7.3))
-	_add_marker("RampTop_%d_%d" % [int(x), int(z)], Vector3(x + 5.3, 3.90, z - 3.2))
+	_add_marker("RampTop_%d_%d" % [int(x), int(z)], Vector3(x + 5.3, 3.90, z - 4.1))
+	_add_marker("RoofEntry_%d_%d" % [int(x), int(z)], Vector3(x + 3.5, 3.90, z - 3.9))
 	_add_box("Flat roof", Vector3(x, 3.45, z), Vector3(7.7, 0.35, 7.7), Color(0.55, 0.37, 0.28))
 	# Keep a physical parapet but leave the ramp landing unobstructed.
 	_add_box("Roof parapet", Vector3(x - 0.9, 3.95, z - 3.7), Vector3(5.5, 0.9, 0.4), wall)
