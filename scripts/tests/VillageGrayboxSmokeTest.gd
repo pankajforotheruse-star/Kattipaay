@@ -23,9 +23,19 @@ func _run() -> void:
 	var house_count := 0
 	var ramp_count := 0
 	var blockers := 0
+	var roof_markers := 0
+	var ramp_base_markers := 0
+	var ramp_top_markers := 0
 	for child in level.get_children():
 		if child is Camera3D:
 			camera = child as Camera3D
+		if child is Marker3D:
+			if child.name.begins_with("RoofAnchor_"):
+				roof_markers += 1
+			if child.name.begins_with("RampBase_"):
+				ramp_base_markers += 1
+			if child.name.begins_with("RampTop_"):
+				ramp_top_markers += 1
 		if child is StaticBody3D:
 			box_count += 1
 			if child.is_in_group("graybox_surfaces"):
@@ -47,6 +57,7 @@ func _run() -> void:
 	_check(perimeter_count >= 4, "Four enclosing outer walls")
 	_check(house_count >= 4, "Four village houses")
 	_check(ramp_count >= 4, "Four potential roof routes")
+	_check(roof_markers >= 4 and ramp_base_markers == roof_markers and ramp_top_markers == roof_markers, "Every rooftop has ramp access waypoints")
 	_check(blockers >= 2, "Movable candidate geometry present in both zones")
 	if walker != null:
 		_check(walker.global_position.x < 0.0, "Initial human spawn in left territory")
