@@ -9,7 +9,9 @@ func _run() -> void:
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_max_seconds", 0.2)
 	ProjectSettings.set_setting("chalk_gaon/solo_search_phase_seconds", 0.2)
 	for difficulty in range(4):
-		GameState.cpu_difficulty = difficulty
+		var state := root.get_node_or_null("GameState")
+		if state != null:
+			state.set("cpu_difficulty", difficulty)
 		var scene := load("res://scenes/3d/game_world_3d.tscn") as PackedScene
 		if scene == null:
 			push_error("Balance benchmark scene load failed")
