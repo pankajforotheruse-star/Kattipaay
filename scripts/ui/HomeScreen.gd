@@ -32,6 +32,7 @@ var _swipe_start: Vector2 = Vector2.ZERO
 func _ready() -> void:
 	_setup_background()
 	_connect_signals()
+	_add_3d_test_launch()
 	# Hide non-MVP placeholders; only real Play VS CPU and tutorial paths are
 	# presented as ready. Existing handlers remain for future development.
 	for unused_button in [_play_online_btn, _offline_play_btn, _settings_btn,
@@ -234,3 +235,18 @@ func _start_solo_with_difficulty(difficulty: int) -> void:
 	# MAIN_MENU -> PLAYING (prototype bootstrap precedent), so SceneManager
 	# routes straight to game_world.tscn with the solo flag set.
 	GameState.transition(GameState.State.PLAYING)
+
+## Feature-branch-only opt-in. Existing Play VS CPU 2D path is preserved.
+func _add_3d_test_launch() -> void:
+	var launch := Button.new()
+	launch.name = "Play3DExperimentalButton"
+	launch.text = "PLAY VS CPU — 3D TEST"
+	launch.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	launch.offset_left = 140.0
+	launch.offset_right = -140.0
+	launch.offset_top = -92.0
+	launch.offset_bottom = -32.0
+	launch.pressed.connect(func() -> void:
+		GameState.solo_vs_cpu = false
+		get_tree().change_scene_to_file("res://scenes/3d/game_world_3d.tscn"))
+	add_child(launch)
