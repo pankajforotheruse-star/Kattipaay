@@ -45,19 +45,20 @@ func _ready() -> void:
 
 ## Draw the player as a colored rectangle + direction indicator.
 func _draw() -> void:
-	var half := VISUAL_SIZE / 2.0
-	# Main body
-	draw_rect(Rect2(-half, VISUAL_SIZE), player_color)
-	# Border
-	draw_rect(Rect2(-half, VISUAL_SIZE), Color.WHITE if is_local else Color.BLACK, false, 2.0)
-	# Direction indicator (small triangle pointing "up" relative to entity)
-	var indicator_color := Color.WHITE
-	var points := PackedVector2Array([
-		Vector2(0, -half.y - 8),
-		Vector2(-5, -half.y),
-		Vector2(5, -half.y),
-	])
-	draw_polygon(points, PackedColorArray([indicator_color, indicator_color, indicator_color]))
+	# Simple legible child silhouette instead of an arcade debug rectangle.
+	# The full character art pass can replace this procedural placeholder.
+	var skin := Color(0.86, 0.65, 0.45)
+	var ink := Color(0.13, 0.17, 0.20)
+	draw_line(Vector2(-5, 9), Vector2(-8, 21), ink, 4.0)
+	draw_line(Vector2(5, 9), Vector2(8, 21), ink, 4.0)
+	draw_line(Vector2(-7, -1), Vector2(-15, 7), skin, 4.0)
+	draw_line(Vector2(7, -1), Vector2(15, 7), skin, 4.0)
+	draw_circle(Vector2(0, 2), 10.0, player_color)
+	draw_circle(Vector2(0, -13), 9.0, skin)
+	draw_arc(Vector2(0, -13), 9.0, PI, TAU, 16, ink, 2.5)
+	draw_circle(Vector2(-3, -13), 1.15, ink)
+	draw_circle(Vector2(3, -13), 1.15, ink)
+	draw_circle(Vector2(0, 2), 10.0, Color(0, 0, 0, 0.38), false, 1.4)
 
 ## Handle a move command from InputManager (via EventBus).
 func _on_move_command(payload: Dictionary) -> void:
