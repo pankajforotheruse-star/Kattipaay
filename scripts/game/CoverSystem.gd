@@ -69,6 +69,17 @@ func _on_hider_draw_end(_payload: Dictionary) -> void:
 		if not HidingRules.is_inspectable_cover(int(site["kind"])):
 			continue
 		if (site["rect"] as Rect2).has_point(_draw_tap_start):
+			# Cover is a real object. Nobody can lift or flip a brick
+			# anywhere on the map merely by tapping its coordinates.
+			var world := get_parent() as GameWorld
+			var actor := world.get_entity(1) as Node2D if world else null
+			var reach := float(ProjectSettings.get_setting(
+				"chalk_gaon/solo_draw_reach_px", HidingRules.SOLO_HAND_REACH))
+			if actor == null:
+				return
+			if reach >= 0.0 and not HidingRules.can_reach_point(
+					actor.global_position, _draw_tap_start, reach):
+				return
 			var id := str(site["id"])
 			if _opened_for_hiding.has(id):
 				_opened_for_hiding.erase(id)
