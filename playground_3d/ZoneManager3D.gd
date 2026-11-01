@@ -16,7 +16,7 @@ func classify_world_position(position: Vector3) -> Territory:
 		return Territory.HUMAN
 	return Territory.CPU
 
-func can_draw_in_territory(position: Vector3, territory: Territory) -> bool:
+func can_draw_in_territory(position: Vector3, territory: int) -> bool:
 	if territory != Territory.HUMAN and territory != Territory.CPU:
 		return false
 	return classify_world_position(position) == territory
