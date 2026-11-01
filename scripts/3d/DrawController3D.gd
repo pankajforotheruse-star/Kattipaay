@@ -11,6 +11,7 @@ var owner_id := 1
 var enabled := true
 var current: ChalkStroke3D
 var next_stroke_id := 1
+var active_touch_id := -1
 
 func configure(view: Camera3D, actor: CharacterBody3D) -> void:
 	camera = view
@@ -19,6 +20,15 @@ func configure(view: Camera3D, actor: CharacterBody3D) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not enabled or camera == null or player == null:
 		return
+	if event is InputEventScreenTouch:
+		if event.pressed and active_touch_id == -1:
+			active_touch_id = event.index
+			_begin_stroke(event.position)
+		elif not event.pressed and event.index == active_touch_id:
+			_end_stroke()
+			active_touch_id = -1
+	if event is InputEventScreenDrag and event.index == active_touch_id and current != null:
+		_append_stroke(event.position)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_begin_stroke(event.position)
