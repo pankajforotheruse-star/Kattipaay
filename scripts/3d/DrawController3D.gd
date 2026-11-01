@@ -3,6 +3,7 @@ extends Node3D
 ## Camera-targeted world-space freehand drawing; no preset drawing locations.
 signal stroke_finished(stroke: ChalkStroke3D)
 @export var draw_range := 4.0
+@export var camera_ray_length := 30.0
 var camera: Camera3D
 var player: CharacterBody3D
 var strokes: Array[ChalkStroke3D] = []
@@ -28,7 +29,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _trace(screen_point: Vector2) -> Dictionary:
 	var origin := camera.project_ray_origin(screen_point)
-	var end := origin + camera.project_ray_normal(screen_point) * draw_range
+	var end := origin + camera.project_ray_normal(screen_point) * camera_ray_length
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
 	query.exclude = [player.get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
