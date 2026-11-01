@@ -28,6 +28,8 @@ func _ready() -> void:
 	move_child(scenery, 0)
 	_align_wall_art_with_concealment_geometry()
 	if GameState.solo_vs_cpu:
+		_align_cover_art_with_public_sites()
+	if GameState.solo_vs_cpu:
 		# Shared navigable, collidable walls for the striker AND defender.
 		# All chalk hiding sites have a walkable approach; no player may
 		# walk through solid compound walls to reveal a hidden stroke.
@@ -80,6 +82,53 @@ func _ready() -> void:
 ## the very same authoritative wall geometry in both halves of the map.
 ## Collision/pathfinding is NOT introduced here: the CPU route needs its own
 ## obstacle-aware navigation before making these walls physically solid.
+## All public cover objects are also real visible world sprites.
+## Adjust the village props BEFORE VillageNavigation reads their footprints.
+## Both territories have two actual tree canopies and two attached roof spots.
+func _align_cover_art_with_public_sites() -> void:
+	for cpu_side in [false, true]:
+		var prefix := "Props/CpuZoneProps/" if cpu_side else "Props/PlayerZoneProps/"
+		var sites := HidingRules.get_cover_sites(cpu_side)
+		for site in sites:
+			var site_id := str(site["id"])
+			var area: Rect2 = site["rect"]
+			if site_id.ends_with("roof-a"):
+				_place_cover_sprite(prefix + ("House05" if cpu_side else "House01"), area)
+			elif site_id.ends_with("roof-b"):
+				_place_cover_sprite(prefix + ("House08" if cpu_side else "House04"), area)
+			elif site_id.ends_with("tree-a"):
+				_place_cover_sprite(prefix + "BanyanCanopy", area)
+				var trunk := get_node_or_null(prefix + "BanyanTrunk") as Sprite2D
+				if trunk:
+					trunk.position = area.get_center() + Vector2(0, area.size.y * 0.24)
+			elif site_id.ends_with("tree-b"):
+				var parent := get_node_or_null(
+					"Props/CpuZoneProps" if cpu_side else "Props/PlayerZoneProps")
+				var source := get_node_or_null(prefix + "BanyanCanopy") as Sprite2D
+				var trunk_source := get_node_or_null(prefix + "BanyanTrunk") as Sprite2D
+				if parent and source:
+					var clone := source.duplicate() as Sprite2D
+					clone.name = "BanyanCanopyExtra"
+					parent.add_child(clone)
+					clone.position = area.get_center()
+					clone.scale = source.scale
+				if parent and trunk_source:
+					var extra := trunk_source.duplicate() as Sprite2D
+					extra.name = "BanyanTrunkExtra"
+					parent.add_child(extra)
+					extra.position = area.get_center() + Vector2(0, area.size.y * 0.24)
+
+
+func _place_cover_sprite(path: String, area: Rect2) -> void:
+	var sprite := get_node_or_null(path) as Sprite2D
+	if sprite:
+		sprite.position = area.get_center()
+		if sprite.texture:
+			# A hiding region is defined by exactly this visible object's
+			# footprint; no isolated invisible rectangle elsewhere.
+			sprite.scale = area.size / sprite.texture.get_size()
+
+
 func _align_wall_art_with_concealment_geometry() -> void:
 	var names := ["WallA", "WallB", "WallC"]
 	var player_walls := HidingRules.get_zone_walls()
