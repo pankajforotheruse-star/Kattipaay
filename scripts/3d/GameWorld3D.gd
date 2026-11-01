@@ -34,6 +34,8 @@ var cpu_target := 0
 var cpu_draw_interval := 0.5
 var cpu_recent_positions := PackedVector3Array()
 var cheating_enabled := false
+var bot_follow_refresh := 0.0
+var human_idle_seconds := 0.0
 var find_interact_requested := false
 var coin_call := -1
 var coin_face := -1
@@ -118,6 +120,15 @@ func _physics_process(delta: float) -> void:
 	debug_phase = "DRAWING" if phase == "DRAWING" else "SEARCHING"
 	debug_owner_id = HUMAN_ID
 	super._physics_process(delta)
+	if phase == "SEARCHING" and searcher == CPU_ID:
+		var manual_move := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or mobile_move.length_squared() > 0.05
+		human_idle_seconds = 0.0 if manual_move else human_idle_seconds + delta
+		if human_idle_seconds > 3.0 and walker.global_position.distance_to(cpu_body.global_position) > 3.2:
+			var follow := cpu_body.global_position - walker.global_position
+			follow.y = 0.0
+			walker.velocity.x = follow.normalized().x * 2.4
+			walker.velocity.z = follow.normalized().z * 2.4
+			walker.move_and_slide()
 	if cpu_body == null or phase == "RESULT":
 		return
 	if cpu_body.is_on_floor():
@@ -201,7 +212,13 @@ func _advance_bot() -> void:
 		cpu_body.velocity.x = 0.0
 		cpu_body.velocity.z = 0.0
 		return
-	if cpu_route_index >= cpu_path.size():
+	if phase == "SEARCHING" and searcher == HUMAN_ID and cpu_nav.built:
+		bot_follow_refresh -= get_physics_process_delta_time()
+		if bot_follow_refresh <= 0.0:
+			bot_follow_refresh = 1.0
+			cpu_path = cpu_nav.find_path(cpu_body.global_position, walker.global_position)
+			cpu_route_index = 0
+	elif cpu_route_index >= cpu_path.size():
 		_choose_cpu_destination()
 	if cpu_route_index < cpu_path.size():
 		var goal := cpu_path[cpu_route_index]
@@ -310,6 +327,8 @@ func _advance_phase() -> void:
 func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
 	phase_left = SEARCH_TIME
+	human_idle_seconds = 0.0
+	bot_follow_refresh = 0.0
 	searcher = who
 	cpu_path.clear()
 	cpu_route_index = 0
