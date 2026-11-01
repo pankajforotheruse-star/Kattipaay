@@ -10,6 +10,7 @@ Continue to use existing `SoloMatchDriver.gd`, `GameState.gd`, `ScoringManager.g
 
 - `scripts/3d/Territory3D.gd`: coordinate-based zone classification; draw authorization; phase-aware entry policy, unconnected to old match.
 - `scripts/3d/ChalkStroke3D.gd`: per-surface local geometry, depth-tested rendered ribbon, ownership, strike/discovery/sneak metadata, versioned serialization.
+- `scripts/3d/GroundNavigation3D.gd`: collision-sampled AStarGrid2D projected onto 3D ground positions, zone-isolated; no roof, ladder, jump or dynamic-object links yet.
 - `scripts/3d/CpuSurfacePlanner3D.gd`: environment-only surface candidate probing and occlusion scores (no access to hidden human strokes); navigation and line placement remain unconnected.
 - `scripts/3d/DrawController3D.gd`: third-person Camera3D raycasts, no predefined drawing points; max player-to-surface reach, surface collision and territory checks, single-surface strokes and versioned save/restore.
 - `scripts/graybox/VillageGraybox.gd`: debug F key toggles mouse cursor and 3D drawing in standalone level.
