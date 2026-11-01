@@ -115,6 +115,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			match_paused = not match_paused
 			message = "PAUSED" if match_paused else "RESUMED"
 			return
+		if match_paused:
+			return
 		if event.keycode == KEY_R and phase == "RESULT":
 			get_tree().reload_current_scene()
 			return
@@ -178,6 +180,7 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	super._process(delta)
 	if match_paused:
+		draw_controller.enabled = false
 		_update_hud()
 		return
 	# The normal graybox uses debug-phase toggling; the 3D match owns it here.
