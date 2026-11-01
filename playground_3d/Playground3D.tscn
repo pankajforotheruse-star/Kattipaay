@@ -1,0 +1,78 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://playground_3d/PlayerController3D.gd" id="1_player"]
+[ext_resource type="Script" path="res://playground_3d/ZoneManager3D.gd" id="2_zone"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(12, 0.4, 26)
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(12, 0.4, 26)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+radius = 0.3
+height = 1.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_divider"]
+size = Vector3(0.3, 2, 7)
+
+[sub_resource type="BoxShape3D" id="BoxShape_divider"]
+size = Vector3(0.3, 2, 7)
+
+[node name="Playground3D" type="Node3D"]
+
+[node name="ZoneManager" type="Node3D" parent="."]
+script = ExtResource("2_zone")
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+
+[node name="VisibleGround" type="MeshInstance3D" parent="Terrain"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="GroundCollider" type="CollisionShape3D" parent="Terrain"]
+shape = SubResource("BoxShape_floor")
+
+[node name="HumanStart" type="Marker3D" parent="."]
+position = Vector3(-3, 1.1, 8)
+
+[node name="CpuStart" type="Marker3D" parent="."]
+position = Vector3(3, 1.1, 8)
+
+[node name="HumanPlayer" type="CharacterBody3D" parent="."]
+position = Vector3(-3, 1.1, 8)
+script = ExtResource("1_player")
+
+[node name="HumanCollider" type="CollisionShape3D" parent="HumanPlayer"]
+shape = SubResource("CapsuleShape_player")
+
+[node name="HumanVisual" type="MeshInstance3D" parent="HumanPlayer"]
+mesh = SubResource("CapsuleShape_player")
+
+[node name="CpuPlayer" type="CharacterBody3D" parent="."]
+position = Vector3(3, 1.1, 8)
+script = ExtResource("1_player")
+controllable = false
+
+[node name="CpuCollider" type="CollisionShape3D" parent="CpuPlayer"]
+shape = SubResource("CapsuleShape_player")
+
+[node name="CpuVisual" type="MeshInstance3D" parent="CpuPlayer"]
+mesh = SubResource("CapsuleShape_player")
+
+[node name="CompoundDivider" type="StaticBody3D" parent="."]
+position = Vector3(0, 1, -3)
+
+[node name="WallMesh" type="MeshInstance3D" parent="CompoundDivider"]
+mesh = SubResource("BoxMesh_divider")
+
+[node name="WallCollider" type="CollisionShape3D" parent="CompoundDivider"]
+shape = SubResource("BoxShape_divider")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 17, 20)
+current = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.8, -0.5, 0)
