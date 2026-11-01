@@ -44,6 +44,12 @@ jobs:
           timeout 100s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DRoundSmoke.gd --log-file 3d-round.log
           grep -q 'CHALK_GAON_3D_ROUND: PASS' 3d-round.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-round.log
+      - name: Accelerated full 3D gameplay cycle
+        run: |
+          set -euo pipefail
+          timeout 110s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DE2E.gd --log-file 3d-end-to-end.log
+          grep -q 'CHALK_GAON_3D_E2E: PASS' 3d-end-to-end.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-end-to-end.log
       - name: Existing Play vs CPU regression
         run: |
           set -euo pipefail
@@ -61,4 +67,5 @@ jobs:
             original-smoke.log
             3d-migration-smoke.log
             3d-round.log
+            3d-end-to-end.log
           if-no-files-found: ignore
