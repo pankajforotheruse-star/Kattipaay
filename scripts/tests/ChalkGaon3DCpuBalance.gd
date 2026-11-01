@@ -38,6 +38,9 @@ func _run() -> void:
 		if travelled < 1.0:
 			push_error("Difficulty %d: physical CPU did not meaningfully move" % difficulty)
 			ok = false
+		if float(made) < expected_by_elapsed * 0.60:
+			push_error("Difficulty %d: physical mark throughput below 60%% of scheduled pace (%d vs %.1f)" % [difficulty, made, expected_by_elapsed])
+			ok = false
 		if made <= 0:
 			push_error("Difficulty %d: CPU drew no physical lines" % difficulty)
 			ok = false
