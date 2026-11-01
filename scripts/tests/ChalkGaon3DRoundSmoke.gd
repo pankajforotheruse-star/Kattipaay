@@ -20,6 +20,15 @@ func _run() -> void:
 	_check(game.cpu_nav.built, "CPU ground navigation built")
 	game._attempt_cpu_draw()
 	_check(game.drawn_cpu_count > 0, "CPU physically places 3D chalk on a village surface")
+	var remaining: float = game.phase_left
+	game.match_paused = true
+	game._process(1.0)
+	_check(is_equal_approx(game.phase_left, remaining), "Pause freezes 3D round clock")
+	game.match_paused = false
+	game.phase_left = 5.2
+	game.five_second_warned = false
+	game._process(0.3)
+	_check(game.clock_warning_count >= 1, "Last five seconds warning triggers")
 	game._advance_phase()
 	_check(game.phase == "MEETING", "Meeting after drawing")
 	game._advance_phase()
