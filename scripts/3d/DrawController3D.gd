@@ -92,3 +92,23 @@ func save_strokes() -> Array[Dictionary]:
 		if is_instance_valid(stroke):
 			result.append(stroke.to_save_dict())
 	return result
+
+## Resolve stable scene paths; reject unknown/unavailable surfaces, never spawn strokes in midair.
+func load_strokes(records: Array[Dictionary], world_root: Node) -> int:
+	var restored := 0
+	for data in records:
+		if int(data.get("version", 0)) != 1:
+			continue
+		var path := NodePath(str(data.get("surface", "")))
+		var surface := world_root.get_node_or_null(path) as CollisionObject3D
+		if surface == null or not surface.is_in_group("graybox_surfaces"):
+			continue
+		var stroke := ChalkStroke3D.new()
+		stroke.name = "LoadedStroke_%d" % restored
+		surface.add_child(stroke)
+		if not stroke.from_save_dict(data):
+			stroke.queue_free()
+			continue
+		strokes.append(stroke)
+		restored += 1
+	return restored
