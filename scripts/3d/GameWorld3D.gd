@@ -47,6 +47,9 @@ var coin_face := -1
 var cpu_sneak_uses := 0
 var cpu_argue_uses := 0
 var human_strike_delay := 0.0
+var match_paused := false
+var five_second_warned := false
+var clock_warning_count := 0
 
 func _ready() -> void:
 	super._ready()
@@ -98,6 +101,13 @@ func _make_cpu_body() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_P:
+			match_paused = not match_paused
+			message = "PAUSED" if match_paused else "RESUMED"
+			return
+		if event.keycode == KEY_R and phase == "RESULT":
+			get_tree().reload_current_scene()
+			return
 		if phase == "MEETING" and event.keycode == KEY_H:
 			coin_call = 0
 			message = "You called HEADS"
@@ -125,6 +135,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	super._unhandled_input(event)
 
 func _physics_process(delta: float) -> void:
+	if match_paused:
+		return
 	# Existing graybox controller moves one controllable human.
 	# Disable original debug territory switch; enforce phase gates here.
 	debug_phase = "DRAWING" if phase == "DRAWING" else "SEARCHING"
@@ -155,12 +167,19 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	if match_paused:
+		_update_hud()
+		return
 	# The normal graybox uses debug-phase toggling; the 3D match owns it here.
 	draw_controller.enabled = drawing_mode and (phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3))
 	if phase == "RESULT":
 		_update_hud()
 		return
 	phase_left -= delta
+	if phase != "MEETING" and phase_left <= 5.0 and not five_second_warned:
+		five_second_warned = true
+		clock_warning_count += 1
+		message = "LAST 5 SECONDS!"
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
@@ -317,6 +336,7 @@ func _human_strike_visible() -> void:
 	message = "No visible CPU line close enough to strike"
 
 func _advance_phase() -> void:
+	five_second_warned = false
 	drawing_mode = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if phase == "DRAWING":
@@ -340,6 +360,7 @@ func _advance_phase() -> void:
 		_finish_match()
 
 func _begin_search(who: int) -> void:
+	five_second_warned = false
 	phase = "SEARCHING"
 	checked_public_covers.clear()
 	cpu_roof_attempted = false
@@ -381,8 +402,8 @@ func _finish_match() -> void:
 func _update_hud() -> void:
 	if info == null:
 		return
-	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d/%d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin\n%s\n%s" % [
-		phase, maxf(0.0, phase_left), drawn_cpu_count, cpu_target, saved_human_lines.size(),
+	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d/%d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin  P pause  R replay\n%s\n%s" % [
+		phase + (" (PAUSED)" if match_paused else ""), maxf(0.0, phase_left), drawn_cpu_count, cpu_target, saved_human_lines.size(),
 		"Searcher: HUMAN" if searcher == HUMAN_ID else "Searcher: CPU", message]
 
 func _push_nearby_crate() -> void:
