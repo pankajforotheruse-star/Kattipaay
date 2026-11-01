@@ -284,6 +284,16 @@ func _run() -> void:
 		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
 
 	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", original_reach)
+	# Regression: a real mobile tap finishes its walking route AFTER
+	# finger-up. Previously the move_end event immediately cancelled it.
+	player.set_meta("target_position", player.global_position + Vector2(90, 0))
+	player.set_meta("has_target", true)
+	player.call("_on_move_stop", {})
+	_check(bool(player.get_meta("has_target", false)),
+		"solo tap-to-move survives finger release")
+	player.set_meta("has_target", false)
+	print(PREFIX + "TAP_TO_MOVE_PERSISTS_OK")
+
 	# Real EntityStateMachine movement, not just a manually incremented clock.
 	# Both avatars must remain frozen while the pause overlay is active.
 	var player_sm := player.get_node_or_null("EntityStateMachine") as Node
