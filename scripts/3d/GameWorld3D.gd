@@ -11,6 +11,9 @@ const CPU_ID := 2
 
 var phase := "DRAWING"
 var phase_left := DRAW_TIME
+var configured_draw_seconds := DRAW_TIME
+var configured_search_seconds := SEARCH_TIME
+var configured_meeting_seconds := MEETING_TIME
 var searcher := HUMAN_ID
 var first_searcher := HUMAN_ID
 var search_number := 0
@@ -47,12 +50,16 @@ var human_strike_delay := 0.0
 func _ready() -> void:
 	super._ready()
 	rng.randomize()
+	configured_draw_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", DRAW_TIME)))
+	configured_search_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_search_phase_seconds", SEARCH_TIME)))
+	configured_meeting_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_max_seconds", MEETING_TIME)))
+	phase_left = configured_draw_seconds
 	cheating_enabled = bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false))
 	var difficulty := clampi(GameState.cpu_difficulty, 0, 3)
 	var ranges := [Vector2i(50, 100), Vector2i(65, 120), Vector2i(85, 150), Vector2i(110, 180)]
 	var count_range: Vector2i = ranges[difficulty]
 	cpu_target = rng.randi_range(count_range.x, count_range.y)
-	cpu_draw_interval = DRAW_TIME / float(cpu_target)
+	cpu_draw_interval = configured_draw_seconds / float(cpu_target)
 	drawing_mode = false
 	debug_phase = "DRAWING"
 	_make_cpu_body()
@@ -309,7 +316,7 @@ func _advance_phase() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if phase == "DRAWING":
 		phase = "MEETING"
-		phase_left = MEETING_TIME
+		phase_left = configured_meeting_seconds
 		walker.global_position = Vector3(-2, 0.85, 0)
 		cpu_body.global_position = Vector3(2, 0.85, 0)
 		message = "Meeting: coin toss decides the first searcher"
@@ -330,7 +337,7 @@ func _advance_phase() -> void:
 func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
 	checked_public_covers.clear()
-	phase_left = SEARCH_TIME
+	phase_left = configured_search_seconds
 	human_idle_seconds = 0.0
 	bot_follow_refresh = 0.0
 	searcher = who
