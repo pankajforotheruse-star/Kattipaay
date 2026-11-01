@@ -513,8 +513,13 @@ func _configure_search_scene(searcher: int) -> void:
 			_walk_entity_to(player, ZoneLayout.DEFEND_POS_HUMAN)
 		if npc is NPC:
 			npc.patrolling = false  # the sweep controller drives the NPC now
-		InputManager.touch_to_move_enabled = false
-		InputManager.sneak_draw_enabled = true  # defender may sneak-extra lines while the CPU sweeps
+		# The human DEFENDER may follow and supervise the CPU striker.
+		# Assist follows automatically until the human taps to move.
+		InputManager.touch_to_move_enabled = true
+		# Cheating/sneak penalties are explicitly on HOLD for the childhood
+		# MVP revision; do not allow teleport-drawn sneak marks meanwhile.
+		InputManager.sneak_draw_enabled = bool(ProjectSettings.get_setting(
+			"chalk_gaon/solo_cheating_enabled", false))
 		if _camera:
 			_camera.set_overview(Rect2(
 				ZoneLayout.PLAYER_ZONE.position + Vector2(0.0, -40.0),

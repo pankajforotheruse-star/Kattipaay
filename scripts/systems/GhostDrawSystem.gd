@@ -364,7 +364,10 @@ func _on_network_ghost_lines_placed(payload: Dictionary) -> void:
 		return
 
 	for line_data in lines_data:
-		if _active_ghost_lines.size() >= MAX_GHOST_LINES:
+		# Old 50-line network/ghost cap is not a childhood-game mechanic.
+		# The solo CPU uses its independently sampled difficulty-specific
+		# target and does not silently discard any of those strokes.
+		if not GameState.solo_vs_cpu and _active_ghost_lines.size() >= MAX_GHOST_LINES:
 			break
 		if not line_data is Dictionary or not ChalkLine.is_valid_network_payload(line_data):
 			push_warning("GhostDrawSystem: rejected malformed ghost-line payload")
@@ -440,9 +443,12 @@ func _check_cpu_sneak_notices() -> void:
 			continue
 		if sneak_line.points.size() < 2:
 			continue
-		var dist := searcher.global_position.distance_to(
-			HidingRules.nearest_point_on_line(sneak_line.points, searcher.global_position))
-		if dist > 170.0:
+		# A concealed defender sneak obeys the SAME search and inspection
+		# requirements as an ordinary hidden mark, with no X-ray shortcut.
+		var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem
+		if not (cover.can_notice_sneak(sneak_line.points, searcher.global_position,
+				sneak_line.wall_concealed, sneak_line.hidden_cover_id) if cover else HidingRules.is_revealed(
+					sneak_line.points, searcher.global_position, sneak_line.wall_concealed)):
 			continue
 		_cpu_sneak_notice_checked[sneak_line.id] = true
 		var location := ChalkLine.compute_center(sneak_line.points)
@@ -499,13 +505,26 @@ func _check_discovery() -> void:
 			# HidingRules source -- identical for both sides and constant across
 			# difficulties (owner Q2/Q3): R=160 open-ground, R_occluded=90
 			# wall-concealed. The fog-circle radius no longer gates discovery.
-			if HidingRules.is_revealed(line.points, center, line.wall_concealed):
+			# Always read the real current avatar position in solo mode. The
+			# fog cache is only a visual clue, not authorization to reveal.
+			if GameState.solo_vs_cpu:
+				var actor := _game_world.get_entity(1) as Node2D if _game_world else null
+				if actor == null:
+					continue
+				center = actor.global_position
+			var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
+			var visible := cover.can_reveal(line.points, center, line.wall_concealed, line.hidden_cover_id) if cover else \
+					HidingRules.is_revealed(line.points, center, line.wall_concealed)
+			if visible:
 				discovered_ids.append(line.id)
 				# Penalty window is per line (its own placement timestamp).
 				# Networked lines (incl. the solo GhostBot mock peer) carry gp
 				# in their network dict; the old single _placed_at_time only
 				# ever reflected the local activation path.
-				if (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
+				# The old 5-second "ghost discovered" arcade-point penalty
+				# was never a childhood game rule. Solo penalties happen
+				# ONLY for actually caught defender sneaks (local line removal).
+				if not GameState.solo_vs_cpu and (now - line.ghost_placed_at) <= PENALTY_WINDOW_MS:
 					penalty_window_hit = true
 				line.is_discovered = true
 				break  # One hit per line is enough
@@ -644,7 +663,7 @@ func _create_ghost_line_node(line: ChalkLine) -> void:
 
 	var ln := _acquire_ghost_line_node()
 	ln.name = "GhostChalkLine_%d" % line.id
-	ln.z_index = 10
+	ln.z_index = 14 if line.hidden_cover_id == "surface" else 10
 
 	# Pre-discovery: faint opacity. Post-discovery: full visibility.
 	if line.is_discovered:

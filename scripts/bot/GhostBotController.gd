@@ -130,7 +130,26 @@ var _cpu_placement_count: int = 0
 var _cpu_sneak_timer: float = 0.0
 var _cpu_sneaks_placed: int = 0
 const MAX_CPU_SNEAKS := 3
-const CPU_LINE_TARGETS := {0: 8, 1: 12, 2: 16, 3: 20}
+# Owner requirement: substantial RANDOM ranges. Chosen higher-tier values are
+# AI-proposed balance starting points, not owner-approved win-rate guarantees.
+const CPU_LINE_RANGES := {
+	0: Vector2i(50, 100),
+	1: Vector2i(65, 120),
+	2: Vector2i(85, 150),
+	3: Vector2i(110, 180),
+}
+var _solo_draw_target: int = -1
+var _solo_draw_elapsed: float = 0.0
+var _solo_lines_emitted: int = 0
+var _solo_visit_time: float = 0.0
+var _solo_open_cover_id: String = ""
+const MAX_SOLO_BATCHES_PER_FRAME := 40
+## Difficulty changes how many PUBLIC cover objects the CPU chooses, not
+## the reveal physics. The human is free to use exactly the same sites.
+const CPU_COVER_ANCHOR_SHARE := {0: 0.30, 1: 0.48, 2: 0.64, 3: 0.78}
+# A few conspicuous decoys waste the searcher's limited time on purpose.
+const CPU_DECOY_SHARE := {0: 0.26, 1: 0.18, 2: 0.13, 3: 0.09}
+var _recent_hiding_spots: Array[Vector2] = []
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
 var _placement_delay: float = 0.0
@@ -256,27 +275,136 @@ func _ai_tick(delta: float) -> void:
 ## distribute them through the actual phase duration (incl. fast CI pacing).
 ## The CPU never sees the player's hidden coordinates to decide its count.
 func _target_cpu_lines() -> int:
+	if GameState.solo_vs_cpu:
+		if _solo_draw_target < 0:
+			_roll_solo_target()
+		return _solo_draw_target
+	return MAX_ACTIVE_GHOST_LINES
+
+
+func _roll_solo_target() -> void:
+	# One roll per match, not one roll per frame. Scripted tests may override
+	# this target deliberately, normal players always get a fresh seeded range.
 	var override := int(ProjectSettings.get_setting("chalk_gaon/cpu_line_target", -1))
-	var target := override if override >= 0 else int(CPU_LINE_TARGETS.get(difficulty, 12))
-	return clampi(target, 2, MAX_ACTIVE_GHOST_LINES)
+	var bounds: Vector2i = CpuDrawingPolicy.bounds_for(difficulty)
+	_solo_draw_target = CpuDrawingPolicy.roll_count(difficulty, _rng, override)
+	_solo_draw_elapsed = 0.0
+	_solo_lines_emitted = 0
+	_solo_visit_time = 0.0
+	_recent_hiding_spots.clear()
+	print("GhostBot: sampled %d solo strokes in range %s" % [_solo_draw_target, bounds])
 
 
 func _tick_cpu_drawing(delta: float) -> void:
 	if not _ghost_sys:
 		return
-	if _ghost_sys.get_active_ghost_lines().size() >= _target_cpu_lines():
+	var duration := maxf(0.1, float(ProjectSettings.get_setting(
+		"chalk_gaon/solo_drawing_seconds", 40.0)))
+	_solo_draw_elapsed += delta
+	# Each batch is drawn near the visible CPU's avatar. The hider travels
+	# between public spots using the SAME VillageNavigation as the human,
+	# rather than teleporting marks across its half of the map.
+	_solo_visit_time -= delta
+	if _solo_visit_time <= 0.0:
+		_solo_visit_time = _rng.randf_range(3.5, 6.0)
+		_choose_next_solo_visit()
+	# A smooth randomized rate curve lets the CPU draw steadily through the
+	# same 40s clock as the human without the old 0.7s minimum that silently
+	# capped it at a handful of lines. Short CI phases use the same formula.
+	var progress := clampf(_solo_draw_elapsed / maxf(0.1, duration - 0.15), 0.0, 1.0)
+	var expected := mini(_target_cpu_lines(), int(ceil(progress * _target_cpu_lines())))
+	var batches := 0
+	while _solo_lines_emitted < expected and batches < MAX_SOLO_BATCHES_PER_FRAME:
+		_placement_anchor = _choose_public_hiding_anchor()
+		var before := _solo_lines_emitted
+		_execute_placement()
+		if _solo_lines_emitted <= before:
+			break
+		batches += 1
+
+
+## Select from the same public locations a human sees. Never inspect hidden
+## human marks to place CPU marks. This is a draw-phase strategy only.
+func _choose_next_solo_visit() -> void:
+	var npc := _game_world.get_entity(2) as NPC if _game_world else null
+	if not npc:
 		return
-	_cpu_draw_timer -= delta
-	if _cpu_draw_timer > 0.0:
-		return
-	var drawing_seconds := float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40.0))
-	var pairs := maxi(1, int(ceil(float(_target_cpu_lines()) / float(LINES_PER_PLACEMENT))))
-	_cpu_draw_timer = maxf(0.7, (drawing_seconds - 0.3) / float(pairs))
-	# Each pair gets its own independent hiding site across the CPU territory.
-	_placement_anchor = Vector2(
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 130.0, ZoneLayout.CPU_ZONE.end.x - 130.0),
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 100.0, ZoneLayout.CPU_ZONE.end.y - 100.0))
-	_execute_placement()
+	var sites := HidingRules.get_cover_sites(true)
+	var chosen_site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
+	var chosen_rect: Rect2 = chosen_site["rect"]
+	var destination: Vector2 = chosen_rect.get_center()
+	if _rng.randf() < 0.23:
+		destination = Vector2(_rng.randf_range(150.0, 2250.0),
+			_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 90.0,
+				ZoneLayout.CPU_ZONE.end.y - 90.0))
+	var nav := _game_world.get_node_or_null("VillageNavigation") as VillageNavigation
+	if nav:
+		destination = nav.reachable_approach(destination)
+	npc.patrolling = false
+	npc.set_meta("move_speed", 375.0)
+	npc.set_meta("target_position", destination)
+	npc.set_meta("has_target", true)
+	if npc.state_machine and npc.state_machine.current_state_name() != "walking":
+		npc.state_machine.transition_to("walking")
+
+
+func _choose_public_hiding_anchor() -> Vector2:
+	var anchor := Vector2.ZERO
+	if GameState.solo_vs_cpu and _game_world:
+		var npc := _game_world.get_entity(2) as Node2D
+		if npc:
+			# Multiple rapid chalk strokes may be made from one standing
+			# position. Never place one beyond the hider's physical arm reach.
+			var here := npc.global_position
+			var near := HidingRules.get_cover_sites(true)
+			var candidates: Array[Rect2] = []
+			for site in near:
+				var r: Rect2 = site["rect"]
+				if r.get_center().distance_to(here) <= 135.0:
+					candidates.append(r)
+			if not candidates.is_empty() and \
+					_rng.randf() < float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.48)):
+				var site_rect := candidates[_rng.randi_range(0, candidates.size() - 1)]
+				anchor = site_rect.get_center() + Vector2(
+					_rng.randf_range(-22.0, 22.0), _rng.randf_range(-15.0, 15.0))
+			else:
+				anchor = here + Vector2.RIGHT.rotated(_rng.randf_range(0.0, TAU)) \
+					* _rng.randf_range(15.0, 75.0)
+			return ZoneLayout.clamp_to_cpu_zone(anchor)
+	# Biased randomness with decoys, public object-hiding and open ground.
+	# Spread placements across the map rather than piling hundreds of marks
+	# into one deterministic cluster.
+	for _attempt in range(16):
+		var roll := _rng.randf()
+		var decoy_chance := float(CPU_DECOY_SHARE.get(difficulty, 0.2))
+		var hide_chance := float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.5))
+		if roll < decoy_chance:
+			# Easily found lines toward the alley tempt the striker to waste
+			# precious seconds, precisely as children sometimes did.
+			anchor = Vector2(_rng.randf_range(160.0, 2230.0),
+				_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 50.0,
+					ZoneLayout.CPU_ZONE.position.y + 130.0))
+		elif roll < decoy_chance + hide_chance:
+			var sites := HidingRules.get_cover_sites(true)
+			var site: Dictionary = sites[_rng.randi_range(0, sites.size() - 1)]
+			var region: Rect2 = site["rect"]
+			anchor = Vector2(_rng.randf_range(region.position.x + 8.0, region.end.x - 8.0),
+				_rng.randf_range(region.position.y + 8.0, region.end.y - 8.0))
+		else:
+			anchor = Vector2(_rng.randf_range(120.0, 2280.0),
+				_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 80.0,
+					ZoneLayout.CPU_ZONE.end.y - 90.0))
+		var too_close := false
+		for old_pos in _recent_hiding_spots:
+			if anchor.distance_squared_to(old_pos) < 75.0 * 75.0:
+				too_close = true
+				break
+		if not too_close:
+			break
+	_recent_hiding_spots.append(anchor)
+	if _recent_hiding_spots.size() > 35:
+		_recent_hiding_spots.pop_front()
+	return ZoneLayout.clamp_to_cpu_zone(anchor)
 
 
 func get_cpu_placement_count() -> int:
@@ -294,9 +422,14 @@ func _on_solo_search_phase_started(payload: Dictionary) -> void:
 
 
 func _tick_cpu_defender_sneak(delta: float) -> void:
+	if not bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false)):
+		return
 	if _cpu_sneaks_placed >= MAX_CPU_SNEAKS or _ghost_sys == null:
 		return
-	if _ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
+	# An opt-in legacy sneak should still work when the new CPU has drawn
+	# more than fifty base lines. No arbitrary solo ghost storage ceiling.
+	if not GameState.solo_vs_cpu and \
+			_ghost_sys.get_active_ghost_lines().size() >= MAX_ACTIVE_GHOST_LINES:
 		return
 	_cpu_sneak_timer -= delta
 	if _cpu_sneak_timer > 0.0:
@@ -305,9 +438,7 @@ func _tick_cpu_defender_sneak(delta: float) -> void:
 		"chalk_gaon/cpu_sneak_interval_seconds", 8.0)))
 	# A new concealed attempt at a fresh public zone location, never at a
 	# secret human target. The bot has no access to the human's hidden marks.
-	var anchor := Vector2(
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.x + 140.0, ZoneLayout.CPU_ZONE.end.x - 140.0),
-		_rng.randf_range(ZoneLayout.CPU_ZONE.position.y + 140.0, ZoneLayout.CPU_ZONE.end.y - 140.0))
+	var anchor := _choose_public_hiding_anchor()
 	var raw := _build_one_line_dict(anchor, _rng.randf_range(0.0, TAU),
 		_rng.randf_range(100.0, 160.0), _rng)
 	raw["sn"] = true
@@ -335,7 +466,9 @@ func _can_place() -> bool:
 		return false
 	if not _ghost_sys.is_ghost_draw_available():
 		return false
-	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= mini(MAX_ACTIVE_GHOST_LINES, _target_cpu_lines())
+	if GameState.solo_vs_cpu:
+		return _solo_lines_emitted < _target_cpu_lines()
+	return _ghost_sys.get_active_ghost_lines().size() + LINES_PER_PLACEMENT <= MAX_ACTIVE_GHOST_LINES
 
 
 func _execute_placement() -> void:
@@ -344,16 +477,41 @@ func _execute_placement() -> void:
 		return
 
 	var anchor := Vector2.ZERO
-	match difficulty:
-		Difficulty.EASY:
-			anchor = _easy_anchor()
-		Difficulty.NIGHTMARE:
-			anchor = _compute_nightmare_anchor()
-		_:
-			anchor = _placement_anchor  # computed when the observation arrived
+	if GameState.solo_vs_cpu:
+		# The legacy PvE behavior used the other player's observations and
+		# could infer where their strokes were. Solo hiding uses ONLY a public
+		# terrain anchor, independent of any human drawing/movement signals.
+		anchor = _placement_anchor
+	else:
+		match difficulty:
+			Difficulty.EASY:
+				anchor = _easy_anchor()
+			Difficulty.NIGHTMARE:
+				anchor = _compute_nightmare_anchor()
+			_:
+				anchor = _placement_anchor
 	anchor = _clamp_to_cpu_zone(anchor)
 
+	_solo_open_cover_id = ""
+	var covers := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
+	if GameState.solo_vs_cpu and covers:
+		var area := HidingRules.cover_site_at(anchor)
+		if not area.is_empty() and HidingRules.is_inspectable_cover(int(area["kind"])):
+			var npc := _game_world.get_entity(2) as Node2D
+			if npc and _rng.randf() < float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.48)):
+				_solo_open_cover_id = covers.cpu_open_for_hiding(
+					str(area["id"]), npc.global_position)
 	var dicts := _build_line_dicts(anchor)
+	if covers and not _solo_open_cover_id.is_empty():
+		covers.cpu_close_after_hiding(_solo_open_cover_id)
+	_solo_open_cover_id = ""
+	if GameState.solo_vs_cpu:
+		var left := _target_cpu_lines() - _solo_lines_emitted
+		if dicts.size() > left:
+			dicts.resize(left)
+		if dicts.is_empty():
+			return
+		_solo_lines_emitted += dicts.size()
 	EventBus.emit(EventBus.EV_NETWORK_GHOST_LINES_PLACED, {
 		"lines": dicts,
 		"owner_id": GHOST_ENTITY_ID,
@@ -386,9 +544,12 @@ func _build_line_dicts(anchor: Vector2, rng: RandomNumberGenerator = null) -> Ar
 	var share: float = WALL_CONCEAL_SHARE.get(difficulty, 0.35)
 	var s1: Vector2 = start1
 	var s2: Vector2 = start2
-	if r.randf() < share:
+	# Detached synthetic bias tests keep their existing wall-roll probe,
+	# but in the LIVE solo game hidden marks cannot teleport to a far wall.
+	var live_solo := GameState.solo_vs_cpu and _game_world != null
+	if not live_solo and r.randf() < share:
 		s1 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
-	if r.randf() < share:
+	if not live_solo and r.randf() < share:
 		s2 = _clamp_to_cpu_zone(HidingRules.random_wall_anchor_for_zone(true, r))
 	dicts.append(_build_one_line_dict(s1, angle1, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
 	dicts.append(_build_one_line_dict(s2, angle2, r.randf_range(MIN_LINE_LENGTH, MAX_LINE_LENGTH), r))
@@ -415,6 +576,35 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float, rng: Rand
 	for p in line.points:
 		clamped_points.append(_clamp_to_cpu_zone(p))
 	line.points = clamped_points
+	if GameState.solo_vs_cpu and _game_world:
+		var cpu := _game_world.get_entity(2) as Node2D
+		if cpu:
+			for i in range(line.points.size()):
+				var candidate: Vector2 = line.points[i]
+				var offset := candidate - cpu.global_position
+				# Leave enough margin for the network's 0.5px quantization.
+				if offset.length() > HidingRules.SOLO_HAND_REACH - 10.0:
+					candidate = cpu.global_position + offset.normalized() \
+						* (HidingRules.SOLO_HAND_REACH - 10.0)
+				if not HidingRules.can_reach_point(cpu.global_position, candidate):
+					# Binary-search a reachable point on this same stroke ray.
+					var valid := 0.0
+					var blocked := 1.0
+					for _step in range(11):
+						var portion := (valid + blocked) * 0.5
+						var probe := cpu.global_position.lerp(candidate, portion)
+						if HidingRules.can_reach_point(cpu.global_position, probe):
+							valid = portion
+						else:
+							blocked = portion
+					var total := maxf(1.0, cpu.global_position.distance_to(candidate))
+					candidate = cpu.global_position.lerp(candidate,
+						maxf(0.0, valid - 5.0 / total))
+				line.points[i] = ZoneLayout.clamp_to_cpu_zone(candidate)
+		var site := HidingRules.cover_site_at(start)
+		if not site.is_empty() and HidingRules.is_inspectable_cover(int(site["kind"])):
+			line.hidden_cover_id = str(site["id"]) if \
+					_solo_open_cover_id == str(site["id"]) else "surface"
 
 	line.id = -1  # -1 unconfirmed sentinel → GhostDrawSystem assigns an ID
 	line.chalk_type = ChalkLine.ChalkType.GHOST
@@ -611,6 +801,8 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 	if to_state == GameState.MatchState.DRAWING:
 		_reset_round_memory()
 		_cpu_draw_timer = 0.2
+		if GameState.solo_vs_cpu:
+			_roll_solo_target()
 		_fallback_timer = 0.0
 		_placement_delay = 0.0
 		_placement_due = false
@@ -641,6 +833,10 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 
 
 func _on_line_drawn(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("player_id", -1) != HUMAN_ENTITY_ID:
 		return
 	var line_id: int = payload.get("line_id", -1)
@@ -680,6 +876,10 @@ func _on_line_drawn(payload: Dictionary) -> void:
 
 
 func _on_fog_revealed(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if difficulty != Difficulty.NIGHTMARE:
 		return
 	var pos: Vector2 = payload.get("position", Vector2.ZERO)
@@ -695,6 +895,10 @@ func _on_fog_revealed(payload: Dictionary) -> void:
 
 
 func _on_move_command(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if difficulty != Difficulty.NIGHTMARE:
 		return
 	var target: Vector2 = payload.get("target", Vector2.ZERO)
@@ -723,6 +927,10 @@ func _on_move_command(payload: Dictionary) -> void:
 
 
 func _on_silent_sneak_activated(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("searcher_id", -1) != HUMAN_ENTITY_ID:
 		return
 	if difficulty == Difficulty.HARD:
@@ -732,6 +940,10 @@ func _on_silent_sneak_activated(payload: Dictionary) -> void:
 
 
 func _on_silent_sneak_line_crossed(payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	if payload.get("searcher_id", -1) != HUMAN_ENTITY_ID:
 		return
 	if difficulty == Difficulty.HARD:
@@ -741,6 +953,10 @@ func _on_silent_sneak_line_crossed(payload: Dictionary) -> void:
 
 
 func _on_ghost_line_discovered(_payload: Dictionary) -> void:
+	# Solo Play vs CPU must never observe/cache hidden opponent locations
+	# through legacy PvE event callbacks; fair search is spatial only.
+	if GameState.solo_vs_cpu:
+		return
 	# The searcher found one of our lines — they are close and effective.
 	if difficulty == Difficulty.HARD:
 		_bump_guilt(0.15)

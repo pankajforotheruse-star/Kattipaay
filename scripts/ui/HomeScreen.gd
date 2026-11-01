@@ -236,7 +236,6 @@ func _start_solo_with_difficulty(difficulty: int) -> void:
 	# routes straight to game_world.tscn with the solo flag set.
 	GameState.transition(GameState.State.PLAYING)
 
-## Feature-branch-only opt-in. Existing Play VS CPU 2D path is preserved.
 func _add_3d_test_launch() -> void:
 	var launch := Button.new()
 	launch.name = "Play3DExperimentalButton"
