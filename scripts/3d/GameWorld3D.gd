@@ -84,8 +84,8 @@ func _ready() -> void:
 	_update_hud()
 
 func _begin_navigation() -> void:
-	cpu_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.CPU)
-	human_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.PLAYER)
+	cpu_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.CPU, [walker.get_rid(), cpu_body.get_rid()])
+	human_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.PLAYER, [walker.get_rid(), cpu_body.get_rid()])
 	_choose_cpu_destination()
 
 func _make_cpu_body() -> void:
