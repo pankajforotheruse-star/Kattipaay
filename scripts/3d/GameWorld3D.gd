@@ -30,6 +30,10 @@ var argument_delay := 0.0
 var sneak_uses := 0
 var result := ""
 var drawn_cpu_count := 0
+var cpu_target := 0
+var cpu_draw_interval := 0.5
+var cpu_recent_positions := PackedVector3Array()
+var cheating_enabled := false
 var find_interact_requested := false
 var coin_call := -1
 var coin_face := -1
@@ -40,6 +44,12 @@ var human_strike_delay := 0.0
 func _ready() -> void:
 	super._ready()
 	rng.randomize()
+	cheating_enabled = bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false))
+	var difficulty := clampi(GameState.cpu_difficulty, 0, 3)
+	var ranges := [Vector2i(50, 100), Vector2i(65, 120), Vector2i(85, 150), Vector2i(110, 180)]
+	var count_range: Vector2i = ranges[difficulty]
+	cpu_target = rng.randi_range(count_range.x, count_range.y)
+	cpu_draw_interval = DRAW_TIME / float(cpu_target)
 	drawing_mode = false
 	debug_phase = "DRAWING"
 	_make_cpu_body()
@@ -89,7 +99,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if event.keycode == KEY_F:
-			if phase != "DRAWING" and not (phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
+			if phase != "DRAWING" and not (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
 				return
 		if event.keycode == KEY_E:
 			if phase == "SEARCHING" and searcher == HUMAN_ID:
@@ -125,7 +135,7 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	super._process(delta)
 	# The normal graybox uses debug-phase toggling; the 3D match owns it here.
-	draw_controller.enabled = drawing_mode and (phase == "DRAWING" or (phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3))
+	draw_controller.enabled = drawing_mode and (phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3))
 	if phase == "RESULT":
 		_update_hud()
 		return
@@ -135,9 +145,9 @@ func _process(delta: float) -> void:
 	if phase == "DRAWING":
 		if cpu_idle_time <= 0.0:
 			_attempt_cpu_draw()
-			cpu_idle_time = 2.5
+			cpu_idle_time = cpu_draw_interval
 	elif phase == "SEARCHING":
-		if searcher == HUMAN_ID and cpu_idle_time <= 0.0:
+		if cheating_enabled and searcher == HUMAN_ID and cpu_idle_time <= 0.0:
 			_cpu_defender_action()
 			cpu_idle_time = 3.5
 		if searcher == CPU_ID:
@@ -154,7 +164,7 @@ func _process(delta: float) -> void:
 func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 	stroke.owner_id = HUMAN_ID
 	if phase == "SEARCHING":
-		if searcher != CPU_ID or sneak_uses >= 3:
+		if not cheating_enabled or searcher != CPU_ID or sneak_uses >= 3:
 			stroke.struck = true
 			return
 		stroke.is_sneak = true
@@ -207,15 +217,23 @@ func _advance_bot() -> void:
 		cpu_body.velocity.z = 0.0
 
 func _attempt_cpu_draw() -> void:
-	if drawn_cpu_count >= 5 or not cpu_nav.built:
+	if drawn_cpu_count >= cpu_target or not cpu_nav.built:
 		return
-	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position, 4.0)
+	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position, 2.7)
+	candidates.shuffle()
 	for candidate in candidates:
 		var approach: Vector3 = candidate["approach"]
 		if cpu_body.global_position.distance_to(approach) > 3.0:
 			continue
 		var surface := candidate["surface"] as CollisionObject3D
 		var point: Vector3 = candidate["position"]
+		var too_close := false
+		for prior in cpu_recent_positions:
+			if prior.distance_to(point) < 0.18:
+				too_close = true
+				break
+		if too_close:
+			continue
 		var normal: Vector3 = candidate["normal"]
 		var offset := normal.cross(Vector3.UP).normalized()
 		if offset.length_squared() < 0.01:
@@ -236,6 +254,7 @@ func _attempt_cpu_draw() -> void:
 		cpu_lines.append(stroke)
 		stroke.visible = false
 		drawn_cpu_count += 1
+		cpu_recent_positions.append(point)
 		message = "CPU physically placed line %d" % drawn_cpu_count
 		return
 
@@ -326,8 +345,8 @@ func _finish_match() -> void:
 func _update_hud() -> void:
 	if info == null:
 		return
-	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin\n%s\n%s" % [
-		phase, maxf(0.0, phase_left), drawn_cpu_count, saved_human_lines.size(),
+	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d/%d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin\n%s\n%s" % [
+		phase, maxf(0.0, phase_left), drawn_cpu_count, cpu_target, saved_human_lines.size(),
 		"Searcher: HUMAN" if searcher == HUMAN_ID else "Searcher: CPU", message]
 
 func _push_nearby_crate() -> void:
@@ -436,7 +455,7 @@ func _make_touch_controls() -> void:
 		mobile_jump = false)
 	_mobile_button(field, "CROUCH", -215, -245, func() -> void: _toggle_crouch())
 	_mobile_button(field, "DRAW", -105, -165, func() -> void:
-		if phase == "DRAWING" or (phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
+		if phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
 			drawing_mode = not drawing_mode)
 	_mobile_button(field, "FIND", -215, -165, func() -> void:
 		if phase == "SEARCHING" and searcher == HUMAN_ID:
