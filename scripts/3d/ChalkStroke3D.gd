@@ -74,7 +74,8 @@ func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, m
 			return true
 		# A collider on the stroke's own parent surface is expected at the endpoint.
 		if get_parent() is CollisionObject3D and hit.get("collider") == get_parent():
-			return true
+			if (hit["position"] as Vector3).distance_to(world_point) < 0.12:
+				return true
 	return false
 
 func to_save_dict() -> Dictionary:
