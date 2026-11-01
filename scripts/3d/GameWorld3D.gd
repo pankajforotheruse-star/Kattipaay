@@ -43,6 +43,7 @@ func _ready() -> void:
 	drawing_mode = false
 	debug_phase = "DRAWING"
 	_make_cpu_body()
+	_make_touch_controls()
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
@@ -418,3 +419,54 @@ func _reveal_nearby_cpu_strokes() -> void:
 			stroke.discovered = true
 			stroke.visible = true
 			message = "Chalk spotted nearby — press E to strike"
+
+func _make_touch_controls() -> void:
+	if not DisplayServer.is_touchscreen_available():
+		return
+	var overlay := CanvasLayer.new()
+	overlay.name = "Mobile3DControls"
+	add_child(overlay)
+	var field := Control.new()
+	field.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	field.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(field)
+	_mobile_button(field, "JUMP", -105, -245, func() -> void:
+		mobile_jump = true
+		await get_tree().create_timer(0.22).timeout
+		mobile_jump = false)
+	_mobile_button(field, "CROUCH", -215, -245, func() -> void: _toggle_crouch())
+	_mobile_button(field, "DRAW", -105, -165, func() -> void:
+		if phase == "DRAWING" or (phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
+			drawing_mode = not drawing_mode)
+	_mobile_button(field, "FIND", -215, -165, func() -> void:
+		if phase == "SEARCHING" and searcher == HUMAN_ID:
+			_human_strike_visible()
+		else:
+			_push_nearby_crate())
+	_mobile_button(field, "ARGUE", -105, -85, func() -> void:
+		if phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1:
+			argument_uses += 1
+			argument_delay = 3.0)
+	_mobile_button(field, "HEADS", -325, -85, func() -> void:
+		if phase == "MEETING":
+			coin_call = 0)
+	_mobile_button(field, "TAILS", -215, -85, func() -> void:
+		if phase == "MEETING":
+			coin_call = 1)
+	var hint := Label.new()
+	hint.text = "Left drag: move | Right drag: look"
+	hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	hint.position = Vector2(15, -45)
+	field.add_child(hint)
+
+func _mobile_button(root: Control, caption: String, right_offset: float, bottom_offset: float, action: Callable) -> void:
+	var control := Button.new()
+	control.text = caption
+	control.custom_minimum_size = Vector2(94, 58)
+	control.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	control.offset_left = right_offset
+	control.offset_right = right_offset + 94.0
+	control.offset_top = bottom_offset
+	control.offset_bottom = bottom_offset + 58.0
+	control.pressed.connect(action)
+	root.add_child(control)
