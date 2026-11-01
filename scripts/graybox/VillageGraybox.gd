@@ -258,4 +258,4 @@ func _make_draw_controller() -> void:
 
 func _process(_delta: float) -> void:
 	if draw_controller != null:
-		draw_controller.enabled = drawing_mode
+		draw_controller.enabled = drawing_mode and debug_phase == "DRAWING"
