@@ -177,7 +177,6 @@ func _run() -> void:
 		"valid nearby drawing remains allowed")
 	print(PREFIX + "PHYSICAL_DRAW_REACH_OK")
 	# CPU uses exactly the same arm reach and obstruction test while drawing.
-	var bot := world.get_node_or_null("SoloMatchDriver/GhostBot")
 	_check(bot != null, "live CPU hider exists")
 	if bot:
 		for _attempt in range(12):
