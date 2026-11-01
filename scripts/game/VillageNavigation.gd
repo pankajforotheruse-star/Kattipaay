@@ -85,7 +85,7 @@ func _ready() -> void:
 ## blocks sight just as a solid wall does.
 func has_clear_prop_sight(observer: Vector2, target: Vector2) -> bool:
 	for rect in _prop_obstacles:
-		var hit: Variant = rect.intersects_segment(observer, target)
+		var hit: Variant = HidingRules.first_rect_edge_hit(observer, target, rect)
 		if hit == null:
 			continue
 		if rect.has_point(target):
