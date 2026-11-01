@@ -27,6 +27,13 @@ func _run() -> void:
 	root.add_child(loaded)
 	_check(loaded.from_save_dict(saved), "Versioned 3D deserialization")
 	_check(loaded.local_points.size() == 2 and loaded.owner_id == 1 and loaded.stroke_id == 77, "Stroke roundtrip invariants")
+	var nav_root := Node3D.new()
+	root.add_child(nav_root)
+	var ground_nav := GroundNavigation3D.new()
+	ground_nav.build(nav_root.get_world_3d().direct_space_state, Territory3D.Zone.PLAYER)
+	var ground_route := ground_nav.find_path(Vector3(-25, 0, -5), Vector3(-20, 0, 5))
+	_check(ground_route.size() > 0, "Obstacle-free ground navigation yields path")
+	_check(ground_nav.find_path(Vector3(-25, 0, -5), Vector3(25, 0, 5)).is_empty(), "Ground navigation does not cross territory")
 	if errors.is_empty():
 		print("CHALK_GAON_3D: PASS")
 		quit(0)
