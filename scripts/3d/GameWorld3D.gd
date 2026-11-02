@@ -43,6 +43,7 @@ var cheating_enabled := false
 var bot_follow_refresh := 0.0
 var human_idle_seconds := 0.0
 var checked_public_covers: Dictionary = {}
+var last_result_saved := false
 var cpu_roof_attempted := false
 var cpu_speed := BOT_SPEED
 var cpu_inspection_radius := 2.8
@@ -193,6 +194,7 @@ func _process(delta: float) -> void:
 		five_second_warned = true
 		clock_warning_count += 1
 		message = "LAST 5 SECONDS!"
+		_play_cue("play_draw_warning")
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
 	cpu_idle_time -= delta
@@ -335,6 +337,7 @@ func _cpu_inspect() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
+		_play_cue("play_argument_result", true)
 			cpu_strike_cooldown = cpu_strike_delay
 			break
 
@@ -349,6 +352,7 @@ func _human_strike_visible() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "You found a CPU chalk line"
+		_play_cue("play_argument_result", true)
 			return
 	message = "No visible CPU line close enough to strike"
 
@@ -362,8 +366,10 @@ func _advance_phase() -> void:
 		walker.global_position = Vector3(-2, 0.85, 0)
 		cpu_body.global_position = Vector3(2, 0.85, 0)
 		message = "Meeting: coin toss decides the first searcher"
+		_play_cue("play_coin_flip")
 	elif phase == "MEETING":
 		coin_face = rng.randi_range(0, 1)
+		_play_cue("play_coin_clink")
 		if coin_call < 0:
 			coin_call = rng.randi_range(0, 1)
 		first_searcher = HUMAN_ID if coin_face == coin_call else CPU_ID
@@ -416,6 +422,7 @@ func _finish_match() -> void:
 		winner = "CPU WINS"
 	result = "%s | Human %d : CPU %d" % [winner, player_survivors, bot_survivors]
 	message = result
+	_save_round_result()
 
 func _update_hud() -> void:
 	if info == null:
@@ -642,3 +649,41 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		message = "CPU exploring a public rooftop route"
 		return true
 	return false
+
+## Reuse the shared procedural sounds. AudioManager skips playback headlessly.
+func _play_cue(method: String, argument: Variant = null) -> void:
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio == null or not audio.has_method(method):
+		return
+	if method == "play_argument_result":
+		audio.call(method, bool(argument))
+	else:
+		audio.call(method)
+
+## Result persistence, not save/resume: the original SaveManager remains
+## the owner of local storage and never overwrites legacy match saves.
+func _save_round_result() -> void:
+	if last_result_saved:
+		return
+	last_result_saved = true
+	var store := get_node_or_null("/root/SaveManager")
+	if store == null or not store.has_method("save_local"):
+		return
+	var summary := {
+		"schema": "chalk_gaon_3d_result_v1",
+		"result": result,
+		"human_strokes": saved_human_lines.size(),
+		"cpu_strokes": cpu_lines.size(),
+		"cpu_difficulty": clampi(GameState.cpu_difficulty, 0, 3),
+		"first_searcher": first_searcher,
+		"human_survivors": _count_survivors(saved_human_lines),
+		"cpu_survivors": _count_survivors(cpu_lines)
+	}
+	store.call("save_local", "chalk_gaon_3d_latest_result", summary)
+
+func _count_survivors(lines: Array[ChalkStroke3D]) -> int:
+	var count := 0
+	for stroke in lines:
+		if is_instance_valid(stroke) and not stroke.struck:
+			count += 1
+	return count
