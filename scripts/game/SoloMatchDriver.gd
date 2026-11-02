@@ -77,11 +77,16 @@ var _meeting_elapsed: float = 0.0
 var _meeting_call_made: bool = false
 var _meeting_resolved: bool = false
 var _meeting_result_hold: float = 0.0
+var _meeting_arrival_elapsed: float = 0.0
+var _meeting_assembled: bool = false
+var _skip_travel_wait_for_tests: bool = false
 var _coin_overlay: CoinDeciderOverlay = null
 
 ## Search phase state (R6: two 30s phases, zone+role swap between them).
 var _search_phase_index: int = 0        # 1 or 2
 var _search_elapsed: float = 0.0
+var _search_arrival_elapsed: float = 0.0
+var _awaiting_search_arrival: bool = false
 var _search_phase_active: bool = false
 var _phase_end_pending: bool = false    # an early-exit has been requested
 var _phase_end_grace_left: float = 0.0  # grace before honoring the early exit
@@ -109,6 +114,8 @@ func _ready() -> void:
 
 	# Pacing overrides (the smoke test sets these to short values headless).
 	_drawing_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40.0))
+	_skip_travel_wait_for_tests = bool(ProjectSettings.get_setting(
+		"chalk_gaon/solo_skip_travel_wait_for_tests", false))
 	_meeting_call_timeout = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_call_timeout_seconds", 8.0))
 	_meeting_max_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_max_seconds", 15.0))
 	_coin_result_hold = float(ProjectSettings.get_setting("chalk_gaon/solo_coin_result_hold_seconds", 2.0))
@@ -206,20 +213,26 @@ func _process(delta: float) -> void:
 	if ms == GameState.MatchState.DRAWING:
 		_drawing_elapsed += delta
 		_tick_draw_phase()
-		if _drawing_elapsed >= _drawing_seconds:
-			_drawing_elapsed = 0.0
-			_match_machine.transition_to(GameState.MatchState.MEETING)
+		# MatchTimer is the only phase-expiry authority. Avoid two clocks
+		# racing each other and double-triggering a state transition.
 	elif ms == GameState.MatchState.MEETING:
 		_tick_meeting_phase(delta)
 	elif ms == GameState.MatchState.SEARCHING:
+		if _awaiting_search_arrival:
+			_search_arrival_elapsed += delta
+			if _searcher_arrived() or _search_arrival_elapsed >= 20.0:
+				if _search_arrival_elapsed >= 20.0 and not _searcher_arrived():
+					push_warning("SoloMatchDriver: search entry not reached in 20s")
+				_activate_search_phase()
+			return
+		if not _search_phase_active:
+			return
 		_search_elapsed += delta
 		_tick_search_phase()
 		if _phase_end_pending:
 			_phase_end_grace_left -= delta
 			if _phase_end_grace_left <= 0.0:
 				_end_search_phase()
-		elif _search_elapsed >= _search_phase_seconds:
-			_end_search_phase()
 
 
 func _exit_tree() -> void:
@@ -238,7 +251,7 @@ func _exit_tree() -> void:
 ## Emit per-second draw-phase ticks, plus the one-shot end-of-draw warning
 ## (visible + audible) when the phase enters its LAST 5 seconds.
 func _tick_draw_phase() -> void:
-	var remaining_abs := _drawing_seconds - _drawing_elapsed
+	var remaining_abs := float(MatchTimer.get_remaining_seconds())
 	var remaining := int(ceil(remaining_abs))
 	if remaining != _draw_phase_last_tick:
 		_draw_phase_last_tick = remaining
@@ -260,7 +273,7 @@ func _tick_draw_phase() -> void:
 func _tick_search_phase() -> void:
 	if not _search_phase_active:
 		return
-	var remaining_abs := _search_phase_seconds - _search_elapsed
+	var remaining_abs := float(MatchTimer.get_remaining_seconds())
 	var remaining := int(ceil(remaining_abs))
 	var searcher: int = active_searcher if _search_phase_index == 1 else _opponent(active_searcher)
 	if remaining != _search_phase_last_tick:
@@ -302,8 +315,12 @@ func _on_match_state_changed(payload: Dictionary) -> void:
 		_meeting_call_made = false
 		_meeting_resolved = false
 		_meeting_result_hold = 0.0
+		_meeting_arrival_elapsed = 0.0
+		_meeting_assembled = false
 		_assemble_at_alley()
-		_show_coin_decider()
+		if _skip_travel_wait_for_tests:
+			_meeting_assembled = true
+			_show_coin_decider()
 	elif to_state == GameState.MatchState.SEARCHING:
 		_free_coin_overlay()
 		_begin_search_phase(1)
@@ -351,12 +368,24 @@ func _on_line_struck(payload: Dictionary) -> void:
 ## that the overlay auto-randomizes (round never hangs). Once resolved, the
 ## result banner holds _coin_result_hold, then SEARCHING starts.
 func _tick_meeting_phase(delta: float) -> void:
+	if not _meeting_assembled:
+		_meeting_arrival_elapsed += delta
+		if _meeting_actors_arrived() or _meeting_arrival_elapsed >= 20.0:
+			if _meeting_arrival_elapsed >= 20.0 and not _meeting_actors_arrived():
+				push_warning("SoloMatchDriver: meeting arrival exceeded 20s")
+			_meeting_assembled = true
+			_show_coin_decider()
+		return
 	_meeting_elapsed += delta
 	if _coin_overlay == null or not is_instance_valid(_coin_overlay):
 		# Overlay missing (scene failed to load): never hang the round - decide
 		# randomly at the hard cap and move on to SEARCHING.
 		if _meeting_elapsed >= _meeting_max_seconds:
 			_force_coin_decision()
+		if _meeting_resolved:
+			_meeting_result_hold += delta
+			if _meeting_result_hold >= _coin_result_hold:
+				_begin_searching()
 		return
 	if not _meeting_call_made and _meeting_elapsed >= _meeting_call_timeout:
 		_meeting_call_made = true
@@ -378,6 +407,26 @@ func _tick_meeting_phase(delta: float) -> void:
 
 ## Walk both characters to their face-off spots at the alley. Camera follows
 ## the player, so it pans to the alley with them.
+## The meeting is a physical assembly, not an automatic teleport or timer.
+func _meeting_actors_arrived() -> bool:
+	if _game_world == null:
+		return false
+	var human := _game_world.get_entity(HUMAN_ENTITY_ID) as Node2D
+	var cpu := _game_world.get_entity(GHOST_ENTITY_ID) as Node2D
+	return human != null and cpu != null and (
+		human.global_position.distance_to(MEETING_PLAYER_POS) <= 25.0 and
+		cpu.global_position.distance_to(MEETING_CPU_POS) <= 25.0)
+
+
+func _searcher_arrived() -> bool:
+	if _game_world == null:
+		return false
+	var searcher := active_searcher if _search_phase_index == 1 else _opponent(active_searcher)
+	var actor := _game_world.get_entity(searcher) as Node2D
+	var entry := ZoneLayout.SEARCH_ENTRY_HUMAN if searcher == HUMAN_ENTITY_ID else ZoneLayout.SEARCH_ENTRY_CPU
+	return actor != null and actor.global_position.distance_to(entry) <= 25.0
+
+
 func _assemble_at_alley() -> void:
 	var player: Node2D = _game_world.get_entity(HUMAN_ENTITY_ID) as Node2D if _game_world else null
 	var npc: Node2D = _game_world.get_entity(GHOST_ENTITY_ID) as Node2D if _game_world else null
@@ -444,7 +493,9 @@ func _begin_search_phase(phase_index: int) -> void:
 		return
 	_search_phase_index = phase_index
 	_search_elapsed = 0.0
-	_search_phase_active = true
+	_search_phase_active = false
+	_awaiting_search_arrival = true
+	_search_arrival_elapsed = 0.0
 	_phase_end_pending = false
 	_phase_end_grace_left = 0.0
 	_search_warning_played = false
@@ -457,7 +508,21 @@ func _begin_search_phase(phase_index: int) -> void:
 
 	_configure_search_scene(searcher)
 	MatchTimer.stop()
+	if _skip_travel_wait_for_tests:
+		_activate_search_phase()
+
+
+## Activate only after the physical searcher reaches their public entry.
+## Do not charge the 30s search clock for the walk from the alley.
+func _activate_search_phase() -> void:
+	if not _awaiting_search_arrival or _ending:
+		return
+	_awaiting_search_arrival = false
+	_search_phase_active = true
+	_search_elapsed = 0.0
 	MatchTimer.start_seconds(_search_phase_seconds)
+	var phase_index := _search_phase_index
+	var searcher: int = active_searcher if phase_index == 1 else _opponent(active_searcher)
 
 	# Count the current phase's target lines DIRECTLY from the line stores:
 	# StrikeSystem only activates on the phase-started event below, so it is
@@ -513,6 +578,7 @@ func _configure_search_scene(searcher: int) -> void:
 			_walk_entity_to(player, ZoneLayout.DEFEND_POS_HUMAN)
 		if npc is NPC:
 			npc.patrolling = false  # the sweep controller drives the NPC now
+			_walk_entity_to(npc, ZoneLayout.SEARCH_ENTRY_CPU)
 		# The human DEFENDER may follow and supervise the CPU striker.
 		# Assist follows automatically until the human taps to move.
 		InputManager.touch_to_move_enabled = true
@@ -539,6 +605,7 @@ func _end_search_phase() -> void:
 	if _ending or not _search_phase_active:
 		return
 	_search_phase_active = false
+	_awaiting_search_arrival = false
 	_phase_end_pending = false
 	MatchTimer.stop()
 	var remaining := _strike_sys.get_remaining_lines() if _strike_sys else 0
