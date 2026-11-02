@@ -321,14 +321,8 @@ func _handle_mouse_anchor_end(_screen_pos: Vector2) -> void:
 
 
 func _handle_mouse_draw_start(screen_pos: Vector2) -> void:
-	if not _mouse_is_anchor and not sneak_draw_enabled:
-		# Auto-start anchor if drawing without anchor (convenience for desktop).
-		# The defender sneak phase skips this: the defender never moves.
-		_mouse_is_anchor = true
-		EventBus.emit(EventBus.EV_INPUT_MOVE_START, {
-			"entity_id": local_entity_id,
-			"screen_position": screen_pos,
-		})
+	# DRAW must never dispatch a MOVE event. Movement may reposition the
+	# player and, during searching, trigger a strike/inspection attempt.
 	_mouse_is_drawing = true
 	var world_pos := screen_to_world(screen_pos)
 	EventBus.emit(EventBus.EV_INPUT_DRAW_START, {
