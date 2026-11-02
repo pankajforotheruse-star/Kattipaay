@@ -222,7 +222,8 @@ func probe_revealed_line_ids(lines: Array, searcher_pos: Vector2) -> Array[int]:
 		var line: ChalkLine = candidate
 		if line.is_sneak or line.is_struck or line.points.size() < 2:
 			continue
-		var detected := _cover_sys.can_reveal(line.points, searcher_pos, line.wall_concealed, line.hidden_cover_id) if _cover_sys else \
+		var detected := _cover_sys.can_reveal(line.points, searcher_pos, line.wall_concealed, line.hidden_cover_id,
+                line.cover_states) if _cover_sys else \
 				HidingRules.can_reveal_line(line.points, searcher_pos, line.wall_concealed)
 		if detected:
 			ids.append(line.id)
