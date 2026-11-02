@@ -361,6 +361,7 @@ func _advance_phase() -> void:
 	drawing_mode = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if phase == "DRAWING":
+		_restore_open_cover()
 		phase = "MEETING"
 		phase_left = configured_meeting_seconds
 		walker.global_position = Vector3(-2, 0.85, 0)
@@ -687,3 +688,10 @@ func _count_survivors(lines: Array[ChalkStroke3D]) -> int:
 		if is_instance_valid(stroke) and not stroke.struck:
 			count += 1
 	return count
+
+## The original childhood-cover rule returns opened cover to place before search.
+func _restore_open_cover() -> void:
+	for node in get_tree().get_nodes_in_group("future_movable_props"):
+		var body := node as RigidBody3D
+		if body != null and is_instance_valid(body) and bool(body.get_meta("cover_lifted", false)):
+			_toggle_cover_body(body)
