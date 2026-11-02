@@ -179,7 +179,28 @@ func _run() -> void:
 	# A valid raw gesture may overshoot the hand radius when Catmull-Rom
 	# smoothing runs. The *committed* geometry must be validated again.
 	var original_actor_pos: Vector2 = player.global_position
-	player.global_position = Vector2(400, 80)
+	# Choose a genuinely unobstructed standing position from the live map,
+	# rather than assuming decorative props leave a fixed fixture clear.
+	var smooth_actor_pos := Vector2.INF
+	var rel_probes: Array[Vector2] = [
+		Vector2(156, 47), Vector2(162, 78),
+		Vector2(172, 52), Vector2(164, 1)]
+	for y in [80, 180, 330, 620]:
+		if smooth_actor_pos.is_finite():
+			break
+		for x in [80, 240, 400, 700, 1050, 1800]:
+			var candidate := Vector2(float(x), float(y))
+			var works := true
+			for rel in rel_probes:
+				if not HidingRules.can_reach_point(candidate, candidate + rel):
+					works = false
+					break
+			if works:
+				smooth_actor_pos = candidate
+				break
+	_check(smooth_actor_pos.is_finite(), "smoothing fixture has an unobstructed position")
+	if smooth_actor_pos.is_finite():
+		player.global_position = smooth_actor_pos
 	player.set_meta("has_target", false)
 	var before_smoothing := int(draw.call("get_active_lines").size())
 	var raw_relative: Array[Vector2] = [
