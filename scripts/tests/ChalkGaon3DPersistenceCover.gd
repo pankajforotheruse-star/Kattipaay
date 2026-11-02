@@ -23,7 +23,9 @@ func _run() -> void:
 			game._advance_phase()
 			_check(not bool(cover.get_meta("cover_lifted", false)), "Drawing-to-meeting restores lifted cover")
 	game._finish_match()
-	var saved := SaveManager.load_local("chalk_gaon_3d_latest_result", {})
+	var store := root.get_node_or_null("SaveManager")
+	_check(store != null, "Original SaveManager autoload is available")
+	var saved: Dictionary = store.call("load_local", "chalk_gaon_3d_latest_result", {}) if store != null else {}
 	_check(str(saved.get("schema", "")) == "chalk_gaon_3d_result_v1", "3D result stored under isolated schema")
 	_check(saved.get("result", "") == game.result, "Result persists accurately")
 	_check(int(saved.get("human_survivors", -1)) == 0, "Empty human strokes yield zero survivors")
