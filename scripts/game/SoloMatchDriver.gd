@@ -523,6 +523,7 @@ func _activate_search_phase() -> void:
 	MatchTimer.start_seconds(_search_phase_seconds)
 	var phase_index := _search_phase_index
 	var searcher: int = active_searcher if phase_index == 1 else _opponent(active_searcher)
+	var pdef: int = _opponent(searcher)
 
 	# Count the current phase's target lines DIRECTLY from the line stores:
 	# StrikeSystem only activates on the phase-started event below, so it is
