@@ -157,6 +157,22 @@ func _run() -> void:
 		_game_state.set("current_match", MATCH_DRAWING)
 		_game_state.set("solo_active_searcher", -1)
 		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
+		# A nearby cover across a solid wall must not be inspectable.
+		var blocking_wall: Rect2 = HidingRules.get_zone_walls()[0]
+		var blocked_actor := Vector2(blocking_wall.get_center().x,
+			blocking_wall.position.y - 30.0)
+		var blocked_cover := Rect2(Vector2(blocked_actor.x - 12.0,
+			blocking_wall.end.y + 12.0), Vector2(24.0, 20.0))
+		var clear_cover := Rect2(Vector2(blocked_actor.x - 12.0,
+			blocked_actor.y - 36.0), Vector2(24.0, 20.0))
+		_check(not bool(cover.call("can_physically_inspect",
+			blocked_actor, blocked_cover)),
+			"nearby cover cannot be inspected through a compound wall")
+		_check(bool(cover.call("can_physically_inspect",
+			blocked_actor, clear_cover)),
+			"nearby cover can be inspected from an unobstructed side")
+		print(PREFIX + "OBSTRUCTED_COVER_INSPECTION_OK")
+
 
 	# Validate real hand reach BEFORE stress-inserting lots of human marks.
 	# The legacy synthetic end-to-end harness uses a separate test override.
