@@ -319,7 +319,8 @@ func _test_per_cover_metadata() -> void:
 	var b: Vector2 = (second["rect"] as Rect2).get_center()
 	var points: Array[Vector2] = [a, b]
 	var states := HidingRules.cover_states_for_line(points, {first_id: true})
-	_check(states.size() == 2, "a long stroke records both overlapping covers")
+	_check(states.has(first_id) and states.has(second_id),
+		"a long stroke records both selected cover objects")
 	_check(states.get(first_id, false) == true and states.get(second_id, true) == false,
 		"only physically flipped site is marked underside")
 	var line := ChalkLine.new()
