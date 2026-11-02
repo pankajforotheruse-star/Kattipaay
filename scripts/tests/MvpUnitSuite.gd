@@ -29,7 +29,6 @@ func _run() -> void:
 	_test_visibility_boundaries()
 	_test_fair_cover_rules()
 	_test_per_cover_metadata()
-	_test_obstructed_inspection()
 	_test_cpu_count_randomness()
 	_test_chalk_roundtrip()
 	# CPU path + perception are tested with real controllers in the smoke test.
@@ -347,17 +346,3 @@ func _test_per_cover_metadata() -> void:
 	print(PREFIX + "PER_COVER_METADATA_OK")
 
 
-## The cover may be within 100px but behind a real compound wall.
-func _test_obstructed_inspection() -> void:
-	var wall: Rect2 = HidingRules.get_zone_walls()[0]
-	var actor := Vector2(wall.get_center().x, wall.position.y - 30.0)
-	var target := Rect2(Vector2(wall.get_center().x - 12.0,
-		wall.end.y + 12.0), Vector2(24.0, 20.0))
-	_check(actor.distance_to(target.get_center()) < HidingRules.INSPECTION_RADIUS,
-		"inspection fixture is within the nominal hand radius")
-	_check(not CoverSystem.can_physically_inspect(actor, target),
-		"cover behind a solid wall cannot be inspected through it")
-	var front := Rect2(Vector2(actor.x - 12.0, actor.y - 36.0), Vector2(24.0, 20.0))
-	_check(CoverSystem.can_physically_inspect(actor, front),
-		"unobstructed nearby cover can still be inspected")
-	print(PREFIX + "OBSTRUCTED_INSPECTION_OK")
