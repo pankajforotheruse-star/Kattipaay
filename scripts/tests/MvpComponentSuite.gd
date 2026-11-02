@@ -269,6 +269,25 @@ func _run() -> void:
 							str(cpu.global_position), str(point),
 							cpu.global_position.distance_to(point)])
 		print(PREFIX + "CPU_PHYSICAL_CHALK_REACH_OK")
+	# Distribution must be live on the solo policy, not trapped in a
+	# legacy branch that immediately returns for the current gameplay mode.
+	if bot:
+		var saved_cpu_strategy_pos: Vector2 = cpu.global_position
+		var site_center: Vector2 = (
+			HidingRules.get_cover_sites(true)[2]["rect"] as Rect2).get_center()
+		cpu.global_position = site_center + Vector2(0, 45)
+		var kinds := {"decoy": 0, "cover": 0, "open": 0}
+		for _pick in range(160):
+			bot.call("_choose_public_hiding_anchor")
+			var kind := str(bot.get("_solo_anchor_last_kind"))
+			if kinds.has(kind):
+				kinds[kind] = int(kinds[kind]) + 1
+		_check(int(kinds["decoy"]) >= 1 and int(kinds["cover"]) >= 1
+			and int(kinds["open"]) >= 1,
+			"solo CPU uses decoy, cover and open policy branches")
+		cpu.global_position = saved_cpu_strategy_pos
+		print(PREFIX + "CPU_PLACEMENT_POLICY_OK " + str(kinds))
+
 
 
 	# Real human solo mode has NO 50-line cap: adding 65 valid marks must
@@ -400,6 +419,29 @@ func _run() -> void:
 			_check(not bool(navigation.call("is_walkable", well.global_position)),
 				"visible well footprint blocks physical movement")
 		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
+		# Fuzz exact (continuous) walkability against A* endpoints.
+		var nav_rng := RandomNumberGenerator.new()
+		nav_rng.seed = 173818
+		var route_checks := 0
+		for cpu_zone in [false, true]:
+			var zone := ZoneLayout.CPU_ZONE if cpu_zone else ZoneLayout.PLAYER_ZONE
+			var origin: Vector2 = ZoneLayout.SEARCH_ENTRY_HUMAN if cpu_zone else ZoneLayout.SEARCH_ENTRY_CPU
+			for _iteration in range(50):
+				var point := Vector2(
+					nav_rng.randf_range(zone.position.x + 45.0, zone.end.x - 45.0),
+					nav_rng.randf_range(zone.position.y + 45.0, zone.end.y - 45.0))
+				if not bool(navigation.call("is_walkable", point)):
+					continue
+				var goal: Vector2 = navigation.call("reachable_approach", point)
+				_check(goal.is_finite(), "fuzzed walkable goal projects to finite A* cell")
+				var path: PackedVector2Array = navigation.call("find_route", origin, point)
+				_check(not path.is_empty(), "A* can approach a sampled legal destination")
+				if not path.is_empty():
+					_check(path[-1].distance_to(goal) <= 40.0,
+						"navigation endpoint stays near requested safe approach")
+				route_checks += 1
+		print(PREFIX + "NAVIGATION_FUZZ_OK routes=" + str(route_checks))
+
 
 	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", original_reach)
 	# Regression: a real mobile tap finishes its walking route AFTER
