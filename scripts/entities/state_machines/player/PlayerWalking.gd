@@ -45,7 +45,8 @@ func physics_update(delta: float) -> void:
 			machine.transition_to("idle")
 			return
 		while not route.is_empty() and \
-				player.global_position.distance_to(route[0]) < 13.0:
+				player.global_position.distance_to(route[0]) < (
+					_arrival_threshold if route.size() == 1 else 13.0):
 			route.remove_at(0)
 		player.set_meta("_nav_route", route)
 		if route.is_empty():
