@@ -88,7 +88,7 @@ var pre_pause_match: int = MatchState.NONE
 var solo_vs_cpu: bool = false
 
 ## CPU difficulty for solo mode (GhostBotController.Difficulty enum value).
-var cpu_difficulty: int = GhostBotController.Difficulty.NORMAL
+var cpu_difficulty: int = 1  # NORMAL; avoid compiling the bot before autoloads exist
 
 ## Who is the ACTIVE SEARCHER in the current solo search phase
 ## (HUMAN_ENTITY_ID=1 or GHOST_ENTITY_ID=2) and who defends.
