@@ -337,7 +337,7 @@ func _cpu_inspect() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
-		_play_cue("play_argument_result", true)
+			_play_cue("play_argument_result", true)
 			cpu_strike_cooldown = cpu_strike_delay
 			break
 
@@ -352,7 +352,7 @@ func _human_strike_visible() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "You found a CPU chalk line"
-		_play_cue("play_argument_result", true)
+			_play_cue("play_argument_result", true)
 			return
 	message = "No visible CPU line close enough to strike"
 
