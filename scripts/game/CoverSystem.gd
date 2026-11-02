@@ -182,7 +182,7 @@ func cpu_inspect_nearby(actor_pos: Vector2, chance: float) -> bool:
 
 ## Same physical obstruction rule is used for both searchers.
 ## Kept pure so adversarial wall/prop approaches can be unit tested.
-static func can_physically_inspect(actor_pos: Vector2, rect: Rect2) -> bool:
+func can_physically_inspect(actor_pos: Vector2, rect: Rect2) -> bool:
 	if not actor_pos.is_finite():
 		return false
 	if _distance_to_rect(actor_pos, rect) > HidingRules.INSPECTION_RADIUS:
