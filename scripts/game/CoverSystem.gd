@@ -125,13 +125,15 @@ func inspected_sites() -> Dictionary:
 	return _inspected.duplicate()
 
 func can_reveal(points: Array, searcher_pos: Vector2,
-		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
+		wall_concealed: bool, hidden_cover_id: String = "",
+		cover_states: Dictionary = {}) -> bool:
 	return HidingRules.can_reveal_line(points, searcher_pos, wall_concealed,
-		_inspected, hidden_cover_id)
+		_inspected, hidden_cover_id, cover_states)
 
 func can_notice_sneak(points: Array, searcher_pos: Vector2,
-		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
-	return can_reveal(points, searcher_pos, wall_concealed, hidden_cover_id)
+		wall_concealed: bool, hidden_cover_id: String = "",
+		cover_states: Dictionary = {}) -> bool:
+	return can_reveal(points, searcher_pos, wall_concealed, hidden_cover_id, cover_states)
 
 ## Searcher must actually be within INSPECTION_RADIUS of the public cover.
 ## Tapping a faraway cover while en route cannot inspect it.
@@ -148,6 +150,13 @@ func inspect_at(searcher_id: int, tap_world_pos: Vector2, actor_pos: Vector2) ->
 		if not region.has_point(tap_world_pos):
 			continue
 		if _distance_to_rect(actor_pos, region) > HidingRules.INSPECTION_RADIUS:
+			return false
+		# Reaching an object is not just being nearby: its approachable
+		# surface must not be hidden behind a wall/house/other solid prop.
+		var closest := Vector2(
+			clampf(actor_pos.x, region.position.x, region.end.x),
+			clampf(actor_pos.y, region.position.y, region.end.y))
+		if not HidingRules.has_clear_sight(actor_pos, closest):
 			return false
 		_inspected[str(site["id"])] = true
 		_feedback = ("LEAVES CHECKED" if int(site["kind"]) == HidingRules.COVER_LEAVES else "BRICKS CHECKED")
