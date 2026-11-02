@@ -104,6 +104,9 @@ const GHOST_REVEALED_COLOR := Color(0.45, 0.60, 0.85, 1.0)  # Saturated spectral
 ## "surface" means the mark was drawn ON TOP of a closed object, so it is
 ## visible without flipping it. This metadata follows network round-trips.
 @export var hidden_cover_id: String = ""
+## Per-object underside state: site id -> true if the hider flipped it.
+## Required when a single stroke crosses multiple independently movable covers.
+@export var cover_states: Dictionary = {}
 
 ## Entity ID of the ghost player who placed this line. -1 if not a ghost line.
 @export var ghost_owner_id: int = -1
@@ -225,7 +228,8 @@ func to_network_dict() -> Dictionary:
         "gd": is_discovered,        # is_discovered
         "wc": wall_concealed,       # wall_concealed (Commit A hiding)
         "sn": is_sneak,             # defender sneaked while opponent searched
-        "hc": hidden_cover_id,      # explicit lift/underside vs surface
+        "hc": hidden_cover_id,      # legacy cover metadata
+        "cs": cover_states.duplicate(), # independent per-object underside states
     }
     # Estimated size: ~20 bytes overhead + (simplified_points * 4) + (simplified_points * 1)
     # For 10 simplified points: 20 + 40 + 10 = ~70 bytes. Well under 500.
@@ -258,6 +262,12 @@ static func is_valid_network_payload(data: Dictionary) -> bool:
     var cover = data.get("hc", "")
     if typeof(cover) != TYPE_STRING or cover.length() > 64:
         return false
+    var states = data.get("cs", {})
+    if typeof(states) != TYPE_DICTIONARY or states.size() > 16:
+        return false
+    for key in states:
+        if typeof(key) != TYPE_STRING or key.length() > 64 or typeof(states[key]) != TYPE_BOOL:
+            return false
     return true
 
 
@@ -285,6 +295,7 @@ func from_network_dict(data: Dictionary) -> void:
     wall_concealed = bool(data.get("wc", false))
     is_sneak = bool(data.get("sn", false))
     hidden_cover_id = str(data.get("hc", ""))
+    cover_states = data.get("cs", {}).duplicate()
 
     # Decode positions
     points.clear()
