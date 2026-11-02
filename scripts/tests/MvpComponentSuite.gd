@@ -542,6 +542,10 @@ func _run() -> void:
 				"actual search entry activates scanning exactly once")
 			_check(bool(timer.call("is_running")),
 				"the 30s search clock starts at physical arrival")
+			# A zero-target round may request an intentional grace early exit.
+			# Isolate ordinary timeout authority by disabling that explicit
+			# early-exit path before advancing the presentation counter.
+			driver.set("_phase_end_pending", false)
 			driver.call("_process", float(driver.get("_search_phase_seconds")) + 5.0)
 			_check(int(driver.get("_search_phase_index")) == 1,
 				"local display counter cannot independently expire search")
