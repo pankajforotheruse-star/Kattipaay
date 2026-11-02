@@ -1,6 +1,6 @@
 # Physical village gameplay: review and release gate
 
-**Branch:** `feat/physical-world-consistency`. Based on unmerged `feat/childhood-authentic-loop`; includes unmerged fairness fixes. **DO NOT MERGE into main without the owner's explicit instruction.**
+**Status:** Historical release checklist for the physical 2D prototype. The current protected correction branch and remaining gates are recorded in [AUDIT_CORRECTIONS.md](AUDIT_CORRECTIONS.md). **Do not merge any correction branch without explicit owner approval.**
 
 ## Owner rules preserved
 - Solo human drawing lasts 40 seconds; **NO line quota** and no silent oldest-stroke eviction.

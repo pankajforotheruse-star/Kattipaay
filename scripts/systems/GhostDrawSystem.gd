@@ -513,7 +513,8 @@ func _check_discovery() -> void:
 					continue
 				center = actor.global_position
 			var cover := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
-			var visible := cover.can_reveal(line.points, center, line.wall_concealed, line.hidden_cover_id) if cover else \
+			var visible := cover.can_reveal(line.points, center, line.wall_concealed, line.hidden_cover_id,
+                    line.cover_states) if cover else \
 					HidingRules.is_revealed(line.points, center, line.wall_concealed)
 			if visible:
 				discovered_ids.append(line.id)

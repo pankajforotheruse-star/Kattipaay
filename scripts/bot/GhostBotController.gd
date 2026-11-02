@@ -150,6 +150,7 @@ const CPU_COVER_ANCHOR_SHARE := {0: 0.30, 1: 0.48, 2: 0.64, 3: 0.78}
 # A few conspicuous decoys waste the searcher's limited time on purpose.
 const CPU_DECOY_SHARE := {0: 0.26, 1: 0.18, 2: 0.13, 3: 0.09}
 var _recent_hiding_spots: Array[Vector2] = []
+var _solo_anchor_last_kind: String = ""
 var _accused_this_round: bool = false
 var _placement_anchor := Vector2.ZERO
 var _placement_delay: float = 0.0
@@ -356,21 +357,37 @@ func _choose_public_hiding_anchor() -> Vector2:
 			# Multiple rapid chalk strokes may be made from one standing
 			# position. Never place one beyond the hider's physical arm reach.
 			var here := npc.global_position
-			var near := HidingRules.get_cover_sites(true)
-			var candidates: Array[Rect2] = []
-			for site in near:
-				var r: Rect2 = site["rect"]
-				if r.get_center().distance_to(here) <= 135.0:
-					candidates.append(r)
-			if not candidates.is_empty() and \
-					_rng.randf() < float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.48)):
-				var site_rect := candidates[_rng.randi_range(0, candidates.size() - 1)]
-				anchor = site_rect.get_center() + Vector2(
-					_rng.randf_range(-22.0, 22.0), _rng.randf_range(-15.0, 15.0))
+			var near: Array[Dictionary] = []
+			for site in HidingRules.get_cover_sites(true):
+				var rect: Rect2 = site["rect"]
+				if rect.get_center().distance_to(here) <= 125.0:
+					near.append(site)
+			var roll := _rng.randf()
+			var decoy_share := float(CPU_DECOY_SHARE.get(difficulty, 0.2))
+			var cover_share := float(CPU_COVER_ANCHOR_SHARE.get(difficulty, 0.48))
+			if roll < decoy_share:
+				_solo_anchor_last_kind = "decoy"
+				anchor = here + Vector2(
+					_rng.randf_range(-65.0, 65.0), -_rng.randf_range(12.0, 75.0))
+			elif roll < decoy_share + cover_share and not near.is_empty():
+				_solo_anchor_last_kind = "cover"
+				var site: Dictionary = near[_rng.randi_range(0, near.size() - 1)]
+				var region: Rect2 = site["rect"]
+				anchor = region.get_center() + Vector2(
+					_rng.randf_range(-15.0, 15.0), _rng.randf_range(-12.0, 12.0))
 			else:
+				_solo_anchor_last_kind = "open"
 				anchor = here + Vector2.RIGHT.rotated(_rng.randf_range(0.0, TAU)) \
-					* _rng.randf_range(15.0, 75.0)
-			return ZoneLayout.clamp_to_cpu_zone(anchor)
+					* _rng.randf_range(20.0, 70.0)
+			for previous in _recent_hiding_spots:
+				if anchor.distance_squared_to(previous) < 18.0 * 18.0:
+					anchor += Vector2.RIGHT.rotated(_rng.randf_range(0.0, TAU)) * 20.0
+					break
+			anchor = ZoneLayout.clamp_to_cpu_zone(anchor)
+			_recent_hiding_spots.append(anchor)
+			if _recent_hiding_spots.size() > 35:
+				_recent_hiding_spots.pop_front()
+			return anchor
 	# Biased randomness with decoys, public object-hiding and open ground.
 	# Spread placements across the map rather than piling hundreds of marks
 	# into one deterministic cluster.
@@ -601,10 +618,13 @@ func _build_one_line_dict(start: Vector2, angle: float, length: float, rng: Rand
 					candidate = cpu.global_position.lerp(candidate,
 						maxf(0.0, valid - 5.0 / total))
 				line.points[i] = ZoneLayout.clamp_to_cpu_zone(candidate)
-		var site := HidingRules.cover_site_at(start)
-		if not site.is_empty() and HidingRules.is_inspectable_cover(int(site["kind"])):
-			line.hidden_cover_id = str(site["id"]) if \
-					_solo_open_cover_id == str(site["id"]) else "surface"
+		var opened := {}
+		if not _solo_open_cover_id.is_empty():
+			opened[_solo_open_cover_id] = true
+		line.cover_states = HidingRules.cover_states_for_line(line.points, opened)
+		for site_id in line.cover_states:
+			line.hidden_cover_id = str(site_id) if bool(line.cover_states[site_id]) else "surface"
+			break
 
 	line.id = -1  # -1 unconfirmed sentinel → GhostDrawSystem assigns an ID
 	line.chalk_type = ChalkLine.ChalkType.GHOST

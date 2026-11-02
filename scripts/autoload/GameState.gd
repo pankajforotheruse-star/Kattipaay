@@ -88,7 +88,7 @@ var pre_pause_match: int = MatchState.NONE
 var solo_vs_cpu: bool = false
 
 ## CPU difficulty for solo mode (GhostBotController.Difficulty enum value).
-var cpu_difficulty: int = GhostBotController.Difficulty.NORMAL
+var cpu_difficulty: int = 1  # NORMAL; avoid compiling the bot before autoloads exist
 
 ## Who is the ACTIVE SEARCHER in the current solo search phase
 ## (HUMAN_ENTITY_ID=1 or GHOST_ENTITY_ID=2) and who defends.
@@ -126,7 +126,7 @@ func transition(to: int) -> bool:
     if to == State.MAIN_MENU or to == State.GAME_OVER:
         _reset_match_state()
 
-    EventBus.emit(EventBus.EV_GAME_STATE_CHANGED, {
+    _emit_autoload_event("game.state_changed", {
         "from": from,
         "to": to,
     })
@@ -143,13 +143,22 @@ func transition(to: int) -> bool:
     print("GameState: %s → %s" % [_state_name(from), _state_name(to)])
     return true
 
+## Resolve the EventBus by its registered singleton name at runtime.
+## Standalone Godot --script suites can compile GameState before autoload
+## names are injected, despite the bus being available when invoked.
+func _emit_autoload_event(event_name: String, payload: Dictionary) -> void:
+    var bus := get_node_or_null("/root/EventBus")
+    if bus and bus.has_method("emit"):
+        bus.call("emit", event_name, payload)
+
+
 ## Force a state (bypasses validation — use only for reset/debug).
 func force_state(to: int) -> void:
     previous = current
     current = to
     if to != State.PLAYING and to != State.PAUSED:
         _reset_match_state()
-    EventBus.emit(EventBus.EV_GAME_STATE_CHANGED, {"from": previous, "to": to})
+    _emit_autoload_event("game.state_changed", {"from": previous, "to": to})
 
 # ── Match Sub-State Transitions ──────────────────────────────────────────────
 
@@ -176,7 +185,7 @@ func enter_match_state(to: int) -> bool:
 
     current_match = to
 
-    EventBus.emit(EventBus.EV_MATCH_STATE_CHANGED, {
+    _emit_autoload_event("match.state_changed", {
         "from": from,
         "to": to,
         "from_name": _match_state_name(from),
@@ -245,7 +254,7 @@ func _reset_match_state() -> void:
     # cache goes stale after returning to MAIN_MENU, so the next match's
     # exit callbacks fire for the wrong old state (audit m9). Payload shape
     # matches enter_match_state() (from/to plus names).
-    EventBus.emit(EventBus.EV_MATCH_STATE_CHANGED, {
+    _emit_autoload_event("match.state_changed", {
         "from": previous_match,
         "to": current_match,
         "from_name": _match_state_name(previous_match),

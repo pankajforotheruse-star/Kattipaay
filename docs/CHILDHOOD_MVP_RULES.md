@@ -1,6 +1,6 @@
 # Childhood Kattipaay Play vs CPU: owner-directed revision
 
-**Status:** Work on `feat/childhood-authentic-loop` only; `main` not modified. Parent: `feat/fair-cover-search-loop` PR #34. Draft PR #35 is unmerged.
+**Status:** Owner rules retained as historical acceptance guidance. Follow-up changes were later integrated to `main` via PR #36. Current audit corrections are isolated on `fix/mvp-13-findings-2026-11-02`; see [AUDIT_CORRECTIONS.md](AUDIT_CORRECTIONS.md).
 
 ## Non-negotiable owner rules
 
@@ -38,4 +38,4 @@ Additional existing wall-anchor bias is applied during pair generation. Thus per
 
 Godot `4.4.stable.official`: full editor import and all-scene audit; deterministic geometry/visibility/serialization tests; component tests (65 marks, flip/backside, defender follow, solid-wall navigation and reachable approach to all hiding sites); five accelerated full matches with target range assertions; baseline secret/config security scan; all six GitHub CI jobs green. **Headless CI is not a substitute for physical Android playtesting or measured game balance.**
 
-Do not merge draft PR #35 (or PR #34) into main without explicit owner approval.
+Do not merge the current MVP correction branch to main without explicit owner approval.

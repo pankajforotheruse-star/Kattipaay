@@ -187,6 +187,24 @@ static func cover_site_for_line(points: Array) -> Dictionary:
 					return site
 	return {}
 
+## Classify each *intersected* movable object independently. A stroke may pass
+## under one flipped pile and on top of a different closed pile.
+static func cover_states_for_line(points: Array, opened: Dictionary) -> Dictionary:
+	var states := {}
+	if points.size() < 2:
+		return states
+	for site in get_all_cover_sites():
+		if not is_inspectable_cover(int(site["kind"])):
+			continue
+		var rect: Rect2 = site["rect"]
+		for i in range(points.size() - 1):
+			if _segment_intersects_rect(points[i], points[i + 1], rect):
+				var site_id := str(site["id"])
+				states[site_id] = opened.has(site_id)
+				break
+	return states
+
+
 ## One symmetric visibility predicate for BOTH opponents. The caller supplies
 ## only the inspected cover ids that the current searcher physically opened.
 ## No extra radius, X-ray knowledge or automatic cover inspection for CPU.
@@ -197,7 +215,7 @@ static func cover_site_for_line(points: Array) -> Dictionary:
 ## may then be crossed out as one child's single chalk mark.
 static func can_reveal_line(points: Array, searcher_pos: Vector2,
 		wall_concealed: bool, inspected: Dictionary = {},
-		hidden_cover_id: String = "") -> bool:
+		hidden_cover_id: String = "", cover_states: Dictionary = {}) -> bool:
 	if points.size() < 2:
 		return false
 	var has_real_wall := is_wall_concealed(points)
@@ -218,13 +236,14 @@ static func can_reveal_line(points: Array, searcher_pos: Vector2,
 				elif kind == COVER_ROOF:
 					radius = REVEAL_RADIUS_ROOF
 				elif is_inspectable_cover(kind):
-					if hidden_cover_id == "surface":
-						# A mark placed on top of a closed brick is exposed.
-						radius = REVEAL_RADIUS_OPEN
-					else:
-						# A mark genuinely underneath or on the backside
-						# requires lifting the public object at that spot.
-						if not inspected.has(str(cover["id"])):
+					var site_id := str(cover["id"])
+					# Modern lines carry independent per-object flags. Retain
+					# legacy packets' behavior without leaking cover state to
+					# a different named object along the same stroke.
+					var underside := bool(cover_states[site_id]) if cover_states.has(site_id) else (
+						hidden_cover_id == site_id or hidden_cover_id == "")
+					if underside:
+						if not inspected.has(site_id):
 							continue
 						radius = REVEAL_RADIUS_INSPECTED
 			elif wall_concealed and not has_real_wall:

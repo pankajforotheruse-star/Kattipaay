@@ -125,13 +125,15 @@ func inspected_sites() -> Dictionary:
 	return _inspected.duplicate()
 
 func can_reveal(points: Array, searcher_pos: Vector2,
-		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
+		wall_concealed: bool, hidden_cover_id: String = "",
+		cover_states: Dictionary = {}) -> bool:
 	return HidingRules.can_reveal_line(points, searcher_pos, wall_concealed,
-		_inspected, hidden_cover_id)
+		_inspected, hidden_cover_id, cover_states)
 
 func can_notice_sneak(points: Array, searcher_pos: Vector2,
-		wall_concealed: bool, hidden_cover_id: String = "") -> bool:
-	return can_reveal(points, searcher_pos, wall_concealed, hidden_cover_id)
+		wall_concealed: bool, hidden_cover_id: String = "",
+		cover_states: Dictionary = {}) -> bool:
+	return can_reveal(points, searcher_pos, wall_concealed, hidden_cover_id, cover_states)
 
 ## Searcher must actually be within INSPECTION_RADIUS of the public cover.
 ## Tapping a faraway cover while en route cannot inspect it.
@@ -147,7 +149,7 @@ func inspect_at(searcher_id: int, tap_world_pos: Vector2, actor_pos: Vector2) ->
 		var region: Rect2 = site["rect"]
 		if not region.has_point(tap_world_pos):
 			continue
-		if _distance_to_rect(actor_pos, region) > HidingRules.INSPECTION_RADIUS:
+		if not can_physically_inspect(actor_pos, region):
 			return false
 		_inspected[str(site["id"])] = true
 		_feedback = ("LEAVES CHECKED" if int(site["kind"]) == HidingRules.COVER_LEAVES else "BRICKS CHECKED")
@@ -177,6 +179,19 @@ func cpu_inspect_nearby(actor_pos: Vector2, chance: float) -> bool:
 		if _cpu_rng.randf() <= clampf(chance, 0.0, 1.0):
 			return inspect_at(2, rect.get_center(), actor_pos)
 	return false
+
+## Same physical obstruction rule is used for both searchers.
+## Kept pure so adversarial wall/prop approaches can be unit tested.
+func can_physically_inspect(actor_pos: Vector2, rect: Rect2) -> bool:
+	if not actor_pos.is_finite():
+		return false
+	if _distance_to_rect(actor_pos, rect) > HidingRules.INSPECTION_RADIUS:
+		return false
+	var closest := Vector2(
+		clampf(actor_pos.x, rect.position.x, rect.end.x),
+		clampf(actor_pos.y, rect.position.y, rect.end.y))
+	return HidingRules.has_clear_sight(actor_pos, closest)
+
 
 static func _distance_to_rect(point: Vector2, rect: Rect2) -> float:
 	var nearest := Vector2(

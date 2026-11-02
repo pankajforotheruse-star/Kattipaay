@@ -157,6 +157,22 @@ func _run() -> void:
 		_game_state.set("current_match", MATCH_DRAWING)
 		_game_state.set("solo_active_searcher", -1)
 		print(PREFIX + "FAIR_COVER_INSPECTION_OK")
+		# A nearby cover across a solid wall must not be inspectable.
+		var blocking_wall: Rect2 = HidingRules.get_zone_walls()[0]
+		var blocked_actor := Vector2(blocking_wall.get_center().x,
+			blocking_wall.position.y - 30.0)
+		var blocked_cover := Rect2(Vector2(blocked_actor.x - 12.0,
+			blocking_wall.end.y + 12.0), Vector2(24.0, 20.0))
+		var clear_cover := Rect2(Vector2(blocked_actor.x - 12.0,
+			blocked_actor.y - 36.0), Vector2(24.0, 20.0))
+		_check(not bool(cover.call("can_physically_inspect",
+			blocked_actor, blocked_cover)),
+			"nearby cover cannot be inspected through a compound wall")
+		_check(bool(cover.call("can_physically_inspect",
+			blocked_actor, clear_cover)),
+			"nearby cover can be inspected from an unobstructed side")
+		print(PREFIX + "OBSTRUCTED_COVER_INSPECTION_OK")
+
 
 	# Validate real hand reach BEFORE stress-inserting lots of human marks.
 	# The legacy synthetic end-to-end harness uses a separate test override.
@@ -176,6 +192,81 @@ func _run() -> void:
 	_check(HidingRules.can_reach_point(Vector2(200, 300), Vector2(260, 300)),
 		"valid nearby drawing remains allowed")
 	print(PREFIX + "PHYSICAL_DRAW_REACH_OK")
+	# A valid raw gesture may overshoot the hand radius when Catmull-Rom
+	# smoothing runs. The *committed* geometry must be validated again.
+	var original_actor_pos: Vector2 = player.global_position
+	# Choose a genuinely unobstructed standing position from the live map,
+	# rather than assuming decorative props leave a fixed fixture clear.
+	var smooth_actor_pos := Vector2.INF
+	var rel_probes: Array[Vector2] = [
+		Vector2(156, 47), Vector2(162, 78),
+		Vector2(172, 52), Vector2(164, 1)]
+	for y in [80, 180, 330, 620]:
+		if smooth_actor_pos.is_finite():
+			break
+		for x in [80, 240, 400, 700, 1050, 1800]:
+			var candidate := Vector2(float(x), float(y))
+			var works := true
+			for rel in rel_probes:
+				if not HidingRules.can_reach_point(candidate, candidate + rel):
+					works = false
+					break
+			if works:
+				smooth_actor_pos = candidate
+				break
+	_check(smooth_actor_pos.is_finite(), "smoothing fixture has an unobstructed position")
+	if smooth_actor_pos.is_finite():
+		player.global_position = smooth_actor_pos
+	player.set_meta("has_target", false)
+	var before_smoothing := int(draw.call("get_active_lines").size())
+	var raw_relative: Array[Vector2] = [
+		Vector2(156, 47), Vector2(162, 78),
+		Vector2(172, 52), Vector2(164, 1)]
+	var raw_ok := true
+	for rel in raw_relative:
+		raw_ok = raw_ok and HidingRules.can_reach_point(player.global_position,
+			player.global_position + rel)
+	_check(raw_ok, "smoothing regression uses four legal raw points")
+	var smooth_pts: Array[Vector2] = []
+	for rel in raw_relative:
+		smooth_pts.append(player.global_position + rel)
+	root.get_node("EventBus").call("emit", "input.draw_start",
+		{"entity_id": 1, "position": smooth_pts[0]})
+	for i in range(1, smooth_pts.size()):
+		root.get_node("EventBus").call("emit", "input.draw_update",
+			{"entity_id": 1, "position": smooth_pts[i]})
+	root.get_node("EventBus").call("emit", "input.draw_end", {"entity_id": 1})
+	_check(int(draw.call("get_active_lines").size()) == before_smoothing,
+		"smoothed stroke beyond hand reach is rejected in real DrawSystem")
+	player.global_position = original_actor_pos
+	# A draw gesture must not also issue movement or a searcher strike.
+	var bus := root.get_node("EventBus")
+	var moves: Array = []
+	var on_move := func(payload: Dictionary) -> void:
+		moves.append(payload)
+	bus.call("on", "input.move_start", on_move)
+	var im := root.get_node("InputManager")
+	im.set("_mouse_is_anchor", false)
+	im.call("_handle_mouse_draw_start", Vector2(120, 120))
+	im.call("_handle_mouse_draw_end", Vector2(120, 120))
+	bus.call("off", "input.move_start", on_move)
+	_check(moves.is_empty(), "desktop DRAW start cannot dispatch MOVE event")
+	# Editing is only legal while hiding; a late undo must not change scores.
+	var undo_probe := ChalkLine.new()
+	undo_probe.id = 99111
+	undo_probe.player_id = 1
+	undo_probe.points = [Vector2(100, 100), Vector2(140, 100)]
+	undo_probe.widths = [3.0, 3.0]
+	draw.call("_add_line", undo_probe)
+	draw.set("_last_drawn_line_id", undo_probe.id)
+	draw.set("_last_draw_end_time", Time.get_ticks_msec() / 1000.0)
+	_game_state.set("current_match", MATCH_SEARCHING)
+	draw.call("_on_undo_draw")
+	_check((draw.call("get_active_lines") as Array).has(undo_probe),
+		"undo during SEARCHING cannot erase a surviving mark")
+	_game_state.set("current_match", MATCH_DRAWING)
+	draw.call("clear_all_lines")
+	print(PREFIX + "DRAW_UNDO_INPUT_GEOMETRY_OK")
 	# CPU uses exactly the same arm reach and obstruction test while drawing.
 	_check(bot != null, "live CPU hider exists")
 	if bot:
@@ -194,6 +285,25 @@ func _run() -> void:
 							str(cpu.global_position), str(point),
 							cpu.global_position.distance_to(point)])
 		print(PREFIX + "CPU_PHYSICAL_CHALK_REACH_OK")
+	# Distribution must be live on the solo policy, not trapped in a
+	# legacy branch that immediately returns for the current gameplay mode.
+	if bot:
+		var saved_cpu_strategy_pos: Vector2 = cpu.global_position
+		var site_center: Vector2 = (
+			HidingRules.get_cover_sites(true)[2]["rect"] as Rect2).get_center()
+		cpu.global_position = site_center + Vector2(0, 45)
+		var kinds := {"decoy": 0, "cover": 0, "open": 0}
+		for _pick in range(160):
+			bot.call("_choose_public_hiding_anchor")
+			var kind := str(bot.get("_solo_anchor_last_kind"))
+			if kinds.has(kind):
+				kinds[kind] = int(kinds[kind]) + 1
+		_check(int(kinds["decoy"]) >= 1 and int(kinds["cover"]) >= 1
+			and int(kinds["open"]) >= 1,
+			"solo CPU uses decoy, cover and open policy branches")
+		cpu.global_position = saved_cpu_strategy_pos
+		print(PREFIX + "CPU_PLACEMENT_POLICY_OK " + str(kinds))
+
 
 
 	# Real human solo mode has NO 50-line cap: adding 65 valid marks must
@@ -325,6 +435,29 @@ func _run() -> void:
 			_check(not bool(navigation.call("is_walkable", well.global_position)),
 				"visible well footprint blocks physical movement")
 		print(PREFIX + "ALL_HIDING_SITES_REACHABLE_OK")
+		# Fuzz exact (continuous) walkability against A* endpoints.
+		var nav_rng := RandomNumberGenerator.new()
+		nav_rng.seed = 173818
+		var route_checks := 0
+		for cpu_zone in [false, true]:
+			var zone := ZoneLayout.CPU_ZONE if cpu_zone else ZoneLayout.PLAYER_ZONE
+			var origin: Vector2 = ZoneLayout.SEARCH_ENTRY_HUMAN if cpu_zone else ZoneLayout.SEARCH_ENTRY_CPU
+			for _iteration in range(50):
+				var point := Vector2(
+					nav_rng.randf_range(zone.position.x + 45.0, zone.end.x - 45.0),
+					nav_rng.randf_range(zone.position.y + 45.0, zone.end.y - 45.0))
+				if not bool(navigation.call("is_walkable", point)):
+					continue
+				var goal: Vector2 = navigation.call("reachable_approach", point)
+				_check(goal.is_finite(), "fuzzed walkable goal projects to finite A* cell")
+				var path: PackedVector2Array = navigation.call("find_route", origin, point)
+				_check(not path.is_empty(), "A* can approach a sampled legal destination")
+				if not path.is_empty():
+					_check(path[-1].distance_to(goal) <= 40.0,
+						"navigation endpoint stays near requested safe approach")
+				route_checks += 1
+		print(PREFIX + "NAVIGATION_FUZZ_OK routes=" + str(route_checks))
+
 
 	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", original_reach)
 	# Regression: a real mobile tap finishes its walking route AFTER
@@ -376,6 +509,65 @@ func _run() -> void:
 	player.set_meta("has_target", false)
 	cpu.set_meta("has_target", false)
 	print(PREFIX + "PAUSED_MOVEMENT_OK")
+	# Force a genuine missing-overlay error path after ordinary movement and
+	# physics tests; it must never trap the game forever in MEETING.
+	var machine := driver.get("_match_machine") as Node
+	_check(machine != null, "meeting fallback has match state machine")
+	if machine:
+		_check(bool(machine.call("transition_to", GameState.MatchState.MEETING)),
+			"component can enter the real coin meeting phase")
+		driver.call("_free_coin_overlay")
+		driver.set("_meeting_assembled", true)
+		driver.call("_tick_meeting_phase", float(driver.get("_meeting_max_seconds"))
+			+ float(driver.get("_coin_result_hold")) + 1.0)
+		_check(int(_game_state.call("get_match_state")) == MATCH_SEARCHING,
+			"missing coin overlay must resolve and advance to SEARCHING")
+		print(PREFIX + "COIN_OVERLAY_FALLBACK_OK")
+		# Real entry gating (no accelerated smoke override in component suite).
+		_check(bool(driver.get("_awaiting_search_arrival")),
+			"searcher must physically arrive before 30s timer starts")
+		var timer := root.get_node("MatchTimer")
+		_check(not bool(timer.call("is_running")),
+			"search clock cannot run while walking to zone")
+		var first_searcher := int(driver.get("active_searcher"))
+		var arriving_actor := world.call("get_entity", first_searcher) as CharacterBody2D
+		if arriving_actor:
+			var entry: Vector2 = ZoneLayout.SEARCH_ENTRY_HUMAN if first_searcher == 1 \
+				else ZoneLayout.SEARCH_ENTRY_CPU
+			arriving_actor.global_position = entry
+			arriving_actor.set_meta("has_target", false)
+			driver.call("_process", 0.016)
+			_check(not bool(driver.get("_awaiting_search_arrival"))
+				and bool(driver.get("_search_phase_active")),
+				"actual search entry activates scanning exactly once")
+			_check(bool(timer.call("is_running")),
+				"the 30s search clock starts at physical arrival")
+			# A zero-target round may request an intentional grace early exit.
+			# Isolate ordinary timeout authority by disabling that explicit
+			# early-exit path before advancing the presentation counter.
+			driver.set("_phase_end_pending", false)
+			driver.call("_process", float(driver.get("_search_phase_seconds")) + 5.0)
+			_check(int(driver.get("_search_phase_index")) == 1,
+				"local display counter cannot independently expire search")
+			timer.call("_process", float(driver.get("_search_phase_seconds")) + 0.5)
+			_check(int(driver.get("_search_phase_index")) == 2,
+				"MatchTimer expiry advances to the second search phase")
+			_check(bool(driver.get("_awaiting_search_arrival"))
+				and not bool(timer.call("is_running")),
+				"role swap requires new arrival before phase-two clock")
+			print(PREFIX + "ARRIVAL_AND_SINGLE_CLOCK_OK")
+			# If the next searcher cannot reach their entry, the only
+			# permitted recovery is a clean abort, never remote searching.
+			var next_id: int = 2 if first_searcher == 1 else 1
+			var next_actor := world.call("get_entity", next_id) as CharacterBody2D
+			if next_actor:
+				next_actor.global_position = ZoneLayout.MEETING_POINT
+				next_actor.set_meta("has_target", false)
+				driver.set("_search_arrival_elapsed", 20.0)
+				driver.call("_process", 0.016)
+				_check(int(_game_state.get("current")) == 1,
+					"unreachable search entry aborts safely to MAIN_MENU")
+				print(PREFIX + "UNREACHABLE_ARRIVAL_ABORT_OK")
 	_finish()
 
 

@@ -1,6 +1,6 @@
 # Kattipaay MVP — Merge Gate and Test Evidence
 
-**Target:** Godot 4.4 **stable**, Play vs CPU. **Branch:** `fix/mvp-critical-play-vs-cpu`; base `main`. PR #32 is draft and MUST NOT be merged without the owner's explicit approval.
+**Target:** Godot 4.4 **stable**, Play vs CPU. **Current correction work:** `fix/mvp-13-findings-2026-11-02` (draft; no merge without owner approval). Original document began on an earlier feature branch; see [AUDIT_CORRECTIONS.md](AUDIT_CORRECTIONS.md) for current blockers.
 
 ## How to run the automated suite
 
@@ -34,7 +34,7 @@ The executable must report **4.4 stable**, and every process must exit 0 and pri
 | Feature and failure mode | Automated gate | Extra manual evidence |
 |---|---|---|
 | Boot, home controls, solo difficulty selector and return home | Playable smoke + scene audit | Android cold/warm launches |
-| CPU four difficulty levels; 8/12/16/20 base hidden strokes | Four-difficulty playable smoke | Subjective balance across 10+ random seeds |
+| CPU four difficulty levels; sampled 50–100 / 65–120 / 85–150 / 110–180 marks | Four-difficulty playable smoke | Subjective balance across 10+ random seeds |
 | Zone boundaries and player/CPU/alley geometry | Unit + component + smoke | Touch corners and screen-edge scrolling |
 | Smooth chalk vs accidental 7px mark and remote draw injection | Smoke + component | Slow, rapid, diagonal, loop, multitouch drawing |
 | Walls line up with shared concealment rectangles | Unit + smoke | Check actual rendered art on phone |
@@ -62,8 +62,8 @@ These cannot honestly be claimed “passed” from GitHub CI. They must be perfo
 - [ ] **Physical Android release-build run** on supported API 26+ devices, including a modest 2GB-RAM model. Install, offline boot, Home, every difficulty, entire round, winner and repeat after app relaunch.
 - [ ] **Real clocks/coin:** timed 40-second draw plus both 30-second searches, five-second audio+visual warnings, correct 50/50 heads/tails behavior across repeated plays, genuine visible reveal/score holds.
 - [ ] **Touch/gestures:** one-finger drawing, multi-finger gestures, move/strike interaction, undo, sneak-draw, argue, screen/camera edges, pinch/back/home/foreground, rotation/device aspect ratio, pause/resume during every phase. No unexpected extra strokes on late touch release.
-- [ ] **Cover acceptance:** wall and ground, plus the explicitly owner-required **tree shadow and interactively lifted leaf/brick objects**. The latter mechanisms are *not yet implemented* in this branch and are a **known MVP completion blocker**.
-- [ ] **Physical obstacle behavior:** verify the intended walkability and cover collision/pathfinding design. Decorative wall art matches concealment coordinates, but no complete obstacle-aware collision/navigation has been implemented.
+- [ ] **Cover acceptance:** wall and ground, plus the explicitly owner-required **tree shadow and interactively lifted leaf/brick objects**. The latter mechanisms are now represented by physical top-down cover interactions, but adversarial fairness fixes and real Android acceptance are **not yet signed off**.
+- [ ] **Physical obstacle behavior:** verify the intended walkability and cover collision/pathfinding design. Compound walls and multiple village props now have physical colliders and A* navigation; exact-to-grid corner cases and Android movement behavior still require verification.
 - [ ] **Balance and fairness:** sample repeated sessions/seeds at Easy/Normal/Hard/Nightmare, confirm CPU cannot learn hidden coordinates, defender sneak risk is fun/fair, no pay-to-win or unexplained loss.
 - [ ] **Performance, stability and audio:** profile near 60 FPS, cold-start time, peak memory, battery/heat, no accumulating nodes or audio resources, no crashes across at least 20 complete matches.
 - [ ] **Network security (if multiplayer is enabled):** authority on server/host, spoofed IDs, replay, malformed packets, reconnect, room permissions, saved auth tokens, transport TLS, fuzzed large inputs and rate limits. **The baseline scanner does not prove multiplayer safe.** Multiplayer should remain hidden until verified.
