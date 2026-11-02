@@ -176,6 +176,60 @@ func _run() -> void:
 	_check(HidingRules.can_reach_point(Vector2(200, 300), Vector2(260, 300)),
 		"valid nearby drawing remains allowed")
 	print(PREFIX + "PHYSICAL_DRAW_REACH_OK")
+	# A valid raw gesture may overshoot the hand radius when Catmull-Rom
+	# smoothing runs. The *committed* geometry must be validated again.
+	var original_actor_pos: Vector2 = player.global_position
+	player.global_position = Vector2(400, 80)
+	player.set_meta("has_target", false)
+	var before_smoothing := int(draw.call("get_active_lines").size())
+	var raw_relative: Array[Vector2] = [
+		Vector2(156, 47), Vector2(162, 78),
+		Vector2(172, 52), Vector2(164, 1)]
+	var raw_ok := true
+	for rel in raw_relative:
+		raw_ok = raw_ok and HidingRules.can_reach_point(player.global_position,
+			player.global_position + rel)
+	_check(raw_ok, "smoothing regression uses four legal raw points")
+	var smooth_pts: Array[Vector2] = []
+	for rel in raw_relative:
+		smooth_pts.append(player.global_position + rel)
+	root.get_node("EventBus").call("emit", "input.draw_start",
+		{"entity_id": 1, "position": smooth_pts[0]})
+	for i in range(1, smooth_pts.size()):
+		root.get_node("EventBus").call("emit", "input.draw_update",
+			{"entity_id": 1, "position": smooth_pts[i]})
+	root.get_node("EventBus").call("emit", "input.draw_end", {"entity_id": 1})
+	_check(int(draw.call("get_active_lines").size()) == before_smoothing,
+		"smoothed stroke beyond hand reach is rejected in real DrawSystem")
+	player.global_position = original_actor_pos
+	# A draw gesture must not also issue movement or a searcher strike.
+	var bus := root.get_node("EventBus")
+	var moves: Array = []
+	var on_move := func(payload: Dictionary) -> void:
+		moves.append(payload)
+	bus.call("on", "input.move_start", on_move)
+	var im := root.get_node("InputManager")
+	im.set("_mouse_is_anchor", false)
+	im.call("_handle_mouse_draw_start", Vector2(120, 120))
+	im.call("_handle_mouse_draw_end", Vector2(120, 120))
+	bus.call("off", "input.move_start", on_move)
+	_check(moves.is_empty(), "desktop DRAW start cannot dispatch MOVE event")
+	# Editing is only legal while hiding; a late undo must not change scores.
+	var undo_probe := ChalkLine.new()
+	undo_probe.id = 99111
+	undo_probe.player_id = 1
+	undo_probe.points = [Vector2(100, 100), Vector2(140, 100)]
+	undo_probe.widths = [3.0, 3.0]
+	draw.call("_add_line", undo_probe)
+	draw.set("_last_drawn_line_id", undo_probe.id)
+	draw.set("_last_draw_end_time", Time.get_ticks_msec() / 1000.0)
+	_game_state.set("current_match", MATCH_SEARCHING)
+	draw.call("_on_undo_draw")
+	_check((draw.call("get_active_lines") as Array).has(undo_probe),
+		"undo during SEARCHING cannot erase a surviving mark")
+	_game_state.set("current_match", MATCH_DRAWING)
+	draw.call("clear_all_lines")
+	print(PREFIX + "DRAW_UNDO_INPUT_GEOMETRY_OK")
 	# CPU uses exactly the same arm reach and obstruction test while drawing.
 	_check(bot != null, "live CPU hider exists")
 	if bot:
