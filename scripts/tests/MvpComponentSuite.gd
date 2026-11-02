@@ -493,6 +493,20 @@ func _run() -> void:
 	player.set_meta("has_target", false)
 	cpu.set_meta("has_target", false)
 	print(PREFIX + "PAUSED_MOVEMENT_OK")
+	# Force a genuine missing-overlay error path after ordinary movement and
+	# physics tests; it must never trap the game forever in MEETING.
+	var machine := driver.get("_match_machine") as Node
+	_check(machine != null, "meeting fallback has match state machine")
+	if machine:
+		_check(bool(machine.call("transition_to", GameState.MatchState.MEETING)),
+			"component can enter the real coin meeting phase")
+		driver.call("_free_coin_overlay")
+		driver.set("_meeting_assembled", true)
+		driver.call("_tick_meeting_phase", float(driver.get("_meeting_max_seconds"))
+			+ float(driver.get("_coin_result_hold")) + 1.0)
+		_check(int(_game_state.call("get_match_state")) == MATCH_SEARCHING,
+			"missing coin overlay must resolve and advance to SEARCHING")
+		print(PREFIX + "COIN_OVERLAY_FALLBACK_OK")
 	_finish()
 
 
