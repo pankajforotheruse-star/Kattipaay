@@ -220,10 +220,10 @@ func _process(delta: float) -> void:
 	elif ms == GameState.MatchState.SEARCHING:
 		if _awaiting_search_arrival:
 			_search_arrival_elapsed += delta
-			if _searcher_arrived() or _search_arrival_elapsed >= 20.0:
-				if _search_arrival_elapsed >= 20.0 and not _searcher_arrived():
-					push_warning("SoloMatchDriver: search entry not reached in 20s")
+			if _searcher_arrived():
 				_activate_search_phase()
+			elif _search_arrival_elapsed >= 20.0:
+				_abort_unreachable_arrival("search-zone entry")
 			return
 		if not _search_phase_active:
 			return
@@ -370,11 +370,11 @@ func _on_line_struck(payload: Dictionary) -> void:
 func _tick_meeting_phase(delta: float) -> void:
 	if not _meeting_assembled:
 		_meeting_arrival_elapsed += delta
-		if _meeting_actors_arrived() or _meeting_arrival_elapsed >= 20.0:
-			if _meeting_arrival_elapsed >= 20.0 and not _meeting_actors_arrived():
-				push_warning("SoloMatchDriver: meeting arrival exceeded 20s")
+		if _meeting_actors_arrived():
 			_meeting_assembled = true
 			_show_coin_decider()
+		elif _meeting_arrival_elapsed >= 20.0:
+			_abort_unreachable_arrival("alley meeting")
 		return
 	_meeting_elapsed += delta
 	if _coin_overlay == null or not is_instance_valid(_coin_overlay):
@@ -407,6 +407,24 @@ func _tick_meeting_phase(delta: float) -> void:
 
 ## Walk both characters to their face-off spots at the alley. Camera follows
 ## the player, so it pans to the alley with them.
+## A failed route must not give either side remote knowledge or start a
+## fraudulent search clock. Abort without recording a winner instead of
+## looping forever or teleporting a character into an impossible position.
+func _abort_unreachable_arrival(stage: String) -> void:
+	if _ending:
+		return
+	_ending = true
+	_awaiting_search_arrival = false
+	_search_phase_active = false
+	MatchTimer.stop()
+	_free_coin_overlay()
+	push_warning("SoloMatchDriver: physical arrival failed at %s; returning home" % stage)
+	if _match_machine:
+		_match_machine.quit_to_menu()
+	else:
+		GameState.transition(GameState.State.MAIN_MENU)
+
+
 ## The meeting is a physical assembly, not an automatic teleport or timer.
 func _meeting_actors_arrived() -> bool:
 	if _game_world == null:
