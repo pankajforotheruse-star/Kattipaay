@@ -139,6 +139,9 @@ func _run_test() -> void:
 	# coordinates to check round flow. Disable hand-reach ONLY for that
 	# synthetic harness; MvpComponentSuite separately tests the real default.
 	ProjectSettings.set_setting("chalk_gaon/solo_draw_reach_px", -1.0)
+	# Accelerated flow checks intentionally bypass long physical travel. Real
+	# 40/30/30 acceptance and entry-arrival tests must run without this override.
+	ProjectSettings.set_setting("chalk_gaon/solo_skip_travel_wait_for_tests", true)
 	ProjectSettings.set_setting("chalk_gaon/solo_drawing_seconds", 8.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_call_timeout_seconds", 1.0)
 	ProjectSettings.set_setting("chalk_gaon/solo_meeting_max_seconds", 4.0)
