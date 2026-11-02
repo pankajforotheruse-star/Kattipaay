@@ -507,6 +507,35 @@ func _run() -> void:
 		_check(int(_game_state.call("get_match_state")) == MATCH_SEARCHING,
 			"missing coin overlay must resolve and advance to SEARCHING")
 		print(PREFIX + "COIN_OVERLAY_FALLBACK_OK")
+		# Real entry gating (no accelerated smoke override in component suite).
+		_check(bool(driver.get("_awaiting_search_arrival")),
+			"searcher must physically arrive before 30s timer starts")
+		var timer := root.get_node("MatchTimer")
+		_check(not bool(timer.call("is_running")),
+			"search clock cannot run while walking to zone")
+		var first_searcher := int(driver.get("active_searcher"))
+		var arriving_actor := world.call("get_entity", first_searcher) as CharacterBody2D
+		if arriving_actor:
+			var entry: Vector2 = ZoneLayout.SEARCH_ENTRY_HUMAN if first_searcher == 1 \
+				else ZoneLayout.SEARCH_ENTRY_CPU
+			arriving_actor.global_position = entry
+			arriving_actor.set_meta("has_target", false)
+			driver.call("_process", 0.016)
+			_check(not bool(driver.get("_awaiting_search_arrival"))
+				and bool(driver.get("_search_phase_active")),
+				"actual search entry activates scanning exactly once")
+			_check(bool(timer.call("is_running")),
+				"the 30s search clock starts at physical arrival")
+			driver.call("_process", float(driver.get("_search_phase_seconds")) + 5.0)
+			_check(int(driver.get("_search_phase_index")) == 1,
+				"local display counter cannot independently expire search")
+			timer.call("_process", float(driver.get("_search_phase_seconds")) + 0.5)
+			_check(int(driver.get("_search_phase_index")) == 2,
+				"MatchTimer expiry advances to the second search phase")
+			_check(bool(driver.get("_awaiting_search_arrival"))
+				and not bool(timer.call("is_running")),
+				"role swap requires new arrival before phase-two clock")
+			print(PREFIX + "ARRIVAL_AND_SINGLE_CLOCK_OK")
 	_finish()
 
 
