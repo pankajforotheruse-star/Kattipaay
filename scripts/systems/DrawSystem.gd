@@ -380,6 +380,10 @@ func _on_draw_end(payload: Dictionary) -> void:
 
 ## Called when user triggers undo (shake gesture or HUD button).
 func _on_undo_draw(_payload = null) -> void:
+    if GameState.solo_vs_cpu and (
+            GameState.current != GameState.State.PLAYING or
+            GameState.get_match_state() != GameState.MatchState.DRAWING):
+        return
     var now := Time.get_ticks_msec() / 1000.0
 
     # Cooldown check
@@ -466,6 +470,14 @@ func _finish_drawing() -> void:
 
     # --- Step 1: Catmull-Rom spline interpolation ---
     var smoothed := _catmull_rom_smooth(_raw_draw_points, SPLINE_SAMPLE_SPACING)
+    if GameState.solo_vs_cpu:
+        # Spline tangents can overshoot legal raw points. A finished stroke
+        # must remain physically reachable at every rendered sample.
+        for sample in smoothed:
+            if not ZoneLayout.point_in_player_zone(sample) or not _can_physically_draw_at(sample):
+                _remove_preview_line()
+                _drawing_entity_id = -1
+                return
 
     # Match widths to smoothed points (interpolate)
     var smoothed_widths: Array[float] = []
@@ -484,6 +496,8 @@ func _finish_drawing() -> void:
         # and cannot claim magical backside concealment.
         var cover_sys := _game_world.get_node_or_null("CoverSystem") as CoverSystem if _game_world else null
         if cover_sys:
+            line.cover_states = HidingRules.cover_states_for_line(
+                line.points, cover_sys.opened_for_hiding())
             for site in HidingRules.get_cover_sites(false):
                 if not HidingRules.is_inspectable_cover(int(site["kind"])):
                     continue
