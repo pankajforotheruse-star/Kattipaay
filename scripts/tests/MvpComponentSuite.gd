@@ -556,6 +556,18 @@ func _run() -> void:
 				and not bool(timer.call("is_running")),
 				"role swap requires new arrival before phase-two clock")
 			print(PREFIX + "ARRIVAL_AND_SINGLE_CLOCK_OK")
+			# If the next searcher cannot reach their entry, the only
+			# permitted recovery is a clean abort, never remote searching.
+			var next_id: int = 2 if first_searcher == 1 else 1
+			var next_actor := world.call("get_entity", next_id) as CharacterBody2D
+			if next_actor:
+				next_actor.global_position = ZoneLayout.MEETING_POINT
+				next_actor.set_meta("has_target", false)
+				driver.set("_search_arrival_elapsed", 20.0)
+				driver.call("_process", 0.016)
+				_check(int(_game_state.get("current")) == 1,
+					"unreachable search entry aborts safely to MAIN_MENU")
+				print(PREFIX + "UNREACHABLE_ARRIVAL_ABORT_OK")
 	_finish()
 
 
