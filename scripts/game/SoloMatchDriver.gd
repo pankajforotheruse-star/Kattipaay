@@ -489,7 +489,7 @@ func _force_coin_decision() -> void:
 	var human_first := randi() % 2 == 0
 	active_searcher = HUMAN_ENTITY_ID if human_first else GHOST_ENTITY_ID
 	defender = GHOST_ENTITY_ID if human_first else HUMAN_ENTITY_ID
-	push_error("SoloMatchDriver: coin overlay missing - auto-decided searcher=%d defender=%d" % [active_searcher, defender])
+	push_warning("SoloMatchDriver: coin overlay missing - auto-decided searcher=%d defender=%d" % [active_searcher, defender])
 
 
 ## MEETING -> SEARCHING once the result banner has had its hold time.
