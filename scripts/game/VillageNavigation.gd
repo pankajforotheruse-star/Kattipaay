@@ -111,11 +111,12 @@ func is_walkable(point: Vector2) -> bool:
 func reachable_approach(point: Vector2) -> Vector2:
 	# Every public cover/object can be approached from outside its rim.
 	# Inaccessible center targets are projected onto walkable grid points.
-	if is_walkable(point):
+	# The exact point can be legal while its 40px A* cell is solid.
+	# Route endpoints must belong to a navigable cell as well.
+	var own_cell := _cell_for(point)
+	if is_walkable(point) and not _grid.is_point_solid(own_cell):
 		return point
-	var center := Vector2i(
-		clampi(int(floor(point.x / CELL)), 0, WORLD_CELLS.x - 1),
-		clampi(int(floor(point.y / CELL)), 0, WORLD_CELLS.y - 1))
+	var center := _cell_for(point)
 	for ring in range(1, 11):
 		var best := Vector2.ZERO
 		var best_d := INF
@@ -135,23 +136,41 @@ func reachable_approach(point: Vector2) -> Vector2:
 					best_d = d
 		if best_d < INF:
 			return best
-	return point
+	# Never silently return an unreachable solid destination.
+	return Vector2.INF
+
+
+func _cell_for(point: Vector2) -> Vector2i:
+	return Vector2i(
+		clampi(int(floor(point.x / CELL)), 0, WORLD_CELLS.x - 1),
+		clampi(int(floor(point.y / CELL)), 0, WORLD_CELLS.y - 1))
+
+
+## Segment clearance is necessary for the final off-grid destination and
+## prevents a last-step shortcut through an obstacle boundary.
+func _segment_walkable(from: Vector2, to: Vector2) -> bool:
+	var steps := maxi(1, int(ceil(from.distance_to(to) / 6.0)))
+	for i in range(steps + 1):
+		if not is_walkable(from.lerp(to, float(i) / float(steps))):
+			return false
+	return true
+
 
 func find_route(from: Vector2, to: Vector2) -> PackedVector2Array:
 	var goal := reachable_approach(to)
 	var start := reachable_approach(from)
-	var a := Vector2i(
-		clampi(int(floor(start.x / CELL)), 0, WORLD_CELLS.x - 1),
-		clampi(int(floor(start.y / CELL)), 0, WORLD_CELLS.y - 1))
-	var b := Vector2i(
-		clampi(int(floor(goal.x / CELL)), 0, WORLD_CELLS.x - 1),
-		clampi(int(floor(goal.y / CELL)), 0, WORLD_CELLS.y - 1))
-	var ids: Array[Vector2i] = _grid.get_id_path(a, b)
 	var result := PackedVector2Array()
+	if not start.is_finite() or not goal.is_finite():
+		return result
+	var a := _cell_for(start)
+	var b := _cell_for(goal)
+	var ids: Array[Vector2i] = _grid.get_id_path(a, b)
 	for id in ids:
 		result.append(_grid.get_point_position(id))
 	if result.is_empty():
 		return result
-	if result[-1].distance_to(goal) > 4.0:
+	if result[-1].distance_to(goal) > 4.0 and _segment_walkable(result[-1], goal):
 		result.append(goal)
+	elif result[-1].distance_to(goal) <= 4.0:
+		result[-1] = goal
 	return result
