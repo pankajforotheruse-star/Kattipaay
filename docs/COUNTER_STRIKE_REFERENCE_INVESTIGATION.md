@@ -79,3 +79,71 @@ Proposed (not source-recovered): smooth but responsive camera; recognizable cove
 - CS2 observed measurements in real client/Workshop Tools: **pending** (no authorized running CS2 installation).
 - Godot 4.4 execution and new 3D runtime integration: **not part of this research task; not tested**.
 - No proprietary Source SDK/CS2 code or game assets copied into the project.
+
+
+---
+
+# Second-pass investigation — additive findings (2026-11-03)
+
+**Preservation policy:** All previous report sections above remain intact. This appendix adds findings, revises priorities, and notes limitations; it does not overwrite the first pass. Source links refer to upstream moving branches, not pinned commits.
+
+## A. New source-verified findings
+
+### A1. CS 1.6: outcome checks are explicitly guarded against repeated resolution
+In \`regamedll/dlls/multiplay_gamerules.cpp\`, \`CHalfLifeMultiplay::__API_HOOK(CheckWinConditions)\` checks existing round-win status and returns rather than re-resolving an already decided round.
+Evidence: https://github.com/rehlds/ReGameDLL_CS/blob/master/regamedll/dlls/multiplay_gamerules.cpp (function \`CheckWinConditions\`).
+**New Godot suggestion:** ensure all terminal Chalk Gaon round transitions are idempotent: repeated timer signals, late mark-strike events and reconnection events must never award scoring twice. Implement a validated \`phase_epoch\` or \`round_id\` with terminal-state guards, test duplicate and out-of-order events.
+
+### A2. CS 1.6: round restart orchestrates more than a timer reset
+\`CHalfLifeMultiplay::__API_HOOK(RestartRound)\` notifies bots, resets certain entities, manages round count and resets movement settings. This shows a central reset boundary for dependent systems; do not duplicate Counter-Strike settings.
+Evidence: same file, function \`RestartRound\`.
+**New Godot suggestion:** orchestrate chalk lifecycle, cover open/closed state, AI search memory, actors/spawns, role swap, camera and HUD from one canonical reset event. Ensure stale asynchronous callbacks from the previous phase cannot mutate the new round.
+
+### A3. Source SDK: step movement evaluates alternate physical paths
+\`src/game/shared/gamemovement.cpp\` \`CGameMovement::StepMove\` attempts baseline movement versus stepped-up/stepped-down movement and compares progress while using player hull traces.
+Evidence: https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp (\`StepMove\`, \`TryPlayerMove\`).
+**New Godot suggestion:** define explicit capsule collision, floor snapping, slope-angle and step-height policies for \`CharacterBody3D\`; build approach ramps or traversable rooftop geometry. Test rising and descending edges, low ledges, walls, tight corners and falls. Do not claim current \`playground_3d/PlayerController3D.gd\` already provides step climb: it currently only uses \`move_and_slide\`.
+
+### A4. Source SDK: movement traces account for solid-start and stuck states
+\`CGameMovement::TryPlayerMove\` uses \`TracePlayerBBox\`; if entirely solid, movement is blocked, and in certain paths the code rechecks occupancy at a purported clear destination before accepting it.
+Evidence: same Source SDK file, functions \`TryPlayerMove\`, \`TracePlayerBBox\`.
+**New Godot suggestion:** validate every initial spawn with \`PhysicsDirectSpaceState3D\` shape overlap/cast, and add a safe non-teleporting response to a blocked route: replan or return to last valid reachable position where permitted by established game rules. Add adversarial tests for objects closing on actors, blocked alley, interpenetration and AI path failure.
+
+### A5. CS2: mapping pipeline is an established public tool surface, not gameplay source
+Valve's June 6 2023 release notes introduced CS2 Workshop Tools and described Hammer GPU-accelerated ray-tracing for lighting preview/bake.
+Evidence: https://store.steampowered.com/news/posts/?appids=730&enddate=1686088105&feed=steam_community_announcements
+**New Godot suggestion:** use the *map-design principle* of clear playable geometry and lighting to make hidden versus exposed chalk legible; author original Godot assets and use the Godot mobile renderer. No CS2 source algorithms or workshop assets are incorporated.
+
+## B. New findings from inspecting the current experimental 3D branch
+1. \`playground_3d/PlayerController3D.gd\` offers acceleration, drag, gravity and \`move_and_slide\`, but lacks authored climb/step policy, grounded spawn validation, camera-relative navigation, interaction raycasts, roof traversal and controller/touch mapping. Treat this as a graybox only.
+2. \`playground_3d/ZoneManager3D.gd\` classifies territory using world X/Z only. It does not validate roof height, connectivity, phase rules, inaccessible islands, or who owns the active territory. Its \`can_draw_in_territory\` is a placeholder geometry predicate, not authoritative permission.
+3. \`playground_3d/Playground3D.tscn\` has floor, a single divider obstacle, two actors, and camera/light. There are no wall/roof chalk surfaces, scene navigation regions, reachable interactive covers, opening physics or multiplayer synchronization. Existing 2D main scene remains unaffected.
+4. **Important implementation warning:** on the inspected scene the floor \`BoxMesh\` spans X=-6..+6, while spawn positions are X=-3 and +3, so there are two sides. The partial divider centered at X=0, Z=-3 is not a full two-zone phase barrier. The literal positions are graybox coordinates; they must not be confused with the existing 2D village layout.
+5. Static-source inspection does not establish Godot 4.4 parser/runtime correctness. Run the actual engine before reporting this scene as functioning.
+
+## C. Revised 3D upgrade priorities
+
+| Priority | Improvement | Target module | Required empirical gate |
+|---|---|---|---|
+| P0 | Phase-epoch guards and idempotent scoring/reset | Existing SoloMatchDriver through adapter | Repeated/delayed events never double score |
+| P0 | Physical collision, legal spawns, reachable alley and rooftops | PlayerController3D, Playground3D, NavigationRegion3D | No wall clipping; tested climb/step/fall routes |
+| P0 | Surface-local strokes and per-segment occlusion | New 3D StrokeRegistry/Visibility | Open/wall/roof/movable cover, mixed visibility |
+| P0 | No secret CPU location reads | New CPU exploration and shared visibility predicate | Seeded fairness and traceable observations |
+| P1 | Authoritative zone, ownership, distance and cover rules | ZoneManager3D + rule adapter | Impossible mark and strike actions rejected |
+| P1 | CPU physical escort/replan/recovery | NavigationAgent3D | No wall-phasing or magically instant travel |
+| P1 | Original game UI/audio with readable 3D feedback | HUD/audio adapter | 2D parity and Android touch playtests |
+| P1 | Mobile performance under hundreds of human marks | Batched/multimesh or pooled stroke rendering | Measure FPS, memory, frame times; no silent deletion |
+
+## D. Suggested implementation architecture
+- Use **one canonical \`MatchRulesAdapter\`** to consume existing \`SoloMatchDriver\` state, not a second competing match manager.
+- Define \`Actor3D\` physical transform and \`MarkSurface3D\` surface-local coordinate records, with stable serialized IDs; store stroke truth independently of rendered meshes.
+- Implement \`VisibilityQuery3D\` returning per-segment classifications (exposed, geometrically occluded, physically covered, revealed after inspection) and evidence for each classification. Both CPU and human queries must share it.
+- Implement public-information-only \`CpuWorldModel3D\`: known geometry, visited sites, observed opened covers, detection results; no unrevealed stroke coordinates.
+- Gate every draw/inspect/strike action on phase, role, active zone, physical reach, surface/collider, occlusion, and server authority where networked.
+- Retain the existing 2D implementation and solo regression suite until all 3D acceptance gates and Android checks pass.
+
+## E. Second-pass limitations and provenance
+- The additional source snippets above were examined directly in publicly accessible upstream text; no cloned reference binaries, immutable hash snapshots, CS2 running game or Ghidra analysis were used.
+- This is a second source-backed **architecture** pass, not an exhaustive line-by-line audit of all Counter-Strike engines. Actual CS2 gameplay internals remain unavailable.
+- No Godot 4.4 test, CPU balance simulation, rooftop playtest or Android device test was run in this pass.
+- All additions are research recommendations only; **no gameplay implementation was modified** in this second pass.
