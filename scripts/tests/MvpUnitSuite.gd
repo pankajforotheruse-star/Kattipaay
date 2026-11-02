@@ -28,6 +28,7 @@ func _run() -> void:
 	_test_zone_invariants()
 	_test_visibility_boundaries()
 	_test_fair_cover_rules()
+	_test_per_cover_metadata()
 	_test_cpu_count_randomness()
 	_test_chalk_roundtrip()
 	# CPU path + perception are tested with real controllers in the smoke test.
@@ -305,3 +306,40 @@ func _test_phase_timer() -> void:
 	_check(not timer.is_running(), "timer stops at zero rather than running negative")
 	timer.stop()
 	print(PREFIX + "PHASE_TIMER_OK")
+
+
+## Adversarial regression: one line can cross independently flipped covers.
+func _test_per_cover_metadata() -> void:
+	var sites := HidingRules.get_cover_sites(false)
+	var first: Dictionary = sites[2]
+	var second: Dictionary = sites[3]
+	var first_id := str(first["id"])
+	var second_id := str(second["id"])
+	var a: Vector2 = (first["rect"] as Rect2).get_center()
+	var b: Vector2 = (second["rect"] as Rect2).get_center()
+	var points: Array[Vector2] = [a, b]
+	var states := HidingRules.cover_states_for_line(points, {first_id: true})
+	_check(states.size() == 2, "a long stroke records both overlapping covers")
+	_check(states.get(first_id, false) == true and states.get(second_id, true) == false,
+		"only physically flipped site is marked underside")
+	var line := ChalkLine.new()
+	line.id = 8
+	line.points = points
+	line.widths = [3.0, 3.0]
+	line.cover_states = states
+	var packed := line.to_network_dict()
+	_check(ChalkLine.is_valid_network_payload(packed), "per-cover packet is valid")
+	var decoded := ChalkLine.new()
+	decoded.from_network_dict(packed)
+	_check(decoded.cover_states == states, "per-cover metadata survives serialization")
+	packed["cs"] = {first_id: "fake boolean"}
+	_check(not ChalkLine.is_valid_network_payload(packed),
+		"malformed per-cover metadata rejected without state mutation")
+	var on_top: Array[Vector2] = [b - Vector2(12.0, 0), b + Vector2(12.0, 0)]
+	_check(HidingRules.can_reveal_line(on_top, b, false, {}, "", {second_id: false}),
+		"closed top-surface stroke remains visible")
+	_check(not HidingRules.can_reveal_line(on_top, b, false, {}, "", {second_id: true}),
+		"flipped underside remains hidden until inspection")
+	_check(HidingRules.can_reveal_line(on_top, b, false, {second_id: true}, "", {second_id: true}),
+		"searcher can reveal underside after inspecting this particular cover")
+	print(PREFIX + "PER_COVER_METADATA_OK")
