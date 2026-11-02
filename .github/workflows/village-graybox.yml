@@ -44,6 +44,12 @@ jobs:
           timeout 80s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DParity.gd --log-file 3d-parity.log
           grep -q 'CHALK_GAON_3D_PARITY: PASS' 3d-parity.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-parity.log
+      - name: Physical cover and isolated result persistence
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DPersistenceCover.gd --log-file 3d-persistence-cover.log
+          grep -q 'CHALK_GAON_3D_PERSISTENCE_COVER: PASS' 3d-persistence-cover.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-persistence-cover.log
       - name: CPU physical chalk balance benchmark
         continue-on-error: true
         run: |
@@ -93,6 +99,7 @@ jobs:
             3d-roof-physics.log
             3d-balance.log
             3d-parity.log
+            3d-persistence-cover.log
             3d-round.log
             3d-end-to-end.log
           if-no-files-found: ignore
