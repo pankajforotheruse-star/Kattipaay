@@ -190,19 +190,19 @@ static func cover_site_for_line(points: Array) -> Dictionary:
 ## Classify each *intersected* movable object independently. A stroke may pass
 ## under one flipped pile and on top of a different closed pile.
 static func cover_states_for_line(points: Array, opened: Dictionary) -> Dictionary:
-    var states := {}
-    if points.size() < 2:
-        return states
-    for site in get_all_cover_sites():
-        if not is_inspectable_cover(int(site["kind"])):
-            continue
-        var rect: Rect2 = site["rect"]
-        for i in range(points.size() - 1):
-            if _segment_intersects_rect(points[i], points[i + 1], rect):
-                var site_id := str(site["id"])
-                states[site_id] = opened.has(site_id)
-                break
-    return states
+	var states := {}
+	if points.size() < 2:
+		return states
+	for site in get_all_cover_sites():
+		if not is_inspectable_cover(int(site["kind"])):
+			continue
+		var rect: Rect2 = site["rect"]
+		for i in range(points.size() - 1):
+			if _segment_intersects_rect(points[i], points[i + 1], rect):
+				var site_id := str(site["id"])
+				states[site_id] = opened.has(site_id)
+				break
+	return states
 
 
 ## One symmetric visibility predicate for BOTH opponents. The caller supplies
