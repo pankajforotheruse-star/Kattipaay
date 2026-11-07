@@ -334,6 +334,7 @@ func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 			_penalize_nearby(stroke, saved_human_lines)
 			message = "CPU caught sneak: mark plus nearby lines removed"
 	saved_human_lines.append(stroke)
+	_play_cue("play_chalk_draw")
 
 func _choose_cpu_destination() -> void:
 	if cpu_body == null or not cpu_nav.built:
@@ -436,6 +437,8 @@ func _attempt_cpu_draw() -> void:
 		stroke.visible = false
 		_actor_pose(CPU_ID, "draw")
 		drawn_cpu_count += 1
+		if drawn_cpu_count % 6 == 0:
+			_play_cue("play_chalk_draw")
 		cpu_recent_positions.append(point)
 		message = "CPU physically placed line %d" % drawn_cpu_count
 		return
@@ -781,11 +784,13 @@ func _toggle_cover_body(body: RigidBody3D) -> void:
 		body.global_position = base
 		body.freeze = false
 		body.set_meta("cover_lifted", false)
+		_play_cue("play_cover_drop")
 	else:
 		body.set_meta("cover_base_position", body.global_position)
 		body.freeze = true
 		body.global_position += Vector3.UP * 1.8
 		body.set_meta("cover_lifted", true)
+		_play_cue("play_cover_lift")
 
 func _toggle_aimed_cover() -> bool:
 	if phase != "DRAWING" and not (phase == "SEARCHING" and searcher == HUMAN_ID):
