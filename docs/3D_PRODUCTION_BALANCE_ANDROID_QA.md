@@ -26,7 +26,7 @@
 
 - `AndroidPerformance3D.gd`: opt-in runtime sampling every 0.5s, p50/p95/p99 per-frame game-loop delta from a bounded 0.5ms histogram (not GPU presentation timing), mean draw calls, physics frame time and peak static memory. In-game QA HUD and CSV/JSON export.
 - F9 or the **SAVE QA** touch button writes `user://chalk_gaon_3d_perf.csv` and `chalk_gaon_3d_perf_summary.json`; F10 or **SNAP** captures a PNG.
-- `scripts/android_3d_qa.sh build [low|balanced|high]` temporarily selects the 3D scene as Android launch scene and enables profiling. It restores `project.godot` and `export_presets.cfg` on exit. Requires Godot 4.4, Android SDK/JDK, and Godot Android export templates already configured.
+- `.github/workflows/3d-android-qa.yml` provides a **manual opt-in** Android QA APK build per render tier. It must be run and verified before claiming an APK is available.\n- `scripts/android_3d_qa.sh build [low|balanced|high]` temporarily selects the 3D scene as Android launch scene and enables profiling. It restores `project.godot` and `export_presets.cfg` on exit. Requires Godot 4.4, Android SDK/JDK, and Godot Android export templates already configured.
 - `scripts/android_3d_qa.sh collect <folder>` collects ADB gfxinfo, meminfo, battery/thermal service information (where available), and debug-build `user://` files. Debug APK must be installed and running; `adb run-as` may not be available on non-debuggable builds.
 - Android quality profiles: low (0.75 render scale, no dynamic shadows/fog, reduced vegetation), balanced (0.9), high (1.0, increased vegetation). These are initial settings, not empirically tuned device presets.
 - Existing touch arbitration regression remains, plus presentation, stats/export and scripted-match harness tests.
