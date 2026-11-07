@@ -415,7 +415,7 @@ func _cpu_inspect() -> void:
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
 			cpu_inspection_count += 1
-			_play_cue("play_argument_result", true)
+			_play_cue("play_line_strike")
 			cpu_strike_cooldown = cpu_strike_delay
 			break
 
@@ -432,7 +432,7 @@ func _human_strike_visible() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "You found a CPU chalk line"
-			_play_cue("play_argument_result", true)
+			_play_cue("play_line_strike")
 			return
 	message = "No visible CPU line close enough to strike"
 
@@ -445,11 +445,11 @@ func _advance_phase() -> void:
 	drawing_mode = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if phase == "DRAWING":
-		_restore_open_cover()
 		phase = "MEETING"
 		phase_left = configured_meeting_seconds
 		walker.global_position = Vector3(-2, 0.85, 0)
 		cpu_body.global_position = Vector3(2, 0.85, 0)
+		_restore_open_cover()
 		message = "Meeting: coin toss decides the first searcher"
 		_play_cue("play_coin_flip")
 	elif phase == "MEETING":
