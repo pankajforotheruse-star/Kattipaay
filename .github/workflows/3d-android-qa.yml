@@ -1,0 +1,64 @@
+name: 3D Android QA APK (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      quality:
+        description: 'Android 3D QA render tier'
+        required: true
+        default: 'balanced'
+        type: choice
+        options: [low, balanced, high]
+permissions:
+  contents: read
+jobs:
+  android-qa:
+    if: github.ref == 'refs/heads/feature/chalk-gaon-3d-migration'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android platform 34
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Download Godot 4.4 and Android export templates
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          unzip -q Godot_v4.4-stable_linux.x86_64.zip
+          chmod +x Godot_v4.4-stable_linux.x86_64
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.4.stable"
+          unzip -q Godot_v4.4-stable_export_templates.tpz -d /tmp/godot-android-templates
+          cp -a /tmp/godot-android-templates/templates/. "$HOME/.local/share/godot/export_templates/4.4.stable/"
+      - name: Configure Android export paths
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOF
+      - name: Export 3D Android QA debug APK (not a release build)
+        env:
+          GODOT_BIN: ./Godot_v4.4-stable_linux.x86_64
+          QUALITY: ${{ inputs.quality }}
+        run: |
+          set -euo pipefail
+          bash scripts/android_3d_qa.sh build "$QUALITY"
+          test -s "build/chalk-gaon-3d-qa-${QUALITY}.apk"
+      - name: Upload QA APK and export logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chalk-gaon-3d-android-qa-${{ inputs.quality }}
+          path: |
+            build/chalk-gaon-3d-qa-*.apk
+          if-no-files-found: warn
