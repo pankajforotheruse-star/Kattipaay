@@ -56,7 +56,12 @@ func _run() -> void:
 					actor.velocity.y = -0.1
 				else:
 					actor.velocity.y -= 17.5 * 1.0 / float(Engine.physics_ticks_per_second)
+				var before := actor.global_position
+				var grounded := actor.is_on_floor()
 				actor.move_and_slide()
+				var moved := actor.global_position - before
+				if grounded and Vector2(moved.x, moved.z).length() < 0.014:
+					CharacterStep3D.try_step(actor, Vector3(actor.velocity.x, 0, actor.velocity.z) / float(Engine.physics_ticks_per_second))
 				if actor.global_position.y > 3.0:
 					rose = true
 				await physics_frame
@@ -85,7 +90,12 @@ func _run() -> void:
 						actor.velocity.y = -0.1
 					else:
 						actor.velocity.y -= 17.5 / float(Engine.physics_ticks_per_second)
+					var before := actor.global_position
+					var grounded := actor.is_on_floor()
 					actor.move_and_slide()
+					var moved := actor.global_position - before
+					if grounded and Vector2(moved.x, moved.z).length() < 0.014:
+						CharacterStep3D.try_step(actor, Vector3(actor.velocity.x, 0, actor.velocity.z) / float(Engine.physics_ticks_per_second))
 					await physics_frame
 			if actor.global_position.y < 1.6 and actor.global_position.distance_to(foot.global_position) < 2.0:
 				checked += 1
