@@ -21,14 +21,15 @@ func _ready() -> void:
 	add_child(stroke_mesh)
 	rebuild_mesh()
 
-func add_surface_point(world_position: Vector3, world_normal: Vector3) -> void:
+func add_surface_point(world_position: Vector3, world_normal: Vector3, update_mesh: bool = true) -> void:
 	var p := to_local(world_position)
 	var n := (global_transform.basis.inverse() * world_normal).normalized()
 	if not local_points.is_empty() and local_points[local_points.size() - 1].distance_to(p) < 0.015:
 		return
 	local_points.append(p)
 	local_normals.append(n)
-	rebuild_mesh()
+	if update_mesh:
+		rebuild_mesh()
 
 func rebuild_mesh() -> void:
 	if stroke_mesh == null or local_points.size() < 2:
