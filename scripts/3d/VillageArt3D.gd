@@ -76,7 +76,7 @@ func _pot(at: Vector3, radius: float) -> void:
 
 func _dress_house(p: Vector3) -> void:
 	# Noncolliding dressing: wooden shutters, brick plinth, door and rafters.
-	_box("FrontDoorWood", p + Vector3(0, 1.2, 3.83), Vector3(1.62, 2.4, 0.10), "wood")
+	_box("FrontDoorWoodAjar", p + Vector3(-1.20, 1.2, 4.32), Vector3(1.62, 2.4, 0.10), "wood", Vector3(0, 1.1, 0))
 	_box("DoorCrossbeam", p + Vector3(0, 2.48, 3.94), Vector3(2.0, 0.16, 0.15), "wood_light")
 	_box("DoorIronLatch", p + Vector3(0.56, 1.2, 3.95), Vector3(0.12, 0.26, 0.07), "iron")
 	for side in [-1.0, 1.0]:
