@@ -61,13 +61,13 @@ func rebuild_mesh() -> void:
 	material.no_depth_test = false
 	stroke_mesh.material_override = material
 
-func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float = 12.0) -> bool:
+func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float = 12.0, viewer_rid: RID = RID()) -> bool:
 	if local_points.is_empty() or struck:
 		return false
 	# Visibility is evaluated per visible stroke segment, not per entire mark
 	# and not merely by one stored endpoint. Long strokes can be partly hidden.
 	for i in range(local_points.size()):
-		if _sample_point_visible(local_points[i], eye_position, physics, max_distance):
+		if _sample_point_visible(local_points[i], eye_position, physics, max_distance, viewer_rid):
 			return true
 		if i == 0:
 			continue
@@ -76,17 +76,19 @@ func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, m
 		var subdivisions := mini(64, maxi(1, ceili(a.distance_to(b) / 0.2)))
 		for j in range(1, subdivisions):
 			var p := a.lerp(b, float(j) / float(subdivisions))
-			if _sample_point_visible(p, eye_position, physics, max_distance):
+			if _sample_point_visible(p, eye_position, physics, max_distance, viewer_rid):
 				return true
 	return false
 
-func _sample_point_visible(p: Vector3, eye: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float) -> bool:
+func _sample_point_visible(p: Vector3, eye: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float, viewer_rid: RID) -> bool:
 	var target := to_global(p)
 	var dist := eye.distance_to(target)
 	if dist > max_distance or dist < 0.02:
 		return false
 	var direction := (eye - target) / dist
 	var query := PhysicsRayQueryParameters3D.create(eye, target + direction * 0.025)
+	if viewer_rid.is_valid():
+		query.exclude = [viewer_rid]
 	var hit := physics.intersect_ray(query)
 	if hit.is_empty():
 		return true
