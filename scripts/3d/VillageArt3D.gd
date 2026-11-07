@@ -80,7 +80,7 @@ func _dress_house(p: Vector3) -> void:
 	_box("DoorCrossbeam", p + Vector3(0, 2.48, 3.94), Vector3(2.0, 0.16, 0.15), "wood_light")
 	_box("DoorIronLatch", p + Vector3(0.56, 1.2, 3.95), Vector3(0.12, 0.26, 0.07), "iron")
 	for side in [-1.0, 1.0]:
-		var x := side * 2.1
+		var x: float = float(side) * 2.1
 		_box("Shutter", p + Vector3(x, 1.83, 3.81), Vector3(0.83, 1.18, 0.09), "wood_light")
 		_box("ShutterBrace", p + Vector3(x, 1.83, 3.89), Vector3(0.12, 1.08, 0.08), "wood")
 		_box("RoofRafter", p + Vector3(side * 2.75, 3.72, 3.65), Vector3(0.17, 0.19, 1.2), "wood")
