@@ -33,7 +33,7 @@ func _run() -> void:
 		var route_ok: bool = game._assign_physical_roof_route(game.human_nav)
 		_check(route_ok, "CPU obtains real rooftop route from nearby ground")
 		if route_ok:
-			var max_height := game.cpu_body.global_position.y
+			var max_height: float = game.cpu_body.global_position.y
 			for frame in range(1600):
 				game._physics_process(1.0 / 60.0)
 				max_height = maxf(max_height, game.cpu_body.global_position.y)
