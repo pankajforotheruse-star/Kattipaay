@@ -67,6 +67,8 @@ var cpu_stuck_seconds := 0.0
 var cpu_repath_count := 0
 var coin_panel: Panel
 var coin_face_label: Label
+var result_panel: Panel
+var result_label: Label
 
 func _ready() -> void:
 	super._ready()
@@ -89,6 +91,7 @@ func _ready() -> void:
 	_make_cpu_body()
 	_make_touch_controls()
 	_make_coin_visual()
+	_make_result_visual()
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
@@ -478,6 +481,7 @@ func _finish_match() -> void:
 		winner = "CPU WINS"
 	result = "%s | Human %d : CPU %d" % [winner, player_survivors, bot_survivors]
 	message = result
+	_show_result_visual()
 	_save_round_result()
 
 func _update_hud() -> void:
@@ -801,3 +805,42 @@ func _animate_coin_flip() -> void:
 	tween.tween_callback(func() -> void:
 		if is_instance_valid(coin_panel):
 			coin_panel.hide())
+
+## A compact results banner instead of a gray full-screen fade.
+func _make_result_visual() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "RoundResultPresentation"
+	add_child(layer)
+	result_panel = Panel.new()
+	result_panel.name = "ResultBanner"
+	result_panel.set_anchors_preset(Control.PRESET_CENTER)
+	result_panel.offset_left = -260.0
+	result_panel.offset_right = 260.0
+	result_panel.offset_top = -90.0
+	result_panel.offset_bottom = 90.0
+	result_panel.pivot_offset = Vector2(260, 90)
+	result_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.13, 0.16, 0.95)
+	style.border_color = Color(0.80, 0.67, 0.40)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(16)
+	result_panel.add_theme_stylebox_override("panel", style)
+	layer.add_child(result_panel)
+	result_label = Label.new()
+	result_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	result_label.add_theme_font_size_override("font_size", 26)
+	result_label.add_theme_color_override("font_color", Color(0.97, 0.94, 0.86))
+	result_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	result_panel.add_child(result_label)
+	result_panel.hide()
+
+func _show_result_visual() -> void:
+	if result_panel == null:
+		return
+	result_label.text = result + "\nReturning to the village menu..."
+	result_panel.show()
+	result_panel.scale = Vector2(0.86, 0.86)
+	create_tween().tween_property(result_panel, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
