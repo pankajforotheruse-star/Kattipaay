@@ -212,12 +212,9 @@ func _make_walker() -> void:
 	var collider := CollisionShape3D.new()
 	collider.shape = capsule
 	walker.add_child(collider)
-	var visible := MeshInstance3D.new()
-	var cylinder := CapsuleMesh.new()
-	cylinder.radius = 0.35
-	cylinder.height = 1.7
-	visible.mesh = cylinder
-	walker.add_child(visible)
+	var avatar := CharacterRig3D.new()
+	avatar.name = "HumanAvatar"
+	walker.add_child(avatar)
 	add_child(walker)
 	camera = Camera3D.new()
 	camera.current = true
