@@ -751,8 +751,11 @@ func _mobile_button(root: Control, caption: String, right_offset: float, bottom_
 	var window_size := DisplayServer.window_get_size()
 	var safe := DisplayServer.get_display_safe_area()
 	var viewport_size := get_viewport().get_visible_rect().size
-	var right_inset := maxf(0.0, float(window_size.x - safe.end.x)) * viewport_size.x / float(maxi(window_size.x, 1))
-	var bottom_inset := maxf(0.0, float(window_size.y - safe.end.y)) * viewport_size.y / float(maxi(window_size.y, 1))
+	var right_inset := 0.0
+	var bottom_inset := 0.0
+	if safe.size.x > 0 and safe.size.y > 0:
+		right_inset = maxf(0.0, float(window_size.x - safe.end.x)) * viewport_size.x / float(maxi(window_size.x, 1))
+		bottom_inset = maxf(0.0, float(window_size.y - safe.end.y)) * viewport_size.y / float(maxi(window_size.y, 1))
 	control.offset_left = right_offset - right_inset
 	control.offset_right = right_offset + 94.0 - right_inset
 	control.offset_top = bottom_offset - bottom_inset
