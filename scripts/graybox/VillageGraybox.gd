@@ -21,6 +21,7 @@ var mobile_move_touch := -1
 var mobile_start := Vector2.ZERO
 var mobile_jump := false
 var material_textures: Dictionary = {}
+var surface_material_cache: Dictionary = {}
 var soundscape: VillageSoundscape3D
 var performance_qa: AndroidPerformance3D
 const WALK_ACCELERATION := 13.0
@@ -101,15 +102,31 @@ func _add_box(label: String, pos: Vector3, size: Vector3, color: Color, tilt: Ve
 	var cube := BoxMesh.new()
 	cube.size = size
 	mesh.mesh = cube
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.94
-	mat.metallic = 0.0
-	mat.albedo_texture = _surface_texture(label)
-	mesh.material_override = mat
+	mesh.material_override = _cached_surface_material(label, color)
 	body.add_child(mesh)
 	add_child(body)
 	return body
+
+## Cache material instances by texture category and color to reduce render-state
+## changes and Android VRAM allocations across repeated village modules.
+func _cached_surface_material(label: String, color: Color) -> StandardMaterial3D:
+	var lower := label.to_lower()
+	var category := "soil"
+	if "roof" in lower or "wall" in lower or "house" in lower or "shed" in lower:
+		category = "plaster"
+	elif "crate" in lower or "cart" in lower or "log" in lower or "trunk" in lower:
+		category = "wood"
+	elif "stone" in lower or "ramp" in lower or "step" in lower:
+		category = "stone"
+	var key := category + "_" + color.to_html()
+	if surface_material_cache.has(key):
+		return surface_material_cache[key]
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.93
+	material.albedo_texture = _surface_texture(label)
+	surface_material_cache[key] = material
+	return material
 
 ## Reusable noise textures add visible soil, stone, wood and plaster variation.
 func _surface_texture(label: String) -> Texture2D:
@@ -145,11 +162,7 @@ func _visual_trim(label: String, at: Vector3, dimensions: Vector3, paint: Color)
 	var shape := BoxMesh.new()
 	shape.size = dimensions
 	mesh.mesh = shape
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = paint
-	mat.roughness = 0.91
-	mat.albedo_texture = _surface_texture(label)
-	mesh.material_override = mat
+	mesh.material_override = _cached_surface_material(label, paint)
 	add_child(mesh)
 
 func _build_zone(cx: float, index: int) -> void:
