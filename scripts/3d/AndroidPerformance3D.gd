@@ -8,6 +8,8 @@ var enabled := false
 var elapsed := 0.0
 var samples: Array[Dictionary] = []
 var peak_static_bytes := 0.0
+var frame_histogram := PackedInt32Array()
+var frame_sample_count := 0
 var display_label: Label
 
 func _ready() -> void:
@@ -28,6 +30,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not enabled:
 		return
+	_record_frame_delta(delta * 1000.0)
 	elapsed += delta
 	if elapsed < SAMPLE_SECONDS:
 		return
@@ -37,12 +40,14 @@ func _process(delta: float) -> void:
 	var draw_calls := float(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 	var memory_bytes := float(Performance.get_monitor(Performance.MEMORY_STATIC))
 	var physics_ms := float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
-	add_measurement(frame_ms, draw_calls, memory_bytes, physics_ms)
+	add_measurement(frame_ms, draw_calls, memory_bytes, physics_ms, false)
 	if display_label != null:
 		display_label.text = "QA  %d fps  |  %.1f ms  |  %d draws  |  %.0f MB" % [
 			roundi(fps), frame_ms, roundi(draw_calls), memory_bytes / 1048576.0]
 
-func add_measurement(frame_ms: float, draw_calls: float, memory_bytes: float, physics_ms: float = 0.0) -> void:
+func add_measurement(frame_ms: float, draw_calls: float, memory_bytes: float, physics_ms: float = 0.0, count_frame: bool = true) -> void:
+	if count_frame:
+		_record_frame_delta(frame_ms)
 	peak_static_bytes = maxf(peak_static_bytes, memory_bytes)
 	if samples.size() >= MAX_SAMPLES:
 		samples.pop_front()
@@ -50,6 +55,26 @@ func add_measurement(frame_ms: float, draw_calls: float, memory_bytes: float, ph
 		"frame_ms": frame_ms, "draw_calls": draw_calls,
 		"memory_bytes": memory_bytes, "physics_ms": physics_ms
 	})
+
+## Histogram records actual frame deltas every frame, with 0.5ms buckets
+## (0..200ms). CSV samples remain low-frequency to minimize storage writes.
+func _record_frame_delta(frame_ms: float) -> void:
+	if frame_histogram.is_empty():
+		frame_histogram.resize(401)
+	var bucket := clampi(roundi(frame_ms * 2.0), 0, 400)
+	frame_histogram[bucket] += 1
+	frame_sample_count += 1
+
+func _frame_percentile(percentile: float) -> float:
+	if frame_sample_count == 0:
+		return 0.0
+	var target := maxi(1, ceili(float(frame_sample_count) * percentile))
+	var cumulative := 0
+	for i in range(frame_histogram.size()):
+		cumulative += frame_histogram[i]
+		if cumulative >= target:
+			return float(i) * 0.5
+	return 200.0
 
 func summary() -> Dictionary:
 	var frames: Array[float] = []
@@ -65,14 +90,16 @@ func summary() -> Dictionary:
 		"schema": "chalk_gaon_3d_perf_v1",
 		"platform": OS.get_name(),
 		"sample_count": count,
-		"frame_p50_ms": _percentile(frames, 0.50),
-		"frame_p95_ms": _percentile(frames, 0.95),
-		"frame_p99_ms": _percentile(frames, 0.99),
+		"frame_p50_ms": _frame_percentile(0.50),
+		"frame_p95_ms": _frame_percentile(0.95),
+		"frame_p99_ms": _frame_percentile(0.99),
+		"frame_sample_count": frame_sample_count,
+		"frame_percentile_source": "per_frame_delta_0.5ms_histogram",
 		"mean_draw_calls": draw_sum / float(maxi(count, 1)),
 		"mean_physics_ms": physics_sum / float(maxi(count, 1)),
 		"peak_static_mb": peak_static_bytes / 1048576.0,
 		"device_thermal": "not_available_from_godot_runtime",
-		"note": "Frame-time sample estimates are based on engine FPS; profile with Android GPU tools for precise frame pacing."
+		"note": "Frame percentiles use game-loop delta, not GPU presentation timestamps. Confirm with Android GPU tools."
 	}
 
 func _percentile(sorted: Array[float], percentile: float) -> float:
