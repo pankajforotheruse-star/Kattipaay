@@ -44,6 +44,18 @@ jobs:
           timeout 100s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DPlaytestRegression.gd --log-file 3d-playtest-regression.log
           grep -q 'CHALK_GAON_3D_PLAYTEST_REGRESSION: PASS' 3d-playtest-regression.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-playtest-regression.log
+      - name: Segment visibility and 300-mark stress acceptance
+        run: |
+          set -euo pipefail
+          timeout 110s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DVisibilityStress.gd --log-file 3d-visibility-stress.log
+          grep -q 'CHALK_GAON_3D_VISIBILITY_STRESS: PASS' 3d-visibility-stress.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-visibility-stress.log
+      - name: Rooftop search and defender authority acceptance
+        run: |
+          set -euo pipefail
+          timeout 110s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DNavigationAuthority.gd --log-file 3d-navigation-authority.log
+          grep -q 'CHALK_GAON_3D_NAV_AUTHORITY: PASS' 3d-navigation-authority.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-navigation-authority.log
       - name: Owner parity regression (score, coin, quota, cheating)
         run: |
           set -euo pipefail
@@ -106,6 +118,8 @@ jobs:
             3d-balance.log
             3d-parity.log
             3d-playtest-regression.log
+            3d-visibility-stress.log
+            3d-navigation-authority.log
             3d-persistence-cover.log
             3d-round.log
             3d-end-to-end.log
