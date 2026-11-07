@@ -67,6 +67,7 @@ var cpu_stuck_seconds := 0.0
 var cpu_repath_count := 0
 var coin_panel: Panel
 var coin_face_label: Label
+var coin_tween: Tween
 var result_panel: Panel
 var result_label: Label
 
@@ -794,7 +795,10 @@ func _animate_coin_flip() -> void:
 	coin_panel.show()
 	coin_panel.scale = Vector2.ONE
 	coin_face_label.text = "?"
-	var tween := create_tween()
+	if coin_tween != null and coin_tween.is_running():
+		coin_tween.kill()
+	coin_tween = create_tween()
+	var tween := coin_tween
 	for flip in range(4):
 		tween.tween_property(coin_panel, "scale:x", 0.07, 0.10).set_trans(Tween.TRANS_SINE)
 		tween.tween_callback(func() -> void:
