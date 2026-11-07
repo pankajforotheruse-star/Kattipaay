@@ -745,10 +745,25 @@ func _mobile_button(root: Control, caption: String, right_offset: float, bottom_
 	control.text = caption
 	control.custom_minimum_size = Vector2(94, 58)
 	control.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	control.offset_left = right_offset
-	control.offset_right = right_offset + 94.0
-	control.offset_top = bottom_offset
-	control.offset_bottom = bottom_offset + 58.0
+	var window_size := DisplayServer.window_get_size()
+	var safe := DisplayServer.get_display_safe_area()
+	var viewport_size := get_viewport().get_visible_rect().size
+	var right_inset := maxf(0.0, float(window_size.x - safe.end.x)) * viewport_size.x / float(maxi(window_size.x, 1))
+	var bottom_inset := maxf(0.0, float(window_size.y - safe.end.y)) * viewport_size.y / float(maxi(window_size.y, 1))
+	control.offset_left = right_offset - right_inset
+	control.offset_right = right_offset + 94.0 - right_inset
+	control.offset_top = bottom_offset - bottom_inset
+	control.offset_bottom = bottom_offset + 58.0 - bottom_inset
+	control.add_theme_font_size_override("font_size", 17)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.18, 0.20, 0.86)
+	style.border_color = Color(0.74, 0.62, 0.38, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(10)
+	control.add_theme_stylebox_override("normal", style)
+	var pressed := style.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.30, 0.43, 0.40, 0.96)
+	control.add_theme_stylebox_override("pressed", pressed)
 	control.pressed.connect(action)
 	root.add_child(control)
 
