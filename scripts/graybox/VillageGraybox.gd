@@ -291,10 +291,11 @@ func _physics_process(delta: float) -> void:
 		walker.velocity.y -= 17.5 * delta
 	var before_move := walker.global_position
 	var walker_grounded := walker.is_on_floor()
+	var commanded_motion := Vector3(walker.velocity.x, 0, walker.velocity.z) * delta
 	walker.move_and_slide()
 	var walker_motion := walker.global_position - before_move
 	if walker_grounded and Vector2(walker_motion.x, walker_motion.z).length() < 0.014 and move.length_squared() > 0.1:
-		CharacterStep3D.try_step(walker, Vector3(walker.velocity.x, 0, walker.velocity.z) * delta)
+		CharacterStep3D.try_step(walker, commanded_motion)
 	if not Territory3D.can_enter(debug_owner_id, walker.global_position, debug_phase, debug_owner_id):
 		walker.global_position = before_move
 		walker.velocity = Vector3.ZERO
