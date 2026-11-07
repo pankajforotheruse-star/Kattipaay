@@ -55,7 +55,7 @@ func _run() -> void:
 		var last_strike_frame := -100
 		var scripted_marks := 0
 		var profile := match_index % 3
-		var mark_interval := [72, 52, 36][profile] if not fast_smoke else 24
+		var mark_interval: int = int([72, 52, 36][profile]) if not fast_smoke else 24
 		var frame_limit := int((draw_seconds + meeting_seconds + search_seconds * 2.0 + 5.0) * 60.0)
 		while game.phase != "RESULT" and frame < frame_limit:
 			frame += 1
@@ -122,7 +122,7 @@ func _run() -> void:
 		quit(1)
 
 func _movement(frame: int, profile: int) -> Vector2:
-	var segment := (frame / [105, 75, 55][profile]) % 4
+	var segment: int = (frame / int([105, 75, 55][profile])) % 4
 	match segment:
 		0: return Vector2(0.6, 0.65)
 		1: return Vector2(-0.8, 0.25)
