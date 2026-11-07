@@ -21,6 +21,11 @@ jobs:
           unzip -q Godot_v4.4-stable_linux.x86_64.zip
           chmod +x ./Godot_v4.4-stable_linux.x86_64
           ./Godot_v4.4-stable_linux.x86_64 --version
+      - name: Validate Android QA build harness and playtest analyzer
+        run: |
+          set -euo pipefail
+          bash -n scripts/android_3d_qa.sh
+          python3 -m py_compile scripts/analyze_3d_playtests.py
       - name: Parse and import all scenes
         run: |
           set -euo pipefail
