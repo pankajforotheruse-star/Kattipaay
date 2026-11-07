@@ -1,0 +1,58 @@
+name: 3D Scripted Balance Study (manual, 100+ full matches per difficulty)
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: 'Complete 40/15/30/30s scripted matches per difficulty (100 recommended)'
+        required: true
+        default: '100'
+        type: string
+permissions:
+  contents: read
+jobs:
+  scripted-full-match-study:
+    if: github.ref == 'refs/heads/feature/chalk-gaon-3d-migration'
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [0, 1, 2, 3]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.4 stable
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
+          unzip -q Godot_v4.4-stable_linux.x86_64.zip
+          chmod +x Godot_v4.4-stable_linux.x86_64
+      - name: Import 3D assets
+        run: |
+          ./Godot_v4.4-stable_linux.x86_64 --headless --editor --path . --quit
+      - name: Run full-clock seeded 3D scripted matches
+        env:
+          ROUNDS: ${{ inputs.rounds }}
+          DIFFICULTY: ${{ matrix.difficulty }}
+        run: |
+          set -euo pipefail
+          case "$ROUNDS" in ''|*[!0-9]*) echo "rounds must be an integer"; exit 2;; esac
+          test "$ROUNDS" -ge 100 && test "$ROUNDS" -le 500
+          timeout 6900s ./Godot_v4.4-stable_linux.x86_64 --headless --fixed-fps 60 --path . \
+            --script res://scripts/tests/ChalkGaon3DScriptedMatchBatch.gd \
+            --log-file scripted-difficulty-${DIFFICULTY}.log -- --rounds="${ROUNDS}" --difficulty="${DIFFICULTY}"
+          grep -q 'CHALK_GAON_3D_SCRIPTED_MATCH_BATCH: PASS' scripted-difficulty-${DIFFICULTY}.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' scripted-difficulty-${DIFFICULTY}.log
+      - name: Collect local balance JSON
+        if: always()
+        run: |
+          mkdir -p scripted-balance-results
+          find "$HOME/.local/share/godot/app_userdata" -name 'chalk_gaon_3d_scripted_balance_*.json' -exec cp '{}' scripted-balance-results/ \; 2>/dev/null || true
+      - name: Upload metrics and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scripted-3d-balance-difficulty-${{ matrix.difficulty }}
+          path: |
+            scripted-difficulty-*.log
+            scripted-balance-results/
+          if-no-files-found: ignore
