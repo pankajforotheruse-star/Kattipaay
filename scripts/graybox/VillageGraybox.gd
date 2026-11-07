@@ -20,6 +20,10 @@ var mobile_move := Vector2.ZERO
 var mobile_move_touch := -1
 var mobile_start := Vector2.ZERO
 var mobile_jump := false
+var material_textures: Dictionary = {}
+const WALK_ACCELERATION := 13.0
+const WALK_DECELERATION := 19.0
+const CAMERA_FOLLOW_RATE := 12.0
 
 func _ready() -> void:
 	_make_light()
@@ -44,11 +48,22 @@ func _make_light() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	sun.light_energy = 1.25
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.62, 0.76, 0.86)
+	e.background_mode = Environment.BG_SKY
+	var sky := Sky.new()
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.24, 0.42, 0.67)
+	sky_material.sky_horizon_color = Color(0.79, 0.78, 0.70)
+	sky_material.ground_bottom_color = Color(0.22, 0.20, 0.16)
+	sky.sky_material = sky_material
+	e.sky = sky
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.fog_enabled = true
+	e.fog_density = 0.003
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.85, 0.83, 0.78)
 	e.ambient_light_energy = 0.8
@@ -74,10 +89,54 @@ func _add_box(label: String, pos: Vector3, size: Vector3, color: Color, tilt: Ve
 	mesh.mesh = cube
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
+	mat.roughness = 0.94
+	mat.metallic = 0.0
+	mat.albedo_texture = _surface_texture(label)
 	mesh.material_override = mat
 	body.add_child(mesh)
 	add_child(body)
 	return body
+
+## Reusable noise textures add visible soil, stone, wood and plaster variation.
+func _surface_texture(label: String) -> Texture2D:
+	var key := "soil"
+	var lower := label.to_lower()
+	if "roof" in lower or "wall" in lower or "house" in lower or "shed" in lower:
+		key = "plaster"
+	elif "crate" in lower or "cart" in lower or "log" in lower or "trunk" in lower:
+		key = "wood"
+	elif "stone" in lower or "ramp" in lower or "step" in lower:
+		key = "stone"
+	if material_textures.has(key):
+		return material_textures[key]
+	var noise := FastNoiseLite.new()
+	noise.seed = {"soil": 125, "plaster": 84, "wood": 27, "stone": 39}[key]
+	noise.frequency = 0.045 if key != "wood" else 0.09
+	var texture := NoiseTexture2D.new()
+	texture.width = 128
+	texture.height = 128
+	texture.noise = noise
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.72, 0.71, 0.69))
+	gradient.set_color(1, Color(1.0, 0.99, 0.97))
+	texture.color_ramp = gradient
+	material_textures[key] = texture
+	return texture
+
+## Decorative trim does not affect collisions or CPU navigation.
+func _visual_trim(label: String, at: Vector3, dimensions: Vector3, paint: Color) -> void:
+	var mesh := MeshInstance3D.new()
+	mesh.name = label.validate_node_name()
+	mesh.position = at
+	var shape := BoxMesh.new()
+	shape.size = dimensions
+	mesh.mesh = shape
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = paint
+	mat.roughness = 0.91
+	mat.albedo_texture = _surface_texture(label)
+	mesh.material_override = mat
+	add_child(mesh)
 
 func _build_zone(cx: float, index: int) -> void:
 	var wall := Color(0.72, 0.60, 0.45) if index == 0 else Color(0.70, 0.54, 0.46)
@@ -133,6 +192,13 @@ func _build_house(x: float, z: float, wall: Color) -> void:
 	var run := 10.0
 	var angle := atan(rise / run)
 	_add_box("Roof access ramp", Vector3(x + 5.3, rise * 0.5 - 0.08, z + 1.5), Vector3(1.9, 0.45, 12.3), Color(0.47, 0.44, 0.39), Vector3(angle, 0, 0))
+	# Recessed windows, timber frames and trim add scale without blocking ramps.
+	for side in [-1, 1]:
+		_visual_trim("Weathered timber window frame", Vector3(x + float(side) * 3.79, 1.9, z + 0.5), Vector3(0.06, 1.15, 1.0), Color(0.25, 0.18, 0.12))
+		_visual_trim("Window dark recess", Vector3(x + float(side) * 3.83, 1.9, z + 0.5), Vector3(0.07, 0.85, 0.72), Color(0.10, 0.12, 0.12))
+	_visual_trim("Door lintel", Vector3(x, 2.75, z + 3.78), Vector3(2.1, 0.18, 0.18), Color(0.32, 0.22, 0.15))
+	_visual_trim("Door threshold", Vector3(x, 0.12, z + 3.9), Vector3(2.1, 0.18, 0.55), Color(0.40, 0.36, 0.31))
+	_visual_trim("Roof weathering band", Vector3(x, 3.58, z + 3.85), Vector3(7.5, 0.16, 0.12), Color(0.39, 0.29, 0.22))
 	# Ramp upper end overlaps the rooftop edge; verify this transition in-engine.
 
 func _make_walker() -> void:
@@ -215,8 +281,10 @@ func _physics_process(delta: float) -> void:
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
 	var move := (right * direction.x - forward * direction.y)
 	var speed := (8.0 if Input.is_key_pressed(KEY_SHIFT) else 5.0) * (0.5 if crouched else 1.0)
-	walker.velocity.x = move.x * speed
-	walker.velocity.z = move.z * speed
+	var response := WALK_ACCELERATION if direction.length_squared() > 0.01 else WALK_DECELERATION
+	var blend := 1.0 - exp(-response * delta)
+	walker.velocity.x = lerpf(walker.velocity.x, move.x * speed, blend)
+	walker.velocity.z = lerpf(walker.velocity.z, move.z * speed, blend)
 	if walker.is_on_floor():
 		if Input.is_key_pressed(KEY_SPACE) or mobile_jump:
 			walker.velocity.y = 6.8
@@ -237,7 +305,7 @@ func _physics_process(delta: float) -> void:
 	var camera_hit := get_world_3d().direct_space_state.intersect_ray(camera_query)
 	if not camera_hit.is_empty():
 		desired_camera_position = camera_hit["position"] + camera_hit["normal"] * 0.2
-	camera.global_position = desired_camera_position
+	camera.global_position = camera.global_position.lerp(desired_camera_position, 1.0 - exp(-CAMERA_FOLLOW_RATE * delta))
 	camera.look_at(target)
 	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | F draw | G phase | Tab role/zone | Esc free mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
 
