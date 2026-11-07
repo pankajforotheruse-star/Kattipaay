@@ -907,7 +907,7 @@ func _save_round_result() -> void:
 		"cpu_roof_returns": cpu_total_roof_returns,
 		"player_input_seconds": player_input_seconds,
 		"rng_seed": match_seed,
-		"session_kind": "local_play_vs_cpu"
+		"session_kind": str(ProjectSettings.get_setting("chalk_gaon/3d_session_kind", "local_play_vs_cpu"))
 	})
 
 func _count_survivors(lines: Array[ChalkStroke3D]) -> int:
