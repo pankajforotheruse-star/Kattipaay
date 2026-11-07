@@ -38,6 +38,30 @@ func _run() -> void:
 		await physics_frame
 		game._cpu_inspect()
 		_check(chalk.struck, "CPU physically detects and strikes nearby visible human chalk")
+		var hidden := ChalkStroke3D.new()
+		hidden.owner_id = 1
+		earth.add_child(hidden)
+		hidden.add_surface_point(Vector3(-3.5, -0.09, -1.5), Vector3.UP)
+		hidden.add_surface_point(Vector3(-3.2, -0.09, -1.5), Vector3.UP)
+		game.saved_human_lines.append(hidden)
+		var wall := StaticBody3D.new()
+		wall.position = Vector3(-3.5, 0.8, -0.55)
+		var collision := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(1.2, 2.0, 0.25)
+		collision.shape = shape
+		wall.add_child(collision)
+		game.add_child(wall)
+		await physics_frame
+		game.cpu_strike_cooldown = 0.0
+		game.cpu_scan_cooldown = 0.0
+		game._cpu_inspect()
+		_check(not hidden.struck, "CPU cannot strike human chalk hidden behind physical wall")
+		wall.queue_free()
+		await physics_frame
+		game.cpu_scan_cooldown = 0.0
+		game._cpu_inspect()
+		_check(hidden.struck, "CPU strikes same chalk once physical occlusion is removed")
 	game._finish_match()
 	var locked_result: String = game.result
 	var saved_once: bool = game.last_result_saved
