@@ -72,6 +72,7 @@ var coin_face_label: Label
 var coin_tween: Tween
 var result_panel: Panel
 var result_label: Label
+var pause_menu: PanelContainer
 var phase_hud: Panel
 var phase_hud_label: Label
 var phase_progress: ProgressBar
@@ -118,6 +119,7 @@ func _ready() -> void:
 	_make_coin_visual()
 	_make_result_visual()
 	_make_phase_hud()
+	_make_pause_menu()
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
@@ -150,8 +152,7 @@ func _make_cpu_body() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_P:
-			match_paused = not match_paused
-			message = "PAUSED" if match_paused else "RESUMED"
+			_set_match_paused(not match_paused)
 			return
 		if match_paused:
 			return
@@ -709,7 +710,7 @@ func _make_touch_controls() -> void:
 	field.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(field)
 	_mobile_button(field, "PAUSE", -105, -325, func() -> void:
-		match_paused = not match_paused)
+		_set_match_paused(not match_paused))
 	if performance_qa != null and performance_qa.enabled:
 		_mobile_button(field, "SAVE QA", -215, -325, func() -> void:
 			performance_qa.export_report())
@@ -1176,3 +1177,76 @@ func _actor_pose(owner: int, action: String) -> void:
 	var avatar := body.get_node_or_null("HumanAvatar" if owner == HUMAN_ID else "CpuAvatar") as CharacterRig3D
 	if avatar != null:
 		avatar.set_pose(action)
+
+## Dedicated pause/settings menu. Unlike a debug pause flag, this supports
+## touch resume, master-volume control and a clear exit to the main menu.
+func _make_pause_menu() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "PauseAndAudioSettings"
+	add_child(layer)
+	pause_menu = PanelContainer.new()
+	pause_menu.name = "PausePanel"
+	pause_menu.set_anchors_preset(Control.PRESET_CENTER)
+	pause_menu.offset_left = -205.0
+	pause_menu.offset_right = 205.0
+	pause_menu.offset_top = -170.0
+	pause_menu.offset_bottom = 170.0
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.055, 0.105, 0.12, 0.97)
+	style.border_color = Color(0.75, 0.59, 0.33)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(15)
+	pause_menu.add_theme_stylebox_override("panel", style)
+	layer.add_child(pause_menu)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
+	pause_menu.add_child(margin)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 14)
+	margin.add_child(stack)
+	var heading := Label.new()
+	heading.text = "CHALK GAON  •  PAUSED"
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.add_theme_font_size_override("font_size", 24)
+	stack.add_child(heading)
+	var resume := Button.new()
+	resume.text = "RESUME MATCH"
+	resume.custom_minimum_size.y = 54.0
+	resume.pressed.connect(func() -> void: _set_match_paused(false))
+	stack.add_child(resume)
+	var volume_label := Label.new()
+	volume_label.text = "MASTER VOLUME"
+	stack.add_child(volume_label)
+	var volume := HSlider.new()
+	volume.name = "MasterVolume"
+	volume.min_value = 0.0
+	volume.max_value = 1.0
+	volume.step = 0.05
+	volume.value = 0.75
+	volume.custom_minimum_size.y = 44.0
+	volume.value_changed.connect(func(level: float) -> void:
+		AudioServer.set_bus_volume_db(0, linear_to_db(maxf(level, 0.001))))
+	stack.add_child(volume)
+	var exit := Button.new()
+	exit.text = "EXIT TO MAIN MENU"
+	exit.custom_minimum_size.y = 54.0
+	exit.pressed.connect(func() -> void:
+		_set_match_paused(false)
+		get_tree().change_scene_to_file("res://scenes/main.tscn"))
+	stack.add_child(exit)
+	pause_menu.hide()
+
+func _set_match_paused(paused: bool) -> void:
+	match_paused = paused
+	message = "PAUSED" if paused else "RESUMED"
+	if pause_menu != null:
+		pause_menu.visible = paused
+	if paused:
+		if draw_controller != null:
+			draw_controller.enabled = false
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if drawing_mode else Input.MOUSE_MODE_CAPTURED
