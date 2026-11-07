@@ -86,6 +86,9 @@ var cpu_cover_hold_seconds := 0.0
 var cpu_roof_visits := 0
 var cpu_roof_return_count := 0
 var cpu_total_inspections := 0
+var cpu_search_cells: Dictionary = {}
+var player_input_seconds := 0.0
+var match_seed := 0
 var cpu_total_roof_visits := 0
 var cpu_total_roof_returns := 0
 var cpu_roof_anchor: Vector3 = Vector3.INF
@@ -94,6 +97,7 @@ var cpu_roof_base: Vector3 = Vector3.INF
 func _ready() -> void:
 	super._ready()
 	rng.randomize()
+	match_seed = rng.seed
 	configured_draw_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", DRAW_TIME)))
 	configured_search_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_search_phase_seconds", SEARCH_TIME)))
 	configured_meeting_seconds = maxf(0.1, float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_max_seconds", MEETING_TIME)))
@@ -200,6 +204,8 @@ func _physics_process(delta: float) -> void:
 		var manual_move := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or mobile_move.length_squared() > 0.05
 		human_idle_seconds = 0.0 if manual_move else human_idle_seconds + delta
 		if manual_move:
+			player_input_seconds += delta
+		if manual_move:
 			human_follow_path.clear()
 			human_follow_index = 0
 		elif human_idle_seconds > 3.0:
@@ -222,6 +228,9 @@ func _physics_process(delta: float) -> void:
 	# first, otherwise the step solver and stuck watchdog see zero motion.
 	var commanded_velocity := Vector3(cpu_body.velocity.x, 0, cpu_body.velocity.z)
 	cpu_body.move_and_slide()
+	if phase == "SEARCHING" and searcher == CPU_ID:
+		var grid_cell := Vector2i(floori(cpu_body.global_position.x / 2.0), floori(cpu_body.global_position.z / 2.0))
+		cpu_search_cells[grid_cell] = true
 	var moved := cpu_body.global_position - old_bot_position
 	var intended_motion := commanded_velocity * delta
 	if bot_grounded and intended_motion.length() > 0.001 and (
@@ -572,6 +581,8 @@ func _finish_match() -> void:
 	message = result
 	_show_result_visual()
 	_save_round_result()
+	if performance_qa != null and performance_qa.enabled:
+		performance_qa.export_report()
 
 func _update_hud() -> void:
 	if info == null:
@@ -882,6 +893,22 @@ func _save_round_result() -> void:
 		"metrics": acceptance_metrics()
 	}
 	store.call("save_local", "chalk_gaon_3d_latest_result", summary)
+	MatchAnalytics3D.append_match({
+		"schema": "chalk_gaon_3d_match_v1",
+		"difficulty": clampi(GameState.cpu_difficulty, 0, 3),
+		"result": result,
+		"human_marks": saved_human_lines.size(),
+		"cpu_marks": cpu_lines.size(),
+		"human_survivors": _count_survivors(saved_human_lines),
+		"cpu_survivors": _count_survivors(cpu_lines),
+		"cpu_inspections": cpu_total_inspections,
+		"cpu_search_cells": cpu_search_cells.size(),
+		"cpu_roof_visits": cpu_total_roof_visits,
+		"cpu_roof_returns": cpu_total_roof_returns,
+		"player_input_seconds": player_input_seconds,
+		"rng_seed": match_seed,
+		"session_kind": "local_play_vs_cpu"
+	})
 
 func _count_survivors(lines: Array[ChalkStroke3D]) -> int:
 	var count := 0
@@ -1106,6 +1133,8 @@ func acceptance_metrics() -> Dictionary:
 		"cpu_roof_visits": cpu_total_roof_visits,
 		"cpu_roof_returns": cpu_total_roof_returns,
 		"cpu_repaths": cpu_repath_count,
+		"cpu_search_cells": cpu_search_cells.size(),
+		"player_input_seconds": player_input_seconds,
 		"human_survivors": _count_survivors(saved_human_lines),
 		"cpu_survivors": _count_survivors(cpu_lines)
 	}
