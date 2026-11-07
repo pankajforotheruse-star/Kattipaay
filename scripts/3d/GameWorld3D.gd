@@ -80,6 +80,9 @@ var cpu_open_cover: RigidBody3D
 var cpu_cover_hold_seconds := 0.0
 var cpu_roof_visits := 0
 var cpu_roof_return_count := 0
+var cpu_total_inspections := 0
+var cpu_total_roof_visits := 0
+var cpu_total_roof_returns := 0
 var cpu_roof_anchor: Vector3 = Vector3.INF
 var cpu_roof_base: Vector3 = Vector3.INF
 
@@ -210,9 +213,11 @@ func _physics_process(delta: float) -> void:
 	cpu_body.move_and_slide()
 	if cpu_roof_anchor != Vector3.INF and cpu_body.global_position.distance_to(cpu_roof_anchor) < 1.8 and cpu_body.global_position.y > 3.0:
 		cpu_roof_visits += 1
+		cpu_total_roof_visits += 1
 		cpu_roof_anchor = Vector3.INF
 	if cpu_roof_base != Vector3.INF and cpu_roof_visits > cpu_roof_return_count and cpu_body.global_position.distance_to(cpu_roof_base) < 1.8 and cpu_body.global_position.y < 1.8:
 		cpu_roof_return_count += 1
+		cpu_total_roof_returns += 1
 		cpu_roof_base = Vector3.INF
 	var commanded := Vector2(cpu_body.velocity.x, cpu_body.velocity.z).length()
 	if commanded > 1.5 and cpu_body.global_position.distance_to(old_bot_position) < 0.012:
@@ -422,6 +427,7 @@ func _cpu_inspect() -> void:
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
 			cpu_inspection_count += 1
+			cpu_total_inspections += 1
 			_play_cue("play_line_strike")
 			cpu_strike_cooldown = cpu_strike_delay
 			break
@@ -546,7 +552,7 @@ func _update_hud() -> void:
 	if info == null:
 		return
 	var status := phase + (" • PAUSED" if match_paused else "")
-	var clock := "%02d:%02d" % [int(maxf(0.0, phase_left)) / 60, int(maxf(0.0, phase_left)) % 60]
+	var clock := "%02d:%02d" % [floori(maxf(0.0, phase_left) / 60.0), int(maxf(0.0, phase_left)) % 60]
 	if phase_hud_label != null:
 		phase_hud_label.text = "%s  |  %s  |  YOU %d  CPU %d" % [status, clock, saved_human_lines.size(), cpu_lines.size()]
 	info.add_theme_font_size_override("font_size", 16)
@@ -757,6 +763,7 @@ func _inspect_nearby_public_cover() -> void:
 		cpu_cover_hold_seconds = 1.2
 		message = "CPU physically inspected a visible public cover"
 		cpu_inspection_count += 1
+		cpu_total_inspections += 1
 		return
 
 ## Roof access is a physical itinerary: walk to the ramp base, ascend the
@@ -1016,9 +1023,9 @@ func acceptance_metrics() -> Dictionary:
 		"difficulty": clampi(GameState.cpu_difficulty, 0, 3),
 		"human_marks": saved_human_lines.size(),
 		"cpu_marks": cpu_lines.size(),
-		"cpu_strikes_and_inspections": cpu_inspection_count,
-		"cpu_roof_visits": cpu_roof_visits,
-		"cpu_roof_returns": cpu_roof_return_count,
+		"cpu_strikes_and_inspections": cpu_total_inspections,
+		"cpu_roof_visits": cpu_total_roof_visits,
+		"cpu_roof_returns": cpu_total_roof_returns,
 		"cpu_repaths": cpu_repath_count,
 		"human_survivors": _count_survivors(saved_human_lines),
 		"cpu_survivors": _count_survivors(cpu_lines)
