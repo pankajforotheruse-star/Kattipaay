@@ -43,9 +43,11 @@ func _run() -> void:
 			_check(max_height > 3.1, "Actual CPU body physically ascends rooftop")
 			_check(game.cpu_roof_visits >= 1, "CPU physically reaches rooftop anchor")
 			_check(game.cpu_roof_return_count >= 1, "CPU physically descends via ramp")
-			print("CPU_ROOF_MOTION height=%.2f visits=%d returns=%d repaths=%d route=%d/%d goal=%s pos=%s" % [
+			print("CPU_ROOF_MOTION height=%.2f visits=%d returns=%d repaths=%d steps=%d/%d floor=%s wall=%s velocity=%s route=%d/%d goal=%s pos=%s" % [
 				max_height, game.cpu_roof_visits, game.cpu_roof_return_count,
-				game.cpu_repath_count, game.cpu_route_index, game.cpu_path.size(),
+				game.cpu_repath_count, game.cpu_step_successes, game.cpu_step_attempts,
+				str(game.cpu_body.is_on_floor()), str(game.cpu_body.is_on_wall()), str(game.cpu_body.velocity),
+				game.cpu_route_index, game.cpu_path.size(),
 				str(game.cpu_path[mini(game.cpu_route_index, game.cpu_path.size() - 1)]), str(game.cpu_body.global_position)])
 	if faults.is_empty():
 		print("CHALK_GAON_3D_CPU_ROOF_MOTION: PASS")
