@@ -175,7 +175,7 @@ func _on_play_vs_cpu() -> void:
 		return
 	_build_difficulty_picker()
 
-func _build_difficulty_picker() -> void:
+func _build_difficulty_picker(for_3d: bool = false) -> void:
 	var panel := PanelContainer.new()
 	panel.name = "DifficultyPicker"
 	panel.anchors_preset = Control.PRESET_CENTER
@@ -194,7 +194,7 @@ func _build_difficulty_picker() -> void:
 	margin.add_child(box)
 
 	var title := Label.new()
-	title.text = "Play vs CPU - pick difficulty"
+	title.text = "3D VILLAGE - pick difficulty" if for_3d else "Play vs CPU - pick difficulty"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
@@ -202,7 +202,8 @@ func _build_difficulty_picker() -> void:
 		var btn := Button.new()
 		btn.text = SOLO_DIFFICULTY_LABELS[i]
 		btn.custom_minimum_size = Vector2(0, 48)
-		btn.pressed.connect(_start_solo_with_difficulty.bind(i))
+		var action: Callable = _start_3d_with_difficulty if for_3d else _start_solo_with_difficulty
+		btn.pressed.connect(action.bind(i))
 		box.add_child(btn)
 
 	var cancel := Button.new()
@@ -236,16 +237,23 @@ func _start_solo_with_difficulty(difficulty: int) -> void:
 	# routes straight to game_world.tscn with the solo flag set.
 	GameState.transition(GameState.State.PLAYING)
 
+func _start_3d_with_difficulty(difficulty: int) -> void:
+	_close_difficulty_picker()
+	GameState.cpu_difficulty = difficulty
+	GameState.solo_vs_cpu = false
+	get_tree().change_scene_to_file("res://scenes/3d/game_world_3d.tscn")
+
 func _add_3d_test_launch() -> void:
 	var launch := Button.new()
 	launch.name = "Play3DExperimentalButton"
-	launch.text = "PLAY VS CPU — 3D TEST"
+	launch.text = "PLAY 3D VILLAGE — VS CPU"
 	launch.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	launch.offset_left = 140.0
 	launch.offset_right = -140.0
 	launch.offset_top = -92.0
 	launch.offset_bottom = -32.0
 	launch.pressed.connect(func() -> void:
-		GameState.solo_vs_cpu = false
-		get_tree().change_scene_to_file("res://scenes/3d/game_world_3d.tscn"))
+		if _difficulty_picker and is_instance_valid(_difficulty_picker):
+			_close_difficulty_picker()
+		_build_difficulty_picker(true))
 	add_child(launch)
