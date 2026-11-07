@@ -106,7 +106,8 @@ func _append_stroke(screen_point: Vector2) -> void:
 		var sample := get_world_3d().direct_space_state.intersect_ray(ray)
 		if sample.is_empty() or sample.get("collider") != surface:
 			continue
-		current.add_surface_point(sample["position"], sample["normal"])
+		current.add_surface_point(sample["position"], sample["normal"], false)
+	current.rebuild_mesh()
 
 func _end_stroke() -> void:
 	if current == null:
