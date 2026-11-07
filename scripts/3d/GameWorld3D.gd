@@ -65,6 +65,8 @@ var cpu_inspection_count := 0
 var cpu_scan_cooldown := 0.0
 var cpu_stuck_seconds := 0.0
 var cpu_repath_count := 0
+var cpu_step_attempts := 0
+var cpu_step_successes := 0
 var coin_panel: Panel
 var coin_face_label: Label
 var coin_tween: Tween
@@ -214,8 +216,11 @@ func _physics_process(delta: float) -> void:
 	cpu_body.move_and_slide()
 	var moved := cpu_body.global_position - old_bot_position
 	var intended_motion := Vector3(cpu_body.velocity.x, 0, cpu_body.velocity.z) * delta
-	if bot_grounded and Vector2(moved.x, moved.z).length() < 0.014 and intended_motion.length() > 0.025:
-		CharacterStep3D.try_step(cpu_body, intended_motion)
+	if bot_grounded and intended_motion.length() > 0.025 and (
+			cpu_body.is_on_wall() or Vector2(moved.x, moved.z).length() < intended_motion.length() * 0.75):
+		cpu_step_attempts += 1
+		if CharacterStep3D.try_step(cpu_body, intended_motion):
+			cpu_step_successes += 1
 	if cpu_roof_anchor != Vector3.INF and cpu_body.global_position.distance_to(cpu_roof_anchor) < 1.8 and cpu_body.global_position.y > 3.0:
 		cpu_roof_visits += 1
 		cpu_total_roof_visits += 1
