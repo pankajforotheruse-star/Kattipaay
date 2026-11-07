@@ -40,7 +40,7 @@ func _run() -> void:
 		_check(chalk.struck, "CPU physically detects and strikes nearby visible human chalk")
 	game._finish_match()
 	var locked_result: String = game.result
-	var saved_once := game.last_result_saved
+	var saved_once: bool = game.last_result_saved
 	game._finish_match()
 	_check(game.result == locked_result and game.last_result_saved == saved_once, "Repeated result finalization is idempotent")
 	game._advance_phase()
