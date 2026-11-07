@@ -7,7 +7,7 @@ const MEETING_TIME := 5.0
 const SEARCH_TIME := 30.0
 const BOT_SPEED := 4.2
 const CPU_SEARCH_SPEEDS := [3.0, 3.6, 4.2, 4.7]
-const CPU_INSPECTION_RADII := [2.0, 2.4, 2.8, 3.0]
+const CPU_INSPECTION_RADII := [4.0, 5.0, 6.0, 7.0]
 const CPU_STRIKE_DELAYS := [1.3, 0.9, 0.65, 0.45]
 const HUMAN_ID := 1
 const CPU_ID := 2
@@ -62,6 +62,9 @@ var result_hold_left := 0.0
 var result_scene_exit_enabled := true
 var cpu_patrol_step := 0
 var cpu_inspection_count := 0
+var cpu_scan_cooldown := 0.0
+var cpu_stuck_seconds := 0.0
+var cpu_repath_count := 0
 var coin_panel: Panel
 var coin_face_label: Label
 
@@ -181,7 +184,19 @@ func _physics_process(delta: float) -> void:
 		cpu_body.velocity.z = 0.0
 	else:
 		_advance_bot()
+	var old_bot_position := cpu_body.global_position
 	cpu_body.move_and_slide()
+	var commanded := Vector2(cpu_body.velocity.x, cpu_body.velocity.z).length()
+	if commanded > 1.5 and cpu_body.global_position.distance_to(old_bot_position) < 0.012:
+		cpu_stuck_seconds += delta
+	else:
+		cpu_stuck_seconds = 0.0
+	if cpu_stuck_seconds > 1.25:
+		cpu_stuck_seconds = 0.0
+		cpu_repath_count += 1
+		cpu_path.clear()
+		cpu_route_index = 0
+		_choose_cpu_destination()
 
 func _process(delta: float) -> void:
 	super._process(delta)
@@ -205,6 +220,7 @@ func _process(delta: float) -> void:
 		_play_cue("play_draw_warning")
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
+	cpu_scan_cooldown = maxf(0.0, cpu_scan_cooldown - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
 		if cpu_idle_time <= 0.0:
@@ -298,8 +314,8 @@ func _advance_bot() -> void:
 			cpu_route_index += 1
 		else:
 			var direction := horizontal.normalized()
-			cpu_body.velocity.x = direction.x * cpu_speed
-			cpu_body.velocity.z = direction.z * cpu_speed
+			cpu_body.velocity.x = move_toward(cpu_body.velocity.x, direction.x * cpu_speed, 15.0 * get_physics_process_delta_time())
+			cpu_body.velocity.z = move_toward(cpu_body.velocity.z, direction.z * cpu_speed, 15.0 * get_physics_process_delta_time())
 	else:
 		cpu_body.velocity.x = 0.0
 		cpu_body.velocity.z = 0.0
@@ -347,8 +363,9 @@ func _attempt_cpu_draw() -> void:
 		return
 
 func _cpu_inspect() -> void:
-	if cpu_strike_cooldown > 0.0:
+	if cpu_strike_cooldown > 0.0 or cpu_scan_cooldown > 0.0:
 		return
+	cpu_scan_cooldown = 0.15
 	_inspect_nearby_public_cover()
 	# CPU never chooses a waypoint from the player's hidden stroke coordinates.
 	# It only looks for actually visible strokes at its current physical eye.
@@ -415,6 +432,8 @@ func _begin_search(who: int) -> void:
 	cpu_patrol_step = 0
 	cpu_inspection_count = 0
 	cpu_strike_cooldown = 0.0
+	cpu_scan_cooldown = 0.0
+	cpu_stuck_seconds = 0.0
 	phase_left = configured_search_seconds
 	human_idle_seconds = 0.0
 	bot_follow_refresh = 0.0
