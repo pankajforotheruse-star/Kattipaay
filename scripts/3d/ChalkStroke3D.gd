@@ -81,7 +81,8 @@ func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, m
 		return false
 	# Broad-phase before any physics raycast. Parent may be a moving cover,
 	# so evaluate the cached sphere in world space each time.
-	var world_radius := local_radius * global_transform.basis.get_scale().max_axis()
+	var scale := global_transform.basis.get_scale()
+	var world_radius := local_radius * maxf(scale.x, maxf(scale.y, scale.z))
 	if eye_position.distance_to(to_global(local_center)) > max_distance + world_radius:
 		return false
 	# Visibility is evaluated per visible stroke segment, not per entire mark
