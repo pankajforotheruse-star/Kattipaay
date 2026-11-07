@@ -213,9 +213,12 @@ func _physics_process(delta: float) -> void:
 		_advance_bot()
 	var old_bot_position := cpu_body.global_position
 	var bot_grounded := cpu_body.is_on_floor()
+	# move_and_slide modifies velocity on wall impact. Capture the command
+	# first, otherwise the step solver and stuck watchdog see zero motion.
+	var commanded_velocity := Vector3(cpu_body.velocity.x, 0, cpu_body.velocity.z)
 	cpu_body.move_and_slide()
 	var moved := cpu_body.global_position - old_bot_position
-	var intended_motion := Vector3(cpu_body.velocity.x, 0, cpu_body.velocity.z) * delta
+	var intended_motion := commanded_velocity * delta
 	if bot_grounded and intended_motion.length() > 0.025 and (
 			cpu_body.is_on_wall() or Vector2(moved.x, moved.z).length() < intended_motion.length() * 0.75):
 		cpu_step_attempts += 1
@@ -229,7 +232,7 @@ func _physics_process(delta: float) -> void:
 		cpu_roof_return_count += 1
 		cpu_total_roof_returns += 1
 		cpu_roof_base = Vector3.INF
-	var commanded := Vector2(cpu_body.velocity.x, cpu_body.velocity.z).length()
+	var commanded := Vector2(commanded_velocity.x, commanded_velocity.z).length()
 	if commanded > 1.5 and cpu_body.global_position.distance_to(old_bot_position) < 0.012:
 		cpu_stuck_seconds += delta
 	else:
