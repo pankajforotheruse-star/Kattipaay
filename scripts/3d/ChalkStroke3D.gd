@@ -14,6 +14,9 @@ var discovered: bool = false
 var struck: bool = false
 var is_sneak: bool = false
 var stroke_mesh: MeshInstance3D
+var local_center := Vector3.ZERO
+var local_radius := 0.0
+static var chalk_material: StandardMaterial3D
 
 func _ready() -> void:
 	stroke_mesh = MeshInstance3D.new()
@@ -26,6 +29,16 @@ func add_surface_point(world_position: Vector3, world_normal: Vector3, update_me
 	var n := (global_transform.basis.inverse() * world_normal).normalized()
 	if not local_points.is_empty() and local_points[local_points.size() - 1].distance_to(p) < 0.015:
 		return
+	if local_points.is_empty():
+		local_center = p
+		local_radius = 0.0
+	else:
+		# Conservative, incremental bounding sphere. No mark is discarded.
+		var delta := p.distance_to(local_center)
+		if delta > local_radius:
+			var enlarged := (local_radius + delta) * 0.5
+			local_center += (p - local_center).normalized() * (enlarged - local_radius)
+			local_radius = enlarged
 	local_points.append(p)
 	local_normals.append(n)
 	if update_mesh:
@@ -55,15 +68,21 @@ func rebuild_mesh() -> void:
 			output.surface_add_vertex(point)
 	output.surface_end()
 	stroke_mesh.mesh = output
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color(0.95, 0.92, 0.80, 1.0)
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.no_depth_test = false
-	stroke_mesh.material_override = material
+	if chalk_material == null:
+		chalk_material = StandardMaterial3D.new()
+		chalk_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		chalk_material.albedo_color = Color(0.95, 0.92, 0.80, 1.0)
+		chalk_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		chalk_material.no_depth_test = false
+	stroke_mesh.material_override = chalk_material
 
 func visible_to_eye(eye_position: Vector3, physics: PhysicsDirectSpaceState3D, max_distance: float = 12.0, viewer_rid: RID = RID()) -> bool:
 	if local_points.is_empty() or struck:
+		return false
+	# Broad-phase before any physics raycast. Parent may be a moving cover,
+	# so evaluate the cached sphere in world space each time.
+	var world_radius := local_radius * global_transform.basis.get_scale().max_axis()
+	if eye_position.distance_to(to_global(local_center)) > max_distance + world_radius:
 		return false
 	# Visibility is evaluated per visible stroke segment, not per entire mark
 	# and not merely by one stored endpoint. Long strokes can be partly hidden.
@@ -122,6 +141,8 @@ func from_save_dict(data: Dictionary) -> bool:
 	is_sneak = bool(data.get("sneak", false))
 	local_points.clear()
 	local_normals.clear()
+	local_center = Vector3.ZERO
+	local_radius = 0.0
 	var raw_points: Array = data.get("points", [])
 	var raw_normals: Array = data.get("normals", [])
 	if raw_points.size() != raw_normals.size() or raw_points.size() > 10000:
@@ -131,7 +152,8 @@ func from_save_dict(data: Dictionary) -> bool:
 		var n: Array = raw_normals[i]
 		if p.size() != 3 or n.size() != 3:
 			return false
-		local_points.append(Vector3(float(p[0]), float(p[1]), float(p[2])))
-		local_normals.append(Vector3(float(n[0]), float(n[1]), float(n[2])).normalized())
+		var point := Vector3(float(p[0]), float(p[1]), float(p[2]))
+		var normal := Vector3(float(n[0]), float(n[1]), float(n[2])).normalized())
+		add_surface_point(to_global(point), (global_transform.basis * normal).normalized(), false)
 	rebuild_mesh()
 	return true
