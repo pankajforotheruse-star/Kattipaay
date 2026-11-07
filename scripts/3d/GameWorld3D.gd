@@ -782,7 +782,10 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		if base == null or top == null or entry == null:
 			continue
 		targets.append({"roof": marker, "base": base, "top": top, "entry": entry})
-	targets.shuffle()
+	targets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_base := a["base"] as Marker3D
+		var b_base := b["base"] as Marker3D
+		return cpu_body.global_position.distance_squared_to(a_base.global_position) < cpu_body.global_position.distance_squared_to(b_base.global_position))
 	for route in targets:
 		var start: Vector3 = (route["base"] as Marker3D).global_position
 		var entrance := start + Vector3(0, 0, 1.3)
