@@ -40,6 +40,7 @@ func _run() -> void:
 		_check(chalk.struck, "CPU physically detects and strikes nearby visible human chalk")
 	game._finish_match()
 	_check(game.phase == "RESULT", "Winner transition reaches result state")
+	_check(game.result_panel != null and game.result_panel.visible, "Visible non-dimming winner banner is shown")
 	_check(game.result_hold_left >= 3.0, "Result holds visibly before returning to menu")
 	var initial: Vector3 = game.walker.global_position
 	game._physics_process(0.1)
