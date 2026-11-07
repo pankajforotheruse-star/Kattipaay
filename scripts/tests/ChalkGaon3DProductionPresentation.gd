@@ -48,6 +48,11 @@ func _run() -> void:
 	_check(game.aiming_reticle is Label, "Drawing/search reticle exists")
 	_check(game.interaction_hint is Label, "Context-sensitive action prompt exists")
 	_check(game.performance_qa is AndroidPerformance3D, "Opt-in Android QA sampler attached")
+	_check(game.pause_menu is PanelContainer, "Accessible pause and audio settings overlay exists")
+	game._set_match_paused(true)
+	_check(game.match_paused and game.pause_menu.visible, "Pause shows usable settings overlay")
+	game._set_match_paused(false)
+	_check(not game.match_paused and not game.pause_menu.visible, "Resume hides settings and returns control")
 	if failures.is_empty():
 		print("CHALK_GAON_3D_PRODUCTION_PRESENTATION: PASS (structure/audio synthesis/poses/UI)")
 		quit(0)
