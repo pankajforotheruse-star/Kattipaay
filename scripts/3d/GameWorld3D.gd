@@ -200,11 +200,12 @@ func _physics_process(delta: float) -> void:
 	if not Territory3D.can_enter(HUMAN_ID, walker.global_position, phase, searcher):
 		walker.global_position = before_human_move
 		walker.velocity = Vector3.ZERO
+	var human_moving := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or mobile_move.length_squared() > 0.05
+	if human_moving or (draw_controller != null and draw_controller.current != null):
+		player_input_seconds += delta
 	if phase == "SEARCHING" and searcher == CPU_ID:
-		var manual_move := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or mobile_move.length_squared() > 0.05
+		var manual_move := human_moving
 		human_idle_seconds = 0.0 if manual_move else human_idle_seconds + delta
-		if manual_move:
-			player_input_seconds += delta
 		if manual_move:
 			human_follow_path.clear()
 			human_follow_index = 0
