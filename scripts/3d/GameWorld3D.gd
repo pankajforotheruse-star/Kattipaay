@@ -70,6 +70,15 @@ var coin_face_label: Label
 var coin_tween: Tween
 var result_panel: Panel
 var result_label: Label
+var human_follow_path := PackedVector3Array()
+var human_follow_index := 0
+var human_follow_refresh := 0.0
+var cpu_open_cover: RigidBody3D
+var cpu_cover_hold_seconds := 0.0
+var cpu_roof_visits := 0
+var cpu_roof_return_count := 0
+var cpu_roof_anchor: Vector3 = Vector3.INF
+var cpu_roof_base: Vector3 = Vector3.INF
 
 func _ready() -> void:
 	super._ready()
@@ -166,16 +175,21 @@ func _physics_process(delta: float) -> void:
 	# Disable original debug territory switch; enforce phase gates here.
 	debug_phase = "DRAWING" if phase == "DRAWING" else "SEARCHING"
 	debug_owner_id = HUMAN_ID
+	var before_human_move := walker.global_position
 	super._physics_process(delta)
+	# The graybox controller permits switching territories for debug play.
+	# The match must instead enforce the real searcher/defender permissions.
+	if not Territory3D.can_enter(HUMAN_ID, walker.global_position, phase, searcher):
+		walker.global_position = before_human_move
+		walker.velocity = Vector3.ZERO
 	if phase == "SEARCHING" and searcher == CPU_ID:
 		var manual_move := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or mobile_move.length_squared() > 0.05
 		human_idle_seconds = 0.0 if manual_move else human_idle_seconds + delta
-		if human_idle_seconds > 3.0 and walker.global_position.distance_to(cpu_body.global_position) > 3.2:
-			var follow := cpu_body.global_position - walker.global_position
-			follow.y = 0.0
-			walker.velocity.x = follow.normalized().x * 2.4
-			walker.velocity.z = follow.normalized().z * 2.4
-			walker.move_and_slide()
+		if manual_move:
+			human_follow_path.clear()
+			human_follow_index = 0
+		elif human_idle_seconds > 3.0:
+			_follow_cpu_as_defender(delta)
 	if cpu_body == null or phase == "RESULT":
 		return
 	if cpu_body.is_on_floor():
@@ -190,6 +204,12 @@ func _physics_process(delta: float) -> void:
 		_advance_bot()
 	var old_bot_position := cpu_body.global_position
 	cpu_body.move_and_slide()
+	if cpu_roof_anchor != Vector3.INF and cpu_body.global_position.distance_to(cpu_roof_anchor) < 1.8 and cpu_body.global_position.y > 3.0:
+		cpu_roof_visits += 1
+		cpu_roof_anchor = Vector3.INF
+	if cpu_roof_base != Vector3.INF and cpu_roof_visits > cpu_roof_return_count and cpu_body.global_position.distance_to(cpu_roof_base) < 1.8 and cpu_body.global_position.y < 1.8:
+		cpu_roof_return_count += 1
+		cpu_roof_base = Vector3.INF
 	var commanded := Vector2(cpu_body.velocity.x, cpu_body.velocity.z).length()
 	if commanded > 1.5 and cpu_body.global_position.distance_to(old_bot_position) < 0.012:
 		cpu_stuck_seconds += delta
@@ -222,6 +242,14 @@ func _process(delta: float) -> void:
 		clock_warning_count += 1
 		message = "LAST 5 SECONDS!"
 		_play_cue("play_draw_warning")
+	if cpu_open_cover != null and is_instance_valid(cpu_open_cover):
+		cpu_cover_hold_seconds -= delta
+		if cpu_cover_hold_seconds <= 0.0:
+			if _can_restore_cover(cpu_open_cover):
+				_toggle_cover_body(cpu_open_cover)
+				cpu_open_cover = null
+			else:
+				cpu_cover_hold_seconds = 0.25
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
 	cpu_scan_cooldown = maxf(0.0, cpu_scan_cooldown - delta)
@@ -246,6 +274,10 @@ func _process(delta: float) -> void:
 	_update_hud()
 
 func _human_stroke_created(stroke: ChalkStroke3D) -> void:
+	if phase != "DRAWING" and not (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
+		stroke.struck = true
+		stroke.visible = false
+		return
 	stroke.owner_id = HUMAN_ID
 	if phase == "SEARCHING":
 		if not cheating_enabled or searcher != CPU_ID or sneak_uses >= 3:
@@ -270,20 +302,20 @@ func _choose_cpu_destination() -> void:
 	if phase == "SEARCHING" and searcher == CPU_ID:
 		# Public-map patrol sweeps the courtyard before attempting a roof.
 		# This avoids spending the whole 30-second search on a distant ramp.
+		if not cpu_roof_attempted:
+			cpu_roof_attempted = true
+			if _assign_physical_roof_route(nav):
+				return
 		if cpu_patrol_step < 3:
 			var patrol_points := [
 				Vector3(-14, 0.85, 0), Vector3(-27, 0.85, -9),
 				Vector3(-40, 0.85, 10)]
 			var waypoint: Vector3 = patrol_points[cpu_patrol_step]
 			cpu_patrol_step += 1
-			var patrol_path := nav.find_path(cpu_body.global_position, waypoint)
+			var patrol_path := nav.find_path_near(cpu_body.global_position, waypoint)
 			if not patrol_path.is_empty():
 				cpu_path = patrol_path
 				cpu_route_index = 0
-				return
-		if not cpu_roof_attempted:
-			cpu_roof_attempted = true
-			if _assign_physical_roof_route(nav):
 				return
 	var candidates := PackedVector3Array()
 	for i in range(24):
@@ -295,7 +327,7 @@ func _choose_cpu_destination() -> void:
 	if candidates.is_empty():
 		return
 	cpu_wander_target = candidates[rng.randi_range(0, candidates.size() - 1)]
-	cpu_path = nav.find_path(cpu_body.global_position, cpu_wander_target)
+	cpu_path = nav.find_path_near(cpu_body.global_position, cpu_wander_target)
 	cpu_route_index = 0
 
 func _advance_bot() -> void:
@@ -307,7 +339,7 @@ func _advance_bot() -> void:
 		bot_follow_refresh -= get_physics_process_delta_time()
 		if bot_follow_refresh <= 0.0:
 			bot_follow_refresh = 1.0
-			cpu_path = cpu_nav.find_path(cpu_body.global_position, walker.global_position)
+			cpu_path = cpu_nav.find_path_near(cpu_body.global_position, walker.global_position)
 			cpu_route_index = 0
 	elif cpu_route_index >= cpu_path.size():
 		_choose_cpu_destination()
@@ -367,6 +399,8 @@ func _attempt_cpu_draw() -> void:
 		return
 
 func _cpu_inspect() -> void:
+	if phase != "SEARCHING" or searcher != CPU_ID:
+		return
 	if cpu_strike_cooldown > 0.0 or cpu_scan_cooldown > 0.0:
 		return
 	cpu_scan_cooldown = 0.15
@@ -386,6 +420,8 @@ func _cpu_inspect() -> void:
 			break
 
 func _human_strike_visible() -> void:
+	if phase != "SEARCHING" or searcher != HUMAN_ID:
+		return
 	if human_strike_delay > 0.0:
 		message = "CPU distracted you: wait before striking"
 		return
@@ -401,6 +437,10 @@ func _human_strike_visible() -> void:
 	message = "No visible CPU line close enough to strike"
 
 func _advance_phase() -> void:
+	if phase == "RESULT":
+		return
+	if draw_controller != null and draw_controller.current != null:
+		draw_controller._end_stroke()
 	five_second_warned = false
 	drawing_mode = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -431,8 +471,18 @@ func _advance_phase() -> void:
 func _begin_search(who: int) -> void:
 	five_second_warned = false
 	phase = "SEARCHING"
+	_restore_open_cover()
 	checked_public_covers.clear()
+	cpu_open_cover = null
+	cpu_cover_hold_seconds = 0.0
 	cpu_roof_attempted = false
+	cpu_roof_anchor = Vector3.INF
+	cpu_roof_base = Vector3.INF
+	cpu_roof_visits = 0
+	cpu_roof_return_count = 0
+	human_follow_path.clear()
+	human_follow_index = 0
+	human_follow_refresh = 0.0
 	cpu_patrol_step = 0
 	cpu_inspection_count = 0
 	cpu_strike_cooldown = 0.0
@@ -577,7 +627,7 @@ func _reveal_nearby_cpu_strokes() -> void:
 	for stroke in cpu_lines:
 		if not is_instance_valid(stroke) or stroke.struck or stroke.discovered:
 			continue
-		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5):
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5, walker.get_rid()):
 			stroke.discovered = true
 			stroke.visible = true
 			message = "Chalk spotted nearby — press E to strike"
@@ -699,7 +749,7 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 	for route in targets:
 		var start: Vector3 = (route["base"] as Marker3D).global_position
 		var entrance := start + Vector3(0, 0, 1.3)
-		var ground_path := nav.find_path(cpu_body.global_position, entrance)
+		var ground_path := nav.find_path_near(cpu_body.global_position, entrance)
 		if ground_path.is_empty():
 			continue
 		cpu_path = ground_path
@@ -707,6 +757,12 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		cpu_path.append((route["top"] as Marker3D).global_position)
 		cpu_path.append((route["entry"] as Marker3D).global_position)
 		cpu_path.append((route["roof"] as Marker3D).global_position)
+		# Return physically down the same ramp; no roof teleport.
+		cpu_path.append((route["entry"] as Marker3D).global_position)
+		cpu_path.append((route["top"] as Marker3D).global_position)
+		cpu_path.append(start)
+		cpu_roof_anchor = (route["roof"] as Marker3D).global_position
+		cpu_roof_base = start
 		cpu_route_index = 0
 		message = "CPU exploring a public rooftop route"
 		return true
@@ -848,3 +904,45 @@ func _show_result_visual() -> void:
 	result_panel.show()
 	result_panel.scale = Vector2(0.86, 0.86)
 	create_tween().tween_property(result_panel, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+## Idle human defender follows via public obstacle-aware navigation, not a
+## straight-line slide through walls. Manual movement always overrides it.
+func _follow_cpu_as_defender(delta: float) -> void:
+	if not human_nav.built or cpu_body == null:
+		return
+	if walker.global_position.distance_to(cpu_body.global_position) <= 3.2:
+		human_follow_path.clear()
+		walker.velocity.x = move_toward(walker.velocity.x, 0.0, 12.0 * delta)
+		walker.velocity.z = move_toward(walker.velocity.z, 0.0, 12.0 * delta)
+		return
+	human_follow_refresh -= delta
+	if human_follow_refresh <= 0.0 or human_follow_index >= human_follow_path.size():
+		human_follow_refresh = 0.65
+		human_follow_path = human_nav.find_path_near(walker.global_position, cpu_body.global_position)
+		human_follow_index = 0
+	if human_follow_index >= human_follow_path.size():
+		return
+	var target := human_follow_path[human_follow_index]
+	var planar := target - walker.global_position
+	planar.y = 0.0
+	if planar.length() < 0.6:
+		human_follow_index += 1
+		return
+	var intended := planar.normalized() * 2.5
+	walker.velocity.x = move_toward(walker.velocity.x, intended.x, 12.0 * delta)
+	walker.velocity.z = move_toward(walker.velocity.z, intended.z, 12.0 * delta)
+	var previous := walker.global_position
+	walker.move_and_slide()
+	if not Territory3D.can_enter(HUMAN_ID, walker.global_position, phase, searcher):
+		walker.global_position = previous
+		walker.velocity = Vector3.ZERO
+
+## Do not replace a lifted physical crate into a player's capsule.
+func _can_restore_cover(body: RigidBody3D) -> bool:
+	if body == null or not is_instance_valid(body):
+		return false
+	var base: Vector3 = body.get_meta("cover_base_position", body.global_position)
+	for actor in [walker, cpu_body]:
+		if actor != null and actor.global_position.distance_to(base) < 1.1:
+			return false
+	return true
