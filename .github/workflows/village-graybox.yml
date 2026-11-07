@@ -80,6 +80,12 @@ jobs:
           timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DAnalyticsQA.gd --log-file 3d-analytics-qa.log
           grep -q 'CHALK_GAON_3D_ANALYTICS_QA: PASS' 3d-analytics-qa.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-analytics-qa.log
+      - name: Scripted physical 3D match batch harness smoke
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.4-stable_linux.x86_64 --headless --fixed-fps 60 --path . --script res://scripts/tests/ChalkGaon3DScriptedMatchBatch.gd -- --rounds=1 --difficulty=1 --fast --log-file 3d-scripted-batch.log
+          grep -q 'CHALK_GAON_3D_SCRIPTED_MATCH_BATCH: PASS' 3d-scripted-batch.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-scripted-batch.log
       - name: CPU physical chalk balance benchmark
         continue-on-error: true
         run: |
@@ -141,6 +147,7 @@ jobs:
             3d-navigation-authority.log
             3d-touch-arbitration.log
             3d-analytics-qa.log
+            3d-scripted-batch.log
             3d-persistence-cover.log
             3d-round.log
             3d-end-to-end.log
