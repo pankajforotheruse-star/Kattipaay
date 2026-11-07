@@ -792,14 +792,21 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 		var ground_path := nav.find_path_near(cpu_body.global_position, entrance)
 		if ground_path.is_empty():
 			continue
+		var crest: Vector3 = (route["top"] as Marker3D).global_position
+		var roof_entry: Vector3 = (route["entry"] as Marker3D).global_position
 		cpu_path = ground_path
 		cpu_path.append(start)
-		cpu_path.append((route["top"] as Marker3D).global_position)
-		cpu_path.append((route["entry"] as Marker3D).global_position)
+		# Dense off-mesh ramp waypoints prevent the controller cutting a
+		# corner across a roof lip while ascending or descending.
+		for step in range(1, 4):
+			cpu_path.append(start.lerp(crest, float(step) / 4.0))
+		cpu_path.append(crest)
+		cpu_path.append(roof_entry)
 		cpu_path.append((route["roof"] as Marker3D).global_position)
-		# Return physically down the same ramp; no roof teleport.
-		cpu_path.append((route["entry"] as Marker3D).global_position)
-		cpu_path.append((route["top"] as Marker3D).global_position)
+		cpu_path.append(roof_entry)
+		cpu_path.append(crest)
+		for step in range(3, 0, -1):
+			cpu_path.append(start.lerp(crest, float(step) / 4.0))
 		cpu_path.append(start)
 		cpu_roof_anchor = (route["roof"] as Marker3D).global_position
 		cpu_roof_base = start
