@@ -21,6 +21,7 @@ var mobile_move_touch := -1
 var mobile_start := Vector2.ZERO
 var mobile_jump := false
 var material_textures: Dictionary = {}
+var soundscape: VillageSoundscape3D
 const WALK_ACCELERATION := 13.0
 const WALK_DECELERATION := 19.0
 const CAMERA_FOLLOW_RATE := 12.0
@@ -42,6 +43,9 @@ func _ready() -> void:
 	village_art.name = "AuthoredVillageDressing"
 	add_child(village_art)
 	_make_walker()
+	soundscape = VillageSoundscape3D.new()
+	soundscape.name = "SpatialVillageSoundscape"
+	add_child(soundscape)
 	_make_ui()
 	_make_draw_controller()
 	_validate_layout()
@@ -302,6 +306,8 @@ func _physics_process(delta: float) -> void:
 	if not Territory3D.can_enter(debug_owner_id, walker.global_position, debug_phase, debug_owner_id):
 		walker.global_position = before_move
 		walker.velocity = Vector3.ZERO
+	if soundscape != null and walker.is_on_floor():
+		soundscape.footstep(walker.global_position, Vector2(walker.velocity.x, walker.velocity.z).length(), walker.global_position.y > 2.4)
 	var target := walker.global_position + Vector3(0, 1.1, 0)
 	var offset := Vector3(sin(yaw) * 4.3 * cos(pitch), 1.35 - sin(pitch) * 3.8, cos(yaw) * 4.3 * cos(pitch))
 	var desired_camera_position := target + offset
