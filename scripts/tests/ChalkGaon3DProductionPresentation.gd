@@ -23,7 +23,9 @@ func _run() -> void:
 		for child in art.get_children():
 			if child is CollisionObject3D:
 				colliders += 1
-		_check(colliders == 0, "Visual dressing never changes physical chalk/search collision")
+		_check(colliders == 4, "Two wells and two charpais have physical colliders")
+		var well := art.get_node_or_null("WellPhysicalCollision")
+		_check(well is StaticBody3D and well.is_in_group("graybox_surfaces"), "Well can physically block searcher and receive chalk")
 	var sound := game.get_node_or_null("SpatialVillageSoundscape") as VillageSoundscape3D
 	_check(sound != null, "Spatial village soundscape loaded")
 	if sound != null:
