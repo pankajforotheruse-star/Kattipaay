@@ -10,7 +10,7 @@
 - `VillageGraybox.gd`: physically collidable two-zone courtyard with four walkable roofs and ramps, directional shadows, procedural sky, plaster/wood/stone materials; cached surface materials and configurable rendering resolution.
 - `CharacterRig3D.gd`: articulated, state-blended procedural locomotion, breathing, crouch, draw, search/inspect, strike, argument and coin gestures driven by actual game actions.
 - `VillageSoundscape3D.gd`: original generated PCM spatial wind, cicadas, birds, soil/stone footfalls. Uses small 11.025kHz mono streams and disables playback in headless tests. Existing `AudioManager` handles timer/coin/chalk/argument cues.
-- `GameWorld3D.gd`: round timer/progress bar, aiming reticle, contextual controls, touch pause, coin and result UI.
+- `GameWorld3D.gd`: round timer/progress bar, aiming reticle, contextual controls, touch pause, a resume/master-volume/exit settings panel, coin and result UI.
 
 **Important art limitation:** These are original procedural low-poly assets and articulated animation, not licensed photogrammetry, professionally textured PBR GLB assets, motion-captured skeletal animations, or recorded field ambience. They improve the *playable 3D vertical slice*; a professional artist/audio pass and actual in-editor/device screenshot reviews are still required to certify shipping-level realism.
 
