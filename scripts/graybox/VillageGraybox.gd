@@ -302,7 +302,17 @@ func _physics_process(delta: float) -> void:
 	var camera_hit := get_world_3d().direct_space_state.intersect_ray(camera_query)
 	if not camera_hit.is_empty():
 		desired_camera_position = camera_hit["position"] + camera_hit["normal"] * 0.2
-	camera.global_position = camera.global_position.lerp(desired_camera_position, 1.0 - exp(-CAMERA_FOLLOW_RATE * delta))
+	# Never interpolate the camera through a building after a phase teleport.
+	# Recast after smoothing so the camera cannot enter an opaque wall.
+	var candidate := desired_camera_position
+	if camera.global_position.distance_to(desired_camera_position) < 12.0:
+		candidate = camera.global_position.lerp(desired_camera_position, 1.0 - exp(-CAMERA_FOLLOW_RATE * delta))
+	var smooth_query := PhysicsRayQueryParameters3D.create(target, candidate)
+	smooth_query.exclude = [walker.get_rid()]
+	var smooth_hit := get_world_3d().direct_space_state.intersect_ray(smooth_query)
+	if not smooth_hit.is_empty():
+		candidate = smooth_hit["position"] + smooth_hit["normal"] * 0.25
+	camera.global_position = candidate
 	camera.look_at(target)
 	info.text = "CHALK GAON | 3D GRAYBOX ONLY\nWASD move | Mouse look | Space jump | Shift run | C crouch | F draw | G phase | Tab role/zone | Esc free mouse\nZone: %s | Position: %s\nNo 2D match, drawing or CPU integration in this scene." % ["PLAYER" if walker.global_position.x < 0 else "CPU", str(walker.global_position.round())]
 
