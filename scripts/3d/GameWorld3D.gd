@@ -62,6 +62,8 @@ var result_hold_left := 0.0
 var result_scene_exit_enabled := true
 var cpu_patrol_step := 0
 var cpu_inspection_count := 0
+var coin_panel: Panel
+var coin_face_label: Label
 
 func _ready() -> void:
 	super._ready()
@@ -83,6 +85,7 @@ func _ready() -> void:
 	debug_phase = "DRAWING"
 	_make_cpu_body()
 	_make_touch_controls()
+	_make_coin_visual()
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
@@ -396,6 +399,7 @@ func _advance_phase() -> void:
 	elif phase == "MEETING":
 		coin_face = rng.randi_range(0, 1)
 		_play_cue("play_coin_clink")
+		_animate_coin_flip()
 		if coin_call < 0:
 			coin_call = rng.randi_range(0, 1)
 		first_searcher = HUMAN_ID if coin_face == coin_call else CPU_ID
@@ -733,3 +737,53 @@ func _restore_open_cover() -> void:
 		var body := node as RigidBody3D
 		if body != null and is_instance_valid(body) and bool(body.get_meta("cover_lifted", false)):
 			_toggle_cover_body(body)
+
+## A real animated coin UI rather than an instant text-only result. The
+## panel has no full-screen dimming layer and never intercepts input.
+func _make_coin_visual() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "CoinTossPresentation"
+	add_child(layer)
+	coin_panel = Panel.new()
+	coin_panel.name = "Coin"
+	coin_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	coin_panel.offset_left = -66.0
+	coin_panel.offset_right = 66.0
+	coin_panel.offset_top = 64.0
+	coin_panel.offset_bottom = 196.0
+	coin_panel.pivot_offset = Vector2(66, 66)
+	coin_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.85, 0.63, 0.19)
+	style.border_color = Color(0.98, 0.88, 0.54)
+	style.set_border_width_all(6)
+	style.set_corner_radius_all(66)
+	coin_panel.add_theme_stylebox_override("panel", style)
+	layer.add_child(coin_panel)
+	coin_face_label = Label.new()
+	coin_face_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	coin_face_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	coin_face_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	coin_face_label.add_theme_font_size_override("font_size", 56)
+	coin_face_label.add_theme_color_override("font_color", Color(0.23, 0.17, 0.08))
+	coin_face_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coin_panel.add_child(coin_face_label)
+	coin_panel.hide()
+
+func _animate_coin_flip() -> void:
+	if coin_panel == null:
+		return
+	coin_panel.show()
+	coin_panel.scale = Vector2.ONE
+	coin_face_label.text = "?"
+	var tween := create_tween()
+	for flip in range(4):
+		tween.tween_property(coin_panel, "scale:x", 0.07, 0.10).set_trans(Tween.TRANS_SINE)
+		tween.tween_callback(func() -> void:
+			if is_instance_valid(coin_face_label):
+				coin_face_label.text = "H" if coin_face == 0 else "T")
+		tween.tween_property(coin_panel, "scale:x", 1.0, 0.10).set_trans(Tween.TRANS_SINE)
+	tween.tween_interval(0.85)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(coin_panel):
+			coin_panel.hide())
