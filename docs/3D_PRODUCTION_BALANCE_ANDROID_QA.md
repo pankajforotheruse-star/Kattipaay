@@ -6,7 +6,7 @@
 
 ### Visual presentation and audio
 
-- `VillageArt3D.gd`: original authored modular 3D village dressing: doors, timber rafters, brick plinths, shutters, clay pots, village well, charpai, straw bundles, pennants and two GPU-batched vegetation layers. Decorative geometry has **no collision**, so it does not compromise hidden chalk, navigation or roof routes. Low/balanced/high detail settings.
+- `VillageArt3D.gd`: original authored modular 3D village dressing: doors, timber rafters, brick plinths, shutters, clay pots, village well, charpai, straw bundles, pennants and two GPU-batched vegetation layers. Major landmarks (wells and charpais) have physical chalk-raycast collision and are included in the navigation rebuild; small details and batched vegetation are noncolliding. Low/balanced/high detail settings.
 - `VillageGraybox.gd`: physically collidable two-zone courtyard with four walkable roofs and ramps, directional shadows, procedural sky, plaster/wood/stone materials; cached surface materials and configurable rendering resolution.
 - `CharacterRig3D.gd`: articulated, state-blended procedural locomotion, breathing, crouch, draw, search/inspect, strike, argument and coin gestures driven by actual game actions.
 - `VillageSoundscape3D.gd`: original generated PCM spatial wind, cicadas, birds, soil/stone footfalls. Uses small 11.025kHz mono streams and disables playback in headless tests. Existing `AudioManager` handles timer/coin/chalk/argument cues.
