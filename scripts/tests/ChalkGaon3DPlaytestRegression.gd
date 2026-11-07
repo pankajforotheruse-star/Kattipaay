@@ -39,6 +39,16 @@ func _run() -> void:
 		game._cpu_inspect()
 		_check(chalk.struck, "CPU physically detects and strikes nearby visible human chalk")
 	game._finish_match()
+	var locked_result: String = game.result
+	var saved_once := game.last_result_saved
+	game._finish_match()
+	_check(game.result == locked_result and game.last_result_saved == saved_once, "Repeated result finalization is idempotent")
+	game._advance_phase()
+	_check(game.phase == "RESULT", "No phase transition after terminal result")
+	var forbidden := ChalkStroke3D.new()
+	game.add_child(forbidden)
+	game._human_stroke_created(forbidden)
+	_check(forbidden.struck and not game.saved_human_lines.has(forbidden), "No human drawing accepted after result")
 	_check(game.phase == "RESULT", "Winner transition reaches result state")
 	_check(game.result_panel != null and game.result_panel.visible, "Visible non-dimming winner banner is shown")
 	_check(game.result_hold_left >= 3.0, "Result holds visibly before returning to menu")
