@@ -48,3 +48,37 @@ func find_path(start: Vector3, destination: Vector3) -> PackedVector3Array:
 	for point in graph.get_id_path(start_cell, end_cell):
 		result.append(cell_to_world(point))
 	return result
+
+## Use the nearest collision-free grid cell when a requested marker lies just
+## inside a ramp lip or a moving cover. No teleportation: only path endpoints
+## are snapped to publicly traversable ground.
+func find_path_near(start: Vector3, destination: Vector3, radius_cells: int = 3) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	if not built:
+		return result
+	var from_cell := _nearest_open_cell(world_to_cell(start), radius_cells)
+	var to_cell := _nearest_open_cell(world_to_cell(destination), radius_cells)
+	if not graph.is_in_boundsv(from_cell) or not graph.is_in_boundsv(to_cell):
+		return result
+	for point in graph.get_id_path(from_cell, to_cell):
+		result.append(cell_to_world(point))
+	return result
+
+func _nearest_open_cell(cell: Vector2i, radius_cells: int) -> Vector2i:
+	if graph.is_in_boundsv(cell) and not graph.is_point_solid(cell):
+		return cell
+	var best := Vector2i(-9999, -9999)
+	var distance := 999999
+	for radius in range(1, maxi(1, radius_cells) + 1):
+		for x in range(-radius, radius + 1):
+			for y in range(-radius, radius + 1):
+				var candidate := cell + Vector2i(x, y)
+				if not graph.is_in_boundsv(candidate) or graph.is_point_solid(candidate):
+					continue
+				var d := x * x + y * y
+				if d < distance:
+					best = candidate
+					distance = d
+		if distance < 999999:
+			break
+	return best
