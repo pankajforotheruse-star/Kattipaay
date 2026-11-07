@@ -109,15 +109,10 @@ func _make_cpu_body() -> void:
 	shape.height = 1.7
 	collision.shape = shape
 	cpu_body.add_child(collision)
-	var skin := MeshInstance3D.new()
-	var mesh := CapsuleMesh.new()
-	mesh.radius = 0.35
-	mesh.height = 1.7
-	skin.mesh = mesh
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.86, 0.25, 0.20)
-	skin.material_override = material
-	cpu_body.add_child(skin)
+	var avatar := CharacterRig3D.new()
+	avatar.name = "CpuAvatar"
+	avatar.opponent = true
+	cpu_body.add_child(avatar)
 	add_child(cpu_body)
 
 func _unhandled_input(event: InputEvent) -> void:
