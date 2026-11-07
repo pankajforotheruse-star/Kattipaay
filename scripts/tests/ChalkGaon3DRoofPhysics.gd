@@ -69,13 +69,34 @@ func _run() -> void:
 		if not rose or not on_roof:
 			failed.append("%s unable to reach roof: %s" % [suffix, str(actor.global_position)])
 		else:
-			checked += 1
+			# Return through the exact same physical bridge/ramp; ascent alone
+			# can hide a one-way collision lip that traps live CPU searchers.
+			for destination in [entry.global_position, crest.global_position, foot.global_position]:
+				var target: Vector3 = destination
+				for frame in range(430):
+					var planar := target - actor.global_position
+					planar.y = 0.0
+					if planar.length() < 0.55 and absf(actor.global_position.y - target.y) < 1.2:
+						break
+					var direction := planar.normalized()
+					actor.velocity.x = direction.x * 4.3
+					actor.velocity.z = direction.z * 4.3
+					if actor.is_on_floor():
+						actor.velocity.y = -0.1
+					else:
+						actor.velocity.y -= 17.5 / float(Engine.physics_ticks_per_second)
+					actor.move_and_slide()
+					await physics_frame
+			if actor.global_position.y < 1.6 and actor.global_position.distance_to(foot.global_position) < 2.0:
+				checked += 1
+			else:
+				failed.append("%s unable to descend ramp: %s" % [suffix, str(actor.global_position)])
 		actor.queue_free()
 		await physics_frame
 	if checked != 4:
 		failed.append("Expected 4 verified roofs; reached %d" % checked)
 	if failed.is_empty():
-		print("CHALK_GAON_3D_ROOFS: PASS 4/4 physical traversals")
+		print("CHALK_GAON_3D_ROOFS: PASS 4/4 physical ascent/descent traversals")
 		quit(0)
 	else:
 		for issue in failed:
