@@ -219,7 +219,7 @@ func _physics_process(delta: float) -> void:
 	cpu_body.move_and_slide()
 	var moved := cpu_body.global_position - old_bot_position
 	var intended_motion := commanded_velocity * delta
-	if bot_grounded and intended_motion.length() > 0.025 and (
+	if bot_grounded and intended_motion.length() > 0.001 and (
 			cpu_body.is_on_wall() or Vector2(moved.x, moved.z).length() < intended_motion.length() * 0.75):
 		cpu_step_attempts += 1
 		if CharacterStep3D.try_step(cpu_body, intended_motion):
