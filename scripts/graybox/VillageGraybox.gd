@@ -22,6 +22,7 @@ var mobile_start := Vector2.ZERO
 var mobile_jump := false
 var material_textures: Dictionary = {}
 var soundscape: VillageSoundscape3D
+var performance_qa: AndroidPerformance3D
 const WALK_ACCELERATION := 13.0
 const WALK_DECELERATION := 19.0
 const CAMERA_FOLLOW_RATE := 12.0
@@ -46,16 +47,21 @@ func _ready() -> void:
 	soundscape = VillageSoundscape3D.new()
 	soundscape.name = "SpatialVillageSoundscape"
 	add_child(soundscape)
+	performance_qa = AndroidPerformance3D.new()
+	performance_qa.name = "AndroidPerformanceQA"
+	add_child(performance_qa)
 	_make_ui()
 	_make_draw_controller()
 	_validate_layout()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _make_light() -> void:
+	var quality := str(ProjectSettings.get_setting("chalk_gaon/3d_quality_tier", "balanced"))
+	get_viewport().scaling_3d_scale = 0.75 if quality == "low" else 1.0 if quality == "high" else 0.9
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -25, 0)
 	sun.light_energy = 1.25
-	sun.shadow_enabled = true
+	sun.shadow_enabled = quality != "low"
 	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)
 	var env := WorldEnvironment.new()
@@ -69,7 +75,7 @@ func _make_light() -> void:
 	sky.sky_material = sky_material
 	e.sky = sky
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.fog_enabled = true
+	e.fog_enabled = quality != "low"
 	e.fog_density = 0.003
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.85, 0.83, 0.78)
@@ -254,6 +260,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * 0.003
 		pitch = clampf(pitch - event.relative.y * 0.003, -0.9, 0.3)
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F9 and performance_qa != null:
+			performance_qa.export_report()
+		if event.keycode == KEY_F10 and performance_qa != null and performance_qa.enabled:
+			get_viewport().get_texture().get_image().save_png("user://chalk_gaon_3d_qa_screenshot.png")
 		if event.keycode == KEY_F:
 			drawing_mode = not drawing_mode
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if drawing_mode else Input.MOUSE_MODE_CAPTURED
