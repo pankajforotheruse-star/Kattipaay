@@ -172,6 +172,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					_push_nearby_crate()
 		if event.keycode == KEY_Q and phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1:
+			_actor_pose(HUMAN_ID, "argue")
+			_play_cue("play_argument_start")
 			argument_uses += 1
 			argument_delay = 3.0
 			message = "Argument: CPU search interrupted for 3 seconds"
@@ -252,6 +254,8 @@ func _process(delta: float) -> void:
 		return
 	# The normal graybox uses debug-phase toggling; the 3D match owns it here.
 	draw_controller.enabled = drawing_mode and (phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3))
+	if draw_controller.enabled and draw_controller.current != null:
+		_actor_pose(HUMAN_ID, "draw")
 	if phase == "RESULT":
 		result_hold_left -= delta
 		_update_hud()
@@ -418,6 +422,7 @@ func _attempt_cpu_draw() -> void:
 		stroke.add_surface_point(second["position"], second["normal"])
 		cpu_lines.append(stroke)
 		stroke.visible = false
+		_actor_pose(CPU_ID, "draw")
 		drawn_cpu_count += 1
 		cpu_recent_positions.append(point)
 		message = "CPU physically placed line %d" % drawn_cpu_count
@@ -439,6 +444,7 @@ func _cpu_inspect() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
+			_actor_pose(CPU_ID, "strike")
 			cpu_inspection_count += 1
 			cpu_total_inspections += 1
 			_play_cue("play_line_strike")
@@ -458,6 +464,7 @@ func _human_strike_visible() -> void:
 			stroke.discovered = true
 			stroke.visible = false
 			message = "You found a CPU chalk line"
+			_actor_pose(HUMAN_ID, "strike")
 			_play_cue("play_line_strike")
 			return
 	message = "No visible CPU line close enough to strike"
@@ -477,6 +484,8 @@ func _advance_phase() -> void:
 		cpu_body.global_position = Vector3(2, 0.85, 0)
 		_restore_open_cover()
 		message = "Meeting: coin toss decides the first searcher"
+		_actor_pose(HUMAN_ID, "coin")
+		_actor_pose(CPU_ID, "coin")
 		_play_cue("play_coin_flip")
 	elif phase == "MEETING":
 		coin_face = rng.randi_range(0, 1)
@@ -775,6 +784,7 @@ func _inspect_nearby_public_cover() -> void:
 		cpu_open_cover = body
 		cpu_cover_hold_seconds = 1.2
 		message = "CPU physically inspected a visible public cover"
+		_actor_pose(CPU_ID, "inspect")
 		cpu_inspection_count += 1
 		cpu_total_inspections += 1
 		return
@@ -1053,3 +1063,12 @@ func acceptance_metrics() -> Dictionary:
 		"human_survivors": _count_survivors(saved_human_lines),
 		"cpu_survivors": _count_survivors(cpu_lines)
 	}
+
+## Gameplay actions drive the visual rig; no animation event controls scoring.
+func _actor_pose(owner: int, action: String) -> void:
+	var body := walker if owner == HUMAN_ID else cpu_body
+	if body == null:
+		return
+	var avatar := body.get_node_or_null("HumanAvatar" if owner == HUMAN_ID else "CpuAvatar") as CharacterRig3D
+	if avatar != null:
+		avatar.set_pose(action)
