@@ -70,6 +70,9 @@ var coin_face_label: Label
 var coin_tween: Tween
 var result_panel: Panel
 var result_label: Label
+var phase_hud: Panel
+var phase_hud_label: Label
+var human_reveal_scan_cooldown := 0.0
 var human_follow_path := PackedVector3Array()
 var human_follow_index := 0
 var human_follow_refresh := 0.0
@@ -102,6 +105,7 @@ func _ready() -> void:
 	_make_touch_controls()
 	_make_coin_visual()
 	_make_result_visual()
+	_make_phase_hud()
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
@@ -253,6 +257,7 @@ func _process(delta: float) -> void:
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
 	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
 	cpu_scan_cooldown = maxf(0.0, cpu_scan_cooldown - delta)
+	human_reveal_scan_cooldown = maxf(0.0, human_reveal_scan_cooldown - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
 		if cpu_idle_time <= 0.0:
@@ -265,7 +270,9 @@ func _process(delta: float) -> void:
 		if searcher == CPU_ID:
 			_cpu_inspect()
 		else:
-			_reveal_nearby_cpu_strokes()
+			if human_reveal_scan_cooldown <= 0.0:
+				human_reveal_scan_cooldown = 0.12
+				_reveal_nearby_cpu_strokes()
 			if find_interact_requested:
 				_human_strike_visible()
 		find_interact_requested = false
@@ -538,9 +545,14 @@ func _finish_match() -> void:
 func _update_hud() -> void:
 	if info == null:
 		return
-	info.text = "CHALK GAON | 3D VS CPU DEVELOPMENT BUILD\n%s | %.1fs | CPU marks %d/%d | Your marks %d\nWASD move  Space jump  C crouch  F draw  E find/push  Q argue  H/T coin  P pause  R replay\n%s\n%s" % [
-		phase + (" (PAUSED)" if match_paused else ""), maxf(0.0, phase_left), drawn_cpu_count, cpu_target, saved_human_lines.size(),
-		"Searcher: HUMAN" if searcher == HUMAN_ID else "Searcher: CPU", message]
+	var status := phase + (" • PAUSED" if match_paused else "")
+	var clock := "%02d:%02d" % [int(maxf(0.0, phase_left)) / 60, int(maxf(0.0, phase_left)) % 60]
+	if phase_hud_label != null:
+		phase_hud_label.text = "%s  |  %s  |  YOU %d  CPU %d" % [status, clock, saved_human_lines.size(), cpu_lines.size()]
+	info.add_theme_font_size_override("font_size", 16)
+	info.text = "%s\nWASD move • Mouse look • F draw • E inspect/strike • H/T toss • P pause\n%s" % [
+		"YOU SEARCH" if phase == "SEARCHING" and searcher == HUMAN_ID else "CPU SEARCHES" if phase == "SEARCHING" else "DRAW / MEET",
+		message]
 
 func _push_nearby_crate() -> void:
 	var origin := walker.global_position + Vector3(0, 1.0, 0)
@@ -813,7 +825,8 @@ func _save_round_result() -> void:
 		"cpu_difficulty": clampi(GameState.cpu_difficulty, 0, 3),
 		"first_searcher": first_searcher,
 		"human_survivors": _count_survivors(saved_human_lines),
-		"cpu_survivors": _count_survivors(cpu_lines)
+		"cpu_survivors": _count_survivors(cpu_lines),
+		"metrics": acceptance_metrics()
 	}
 	store.call("save_local", "chalk_gaon_3d_latest_result", summary)
 
@@ -964,3 +977,49 @@ func _can_restore_cover(body: RigidBody3D) -> bool:
 		if actor != null and actor.global_position.distance_to(base) < 1.1:
 			return false
 	return true
+
+## Compact, contrast-safe round HUD. The original graybox debug text remains
+## only as contextual instructions; phase and clock are always legible.
+func _make_phase_hud() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "MatchHUD3D"
+	add_child(layer)
+	phase_hud = Panel.new()
+	phase_hud.name = "PhaseBar"
+	phase_hud.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	phase_hud.offset_left = -235.0
+	phase_hud.offset_right = 235.0
+	phase_hud.offset_top = 12.0
+	phase_hud.offset_bottom = 64.0
+	phase_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.11, 0.13, 0.92)
+	style.border_color = Color(0.65, 0.54, 0.34)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(9)
+	phase_hud.add_theme_stylebox_override("panel", style)
+	layer.add_child(phase_hud)
+	phase_hud_label = Label.new()
+	phase_hud_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	phase_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	phase_hud_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	phase_hud_label.add_theme_font_size_override("font_size", 19)
+	phase_hud_label.add_theme_color_override("font_color", Color(0.96, 0.94, 0.86))
+	phase_hud_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phase_hud.add_child(phase_hud_label)
+
+## Match-local diagnostics used for actual 40/30/30 gameplay observation.
+## Values are public outcomes and movement counters, not hidden mark locations.
+func acceptance_metrics() -> Dictionary:
+	return {
+		"phase": phase,
+		"difficulty": clampi(GameState.cpu_difficulty, 0, 3),
+		"human_marks": saved_human_lines.size(),
+		"cpu_marks": cpu_lines.size(),
+		"cpu_strikes_and_inspections": cpu_inspection_count,
+		"cpu_roof_visits": cpu_roof_visits,
+		"cpu_roof_returns": cpu_roof_return_count,
+		"cpu_repaths": cpu_repath_count,
+		"human_survivors": _count_survivors(saved_human_lines),
+		"cpu_survivors": _count_survivors(cpu_lines)
+	}
