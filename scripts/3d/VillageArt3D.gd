@@ -115,6 +115,7 @@ func _dress_courtyard(cx: float) -> void:
 	# Recognizable village objects: a handpump/well, charpai and pottery.
 	var well := Vector3(cx - 4.8, 0, 10.5)
 	_solid_landmark("WellPhysicalCollision", well + Vector3(0, 0.55, 0), Vector3(2.25, 1.1, 2.25))
+	_box("WellWoodenCover", well + Vector3(0, 1.10, 0), Vector3(2.26, 0.09, 2.26), "wood")
 	for i in range(8):
 		var angle := TAU * float(i) / 8.0
 		_box("WellBrick", well + Vector3(cos(angle) * 1.0, 0.52, sin(angle) * 1.0),
@@ -124,7 +125,7 @@ func _dress_courtyard(cx: float) -> void:
 		_box("WellSupport", well + Vector3(sign_side * 1.15, 1.52, 0),
 			Vector3(0.15, 1.25, 0.15), "wood")
 	var bed := Vector3(cx + 9.5, 0.0, -12.0)
-	_solid_landmark("CharpaiPhysicalCollision", bed + Vector3(0, 0.42, 0), Vector3(2.6, 0.84, 1.35))
+	_solid_landmark("CharpaiPhysicalCollision", bed + Vector3(0, 0.33, 0), Vector3(2.6, 0.66, 1.35))
 	_box("CharpaiWovenBed", bed + Vector3(0, 0.58, 0), Vector3(2.6, 0.15, 1.35), "straw")
 	for dx in [-1.15, 1.15]:
 		for dz in [-0.52, 0.52]:
