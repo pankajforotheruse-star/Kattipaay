@@ -68,6 +68,12 @@ jobs:
           timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DPersistenceCover.gd --log-file 3d-persistence-cover.log
           grep -q 'CHALK_GAON_3D_PERSISTENCE_COVER: PASS' 3d-persistence-cover.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-persistence-cover.log
+      - name: Simulated Android touch arbitration
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DTouchArbitration.gd --log-file 3d-touch-arbitration.log
+          grep -q 'CHALK_GAON_3D_TOUCH_ARBITRATION: PASS' 3d-touch-arbitration.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-touch-arbitration.log
       - name: CPU physical chalk balance benchmark
         continue-on-error: true
         run: |
@@ -127,6 +133,7 @@ jobs:
             3d-playtest-regression.log
             3d-visibility-stress.log
             3d-navigation-authority.log
+            3d-touch-arbitration.log
             3d-persistence-cover.log
             3d-round.log
             3d-end-to-end.log
