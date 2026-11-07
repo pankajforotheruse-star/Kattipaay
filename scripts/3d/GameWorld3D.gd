@@ -706,6 +706,11 @@ func _make_touch_controls() -> void:
 	overlay.add_child(field)
 	_mobile_button(field, "PAUSE", -105, -325, func() -> void:
 		match_paused = not match_paused)
+	if performance_qa != null and performance_qa.enabled:
+		_mobile_button(field, "SAVE QA", -215, -325, func() -> void:
+			performance_qa.export_report())
+		_mobile_button(field, "SNAP", -325, -325, func() -> void:
+			get_viewport().get_texture().get_image().save_png("user://chalk_gaon_3d_qa_screenshot.png"))
 	_mobile_button(field, "JUMP", -105, -245, func() -> void:
 		mobile_jump = true
 		await get_tree().create_timer(0.22).timeout
