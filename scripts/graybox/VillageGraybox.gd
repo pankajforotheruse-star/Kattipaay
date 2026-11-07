@@ -38,6 +38,9 @@ func _ready() -> void:
 	for i in range(2):
 		_build_zone(ZONE_CENTERS[i], i)
 		_add_marker("PlayerSpawn3D" if i == 0 else "CpuSpawn3D", Vector3(ZONE_CENTERS[i], 0.85, 0))
+	var village_art := VillageArt3D.new()
+	village_art.name = "AuthoredVillageDressing"
+	add_child(village_art)
 	_make_walker()
 	_make_ui()
 	_make_draw_controller()
