@@ -34,7 +34,7 @@ static func load_matches() -> Array[Dictionary]:
 			records.append(parsed)
 	return records
 
-static func analyze(records: Array[Dictionary], difficulty: int) -> Dictionary:
+static func analyze(records: Array[Dictionary], difficulty: int, session_kind: String = "local_play_vs_cpu") -> Dictionary:
 	var count := 0
 	var human_wins := 0
 	var cpu_wins := 0
@@ -44,7 +44,7 @@ static func analyze(records: Array[Dictionary], difficulty: int) -> Dictionary:
 	var human_marks := 0.0
 	var cpu_marks := 0.0
 	for entry in records:
-		if int(entry.get("difficulty", -1)) != difficulty:
+		if int(entry.get("difficulty", -1)) != difficulty or str(entry.get("session_kind", "")) != session_kind:
 			continue
 		count += 1
 		var result := str(entry.get("result", ""))
