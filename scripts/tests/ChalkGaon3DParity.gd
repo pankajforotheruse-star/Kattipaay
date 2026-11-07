@@ -35,6 +35,7 @@ func _run() -> void:
 	_assert(game.result.begins_with("HUMAN WINS"), "Survivor scoring 10 versus 8")
 	_assert(game.result.contains("Human 10 : CPU 8"), "Survivor scoring counts actual unstruck marks")
 	game.cpu_lines[0].struck = true
+	game.phase = "SEARCHING" # A separate simulated scoring pass, not a finished match update.
 	game._finish_match()
 	_assert(game.result.contains("Human 10 : CPU 7"), "Struck CPU mark no longer scores")
 	game.rng.seed = 20261102
