@@ -74,6 +74,9 @@ var result_panel: Panel
 var result_label: Label
 var phase_hud: Panel
 var phase_hud_label: Label
+var phase_progress: ProgressBar
+var aiming_reticle: Label
+var interaction_hint: Label
 var human_reveal_scan_cooldown := 0.0
 var human_follow_path := PackedVector3Array()
 var human_follow_index := 0
@@ -577,8 +580,16 @@ func _update_hud() -> void:
 	var clock := "%02d:%02d" % [floori(maxf(0.0, phase_left) / 60.0), int(maxf(0.0, phase_left)) % 60]
 	if phase_hud_label != null:
 		phase_hud_label.text = "%s  |  %s  |  YOU %d  CPU %d" % [status, clock, saved_human_lines.size(), cpu_lines.size()]
+	if phase_progress != null:
+		var phase_duration := configured_draw_seconds if phase == "DRAWING" else configured_meeting_seconds if phase == "MEETING" else configured_search_seconds
+		phase_progress.value = clampf(phase_left / maxf(phase_duration, 0.01) * 100.0, 0.0, 100.0)
+	if aiming_reticle != null:
+		aiming_reticle.visible = phase == "DRAWING" or phase == "SEARCHING"
+		aiming_reticle.text = "◎" if drawing_mode else "+" 
+	if interaction_hint != null:
+		interaction_hint.text = "DRAW ON SURFACES" if drawing_mode else "F / DRAW  •  CHALK MODE" if phase == "DRAWING" else "H / T  •  CALL THE COIN" if phase == "MEETING" else "E / FIND  •  STRIKE VISIBLE CHALK" if searcher == HUMAN_ID else "Q / ARGUE  •  FOLLOW THE SEARCHER"
 	info.add_theme_font_size_override("font_size", 16)
-	info.text = "%s\nWASD move • Mouse look • F draw • E inspect/strike • H/T toss • P pause\n%s" % [
+	info.text = "%s\n%s" % [
 		"YOU SEARCH" if phase == "SEARCHING" and searcher == HUMAN_ID else "CPU SEARCHES" if phase == "SEARCHING" else "DRAW / MEET",
 		message]
 
@@ -682,6 +693,8 @@ func _make_touch_controls() -> void:
 	field.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	field.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(field)
+	_mobile_button(field, "PAUSE", -105, -325, func() -> void:
+		match_paused = not match_paused)
 	_mobile_button(field, "JUMP", -105, -245, func() -> void:
 		mobile_jump = true
 		await get_tree().create_timer(0.22).timeout
@@ -1047,6 +1060,39 @@ func _make_phase_hud() -> void:
 	phase_hud_label.add_theme_color_override("font_color", Color(0.96, 0.94, 0.86))
 	phase_hud_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	phase_hud.add_child(phase_hud_label)
+	phase_progress = ProgressBar.new()
+	phase_progress.name = "RoundClockProgress"
+	phase_progress.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	phase_progress.offset_top = -5.0
+	phase_progress.offset_bottom = -1.0
+	phase_progress.show_percentage = false
+	phase_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phase_hud.add_child(phase_progress)
+	aiming_reticle = Label.new()
+	aiming_reticle.name = "AimReticle"
+	aiming_reticle.set_anchors_preset(Control.PRESET_CENTER)
+	aiming_reticle.offset_left = -16.0
+	aiming_reticle.offset_top = -21.0
+	aiming_reticle.offset_right = 16.0
+	aiming_reticle.offset_bottom = 21.0
+	aiming_reticle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	aiming_reticle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	aiming_reticle.add_theme_font_size_override("font_size", 27)
+	aiming_reticle.add_theme_color_override("font_color", Color(1.0, 0.92, 0.68))
+	aiming_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(aiming_reticle)
+	interaction_hint = Label.new()
+	interaction_hint.name = "ContextActionHint"
+	interaction_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	interaction_hint.offset_left = -255.0
+	interaction_hint.offset_right = 255.0
+	interaction_hint.offset_top = -110.0
+	interaction_hint.offset_bottom = -72.0
+	interaction_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	interaction_hint.add_theme_font_size_override("font_size", 17)
+	interaction_hint.add_theme_color_override("font_color", Color(0.96, 0.90, 0.75))
+	interaction_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(interaction_hint)
 
 ## Match-local diagnostics used for actual 40/30/30 gameplay observation.
 ## Values are public outcomes and movement counters, not hidden mark locations.
