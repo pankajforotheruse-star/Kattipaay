@@ -251,6 +251,34 @@ func play_line_strike() -> void:
     _push_frames(frames)
 
 
+## Soft tactile cover movement, played when the real physics body is lifted
+## or replaced. These cues are original procedural audio, not samples.
+func play_cover_lift() -> void:
+    _play_wood_motion(0.23, 135.0)
+
+func play_cover_drop() -> void:
+    _play_wood_motion(0.14, 86.0)
+
+func _play_wood_motion(duration: float, frequency: float) -> void:
+    var frames: Array[Vector2] = []
+    for i in range(int(SAMPLE_RATE * duration)):
+        var t := float(i) / float(SAMPLE_RATE)
+        var env := exp(-t * 21.0)
+        var val := env * (0.24 * sin(TAU * frequency * t) + 0.12 * sin(TAU * frequency * 1.63 * t))
+        frames.append(Vector2(val, val))
+    _push_frames(frames)
+
+## Light chalk-on-plaster friction, distinct from the strike/wipe cue.
+func play_chalk_draw() -> void:
+    var frames: Array[Vector2] = []
+    for i in range(int(SAMPLE_RATE * 0.11)):
+        var t := float(i) / float(SAMPLE_RATE)
+        var env := sin(PI * t / 0.11)
+        var val := env * 0.13 * (sin(TAU * 980.0 * t) + 0.38 * sin(TAU * 1330.0 * t))
+        frames.append(Vector2(val, val))
+    _push_frames(frames)
+
+
 # ── Generator Helpers ─────────────────────────────────────────────────────────
 
 ## Generate a frequency sweep from start_hz to end_hz over duration.
