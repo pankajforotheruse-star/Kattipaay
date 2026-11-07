@@ -38,6 +38,12 @@ jobs:
           timeout 60s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DMigrationTest.gd --log-file 3d-migration-smoke.log
           grep -q 'CHALK_GAON_3D: PASS' 3d-migration-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-migration-smoke.log
+      - name: 3D user playtest regression (CPU strike, draw, coin, result)
+        run: |
+          set -euo pipefail
+          timeout 100s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DPlaytestRegression.gd --log-file 3d-playtest-regression.log
+          grep -q 'CHALK_GAON_3D_PLAYTEST_REGRESSION: PASS' 3d-playtest-regression.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-playtest-regression.log
       - name: Owner parity regression (score, coin, quota, cheating)
         run: |
           set -euo pipefail
@@ -99,6 +105,7 @@ jobs:
             3d-roof-physics.log
             3d-balance.log
             3d-parity.log
+            3d-playtest-regression.log
             3d-persistence-cover.log
             3d-round.log
             3d-end-to-end.log
