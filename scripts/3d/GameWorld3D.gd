@@ -210,7 +210,12 @@ func _physics_process(delta: float) -> void:
 	else:
 		_advance_bot()
 	var old_bot_position := cpu_body.global_position
+	var bot_grounded := cpu_body.is_on_floor()
 	cpu_body.move_and_slide()
+	var moved := cpu_body.global_position - old_bot_position
+	var intended_motion := Vector3(cpu_body.velocity.x, 0, cpu_body.velocity.z) * delta
+	if bot_grounded and Vector2(moved.x, moved.z).length() < 0.014 and intended_motion.length() > 0.025:
+		CharacterStep3D.try_step(cpu_body, intended_motion)
 	if cpu_roof_anchor != Vector3.INF and cpu_body.global_position.distance_to(cpu_roof_anchor) < 1.8 and cpu_body.global_position.y > 3.0:
 		cpu_roof_visits += 1
 		cpu_total_roof_visits += 1
