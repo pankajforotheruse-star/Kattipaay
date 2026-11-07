@@ -1,7 +1,8 @@
 class_name VillageArt3D
 extends Node3D
 ## Hand-authored modular village dressing, with shared materials and batched
-## low-poly geometry. Decorative only: existing physics/draw surfaces unchanged.
+## low-poly geometry. Major props have matching physical collisions; small
+## decorative details never obstruct the player's path.
 ## All art is original and generated from primitives (no unlicensed assets).
 const HOUSE_LOCATIONS := [
 	Vector3(-38.0, 0, -10.0), Vector3(-18.0, 0, 9.0),
@@ -48,6 +49,20 @@ func _box(label: String, at: Vector3, size: Vector3, material: String, tilt: Vec
 	mesh.position = at
 	mesh.rotation = tilt
 	add_child(mesh)
+
+## Major landmarks use solid colliders and participate in chalk raycasts.
+## Ground navigation is built after these bodies enter the scene tree.
+func _solid_landmark(label: String, at: Vector3, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.name = label
+	body.position = at
+	body.add_to_group("graybox_surfaces")
+	var shape := BoxShape3D.new()
+	shape.size = size
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+	add_child(body)
 
 func _pot(at: Vector3, radius: float) -> void:
 	var pot := MeshInstance3D.new()
@@ -99,6 +114,7 @@ func _dress_house(p: Vector3) -> void:
 func _dress_courtyard(cx: float) -> void:
 	# Recognizable village objects: a handpump/well, charpai and pottery.
 	var well := Vector3(cx - 4.8, 0, 10.5)
+	_solid_landmark("WellPhysicalCollision", well + Vector3(0, 0.55, 0), Vector3(2.25, 1.1, 2.25))
 	for i in range(8):
 		var angle := TAU * float(i) / 8.0
 		_box("WellBrick", well + Vector3(cos(angle) * 1.0, 0.52, sin(angle) * 1.0),
@@ -108,6 +124,7 @@ func _dress_courtyard(cx: float) -> void:
 		_box("WellSupport", well + Vector3(sign_side * 1.15, 1.52, 0),
 			Vector3(0.15, 1.25, 0.15), "wood")
 	var bed := Vector3(cx + 9.5, 0.0, -12.0)
+	_solid_landmark("CharpaiPhysicalCollision", bed + Vector3(0, 0.42, 0), Vector3(2.6, 0.84, 1.35))
 	_box("CharpaiWovenBed", bed + Vector3(0, 0.58, 0), Vector3(2.6, 0.15, 1.35), "straw")
 	for dx in [-1.15, 1.15]:
 		for dz in [-0.52, 0.52]:
