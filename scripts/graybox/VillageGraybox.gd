@@ -7,7 +7,7 @@ const GROUND_COLOR := Color(0.58, 0.45, 0.32)
 var walker: CharacterBody3D
 var camera: Camera3D
 var yaw := 0.0
-var pitch := -0.25
+var pitch := -0.14
 var velocity_y := 0.0
 var spawn_index := 0
 var info: Label
@@ -295,7 +295,7 @@ func _physics_process(delta: float) -> void:
 		walker.global_position = before_move
 		walker.velocity = Vector3.ZERO
 	var target := walker.global_position + Vector3(0, 1.1, 0)
-	var offset := Vector3(sin(yaw) * 6.5 * cos(pitch), 2.3 - sin(pitch) * 6.5, cos(yaw) * 6.5 * cos(pitch))
+	var offset := Vector3(sin(yaw) * 4.3 * cos(pitch), 1.35 - sin(pitch) * 3.8, cos(yaw) * 4.3 * cos(pitch))
 	var desired_camera_position := target + offset
 	var camera_query := PhysicsRayQueryParameters3D.create(target, desired_camera_position)
 	camera_query.exclude = [walker.get_rid()]
