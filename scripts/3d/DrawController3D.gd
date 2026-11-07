@@ -2,8 +2,10 @@ class_name DrawController3D
 extends Node3D
 ## Camera-targeted world-space freehand drawing; no preset drawing locations.
 signal stroke_finished(stroke: ChalkStroke3D)
-@export var draw_range := 4.0
-@export var camera_ray_length := 30.0
+@export var draw_range := 9.0
+@export var point_spacing := 0.065
+@export var max_connected_gap := 2.0
+@export var camera_ray_length := 50.0
 var camera: Camera3D
 var player: CharacterBody3D
 var strokes: Array[ChalkStroke3D] = []
@@ -29,12 +31,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			active_touch_id = -1
 	if event is InputEventScreenDrag and event.index == active_touch_id and current != null:
 		_append_stroke(event.position)
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and active_touch_id < 0:
 		if event.pressed:
 			_begin_stroke(event.position)
 		else:
 			_end_stroke()
-	if event is InputEventMouseMotion and current != null and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	if event is InputEventMouseMotion and current != null and active_touch_id < 0 and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		_append_stroke(event.position)
 
 func _trace(screen_point: Vector2) -> Dictionary:
@@ -71,13 +73,40 @@ func _begin_stroke(screen_point: Vector2) -> void:
 	next_stroke_id += 1
 	stroke.add_surface_point(hit["position"], hit["normal"])
 
+## Interpolate fast drags on the *actual collider*, rather than drawing long
+## straight chords between sparse screen input events.
 func _append_stroke(screen_point: Vector2) -> void:
+	if current == null:
+		return
 	var hit := _trace(screen_point)
 	if hit.is_empty():
 		return
 	if hit["collider"] != current.get_parent():
+		_end_stroke()
+		_begin_stroke(screen_point)
 		return
-	current.add_surface_point(hit["position"], hit["normal"])
+	var last: Vector3 = current.to_global(current.local_points[current.local_points.size() - 1])
+	var target: Vector3 = hit["position"]
+	var length := last.distance_to(target)
+	if length > max_connected_gap:
+		_end_stroke()
+		_begin_stroke(screen_point)
+		return
+	if length < point_spacing:
+		return
+	var surface := current.get_parent() as CollisionObject3D
+	var last_normal: Vector3 = (current.global_transform.basis * current.local_normals[current.local_normals.size() - 1]).normalized()
+	var target_normal: Vector3 = hit["normal"]
+	var count := mini(64, maxi(1, ceili(length / point_spacing)))
+	for i in range(1, count + 1):
+		var t := float(i) / float(count)
+		var normal := last_normal.slerp(target_normal, t).normalized()
+		var proposed := last.lerp(target, t)
+		var ray := PhysicsRayQueryParameters3D.create(proposed + normal * 0.22, proposed - normal * 0.22)
+		var sample := get_world_3d().direct_space_state.intersect_ray(ray)
+		if sample.is_empty() or sample.get("collider") != surface:
+			continue
+		current.add_surface_point(sample["position"], sample["normal"])
 
 func _end_stroke() -> void:
 	if current == null:
