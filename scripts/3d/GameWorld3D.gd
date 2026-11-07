@@ -58,6 +58,10 @@ var human_strike_delay := 0.0
 var match_paused := false
 var five_second_warned := false
 var clock_warning_count := 0
+var result_hold_left := 0.0
+var result_scene_exit_enabled := true
+var cpu_patrol_step := 0
+var cpu_inspection_count := 0
 
 func _ready() -> void:
 	super._ready()
@@ -93,6 +97,9 @@ func _make_cpu_body() -> void:
 	cpu_body = CharacterBody3D.new()
 	cpu_body.name = "GhostOpponent3D"
 	cpu_body.position = Vector3(27, 0.85, 0)
+	cpu_body.collision_layer = 2
+	cpu_body.collision_mask = 1
+	cpu_body.floor_snap_length = 0.35
 	var collision := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.35
@@ -148,7 +155,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	super._unhandled_input(event)
 
 func _physics_process(delta: float) -> void:
-	if match_paused:
+	if match_paused or phase == "RESULT":
 		return
 	# Existing graybox controller moves one controllable human.
 	# Disable original debug territory switch; enforce phase gates here.
@@ -187,7 +194,10 @@ func _process(delta: float) -> void:
 	# The normal graybox uses debug-phase toggling; the 3D match owns it here.
 	draw_controller.enabled = drawing_mode and (phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3))
 	if phase == "RESULT":
+		result_hold_left -= delta
 		_update_hud()
+		if result_hold_left <= 0.0 and result_scene_exit_enabled and get_tree().current_scene == self:
+			get_tree().change_scene_to_file("res://scenes/main.tscn")
 		return
 	phase_left -= delta
 	if phase != "MEETING" and phase_left <= 5.0 and not five_second_warned:
@@ -227,7 +237,7 @@ func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 		sneak_uses += 1
 		# A sneak can be noticed only when CPU has unobstructed sight to the action.
 		var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
-		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0):
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0, cpu_body.get_rid()):
 			stroke.struck = true
 			stroke.visible = false
 			_penalize_nearby(stroke, saved_human_lines)
@@ -239,10 +249,24 @@ func _choose_cpu_destination() -> void:
 		return
 	var destination_zone := Territory3D.Zone.CPU if phase == "DRAWING" or searcher == HUMAN_ID else Territory3D.Zone.PLAYER
 	var nav := cpu_nav if destination_zone == Territory3D.Zone.CPU else human_nav
-	if phase == "SEARCHING" and searcher == CPU_ID and not cpu_roof_attempted:
-		cpu_roof_attempted = true
-		if _assign_physical_roof_route(nav):
-			return
+	if phase == "SEARCHING" and searcher == CPU_ID:
+		# Public-map patrol sweeps the courtyard before attempting a roof.
+		# This avoids spending the whole 30-second search on a distant ramp.
+		if cpu_patrol_step < 3:
+			var patrol_points := [
+				Vector3(-14, 0.85, 0), Vector3(-27, 0.85, -9),
+				Vector3(-40, 0.85, 10)]
+			var waypoint: Vector3 = patrol_points[cpu_patrol_step]
+			cpu_patrol_step += 1
+			var patrol_path := nav.find_path(cpu_body.global_position, waypoint)
+			if not patrol_path.is_empty():
+				cpu_path = patrol_path
+				cpu_route_index = 0
+				return
+		if not cpu_roof_attempted:
+			cpu_roof_attempted = true
+			if _assign_physical_roof_route(nav):
+				return
 	var candidates := PackedVector3Array()
 	for i in range(24):
 		var x := rng.randf_range(5, 48) * (-1.0 if destination_zone == Territory3D.Zone.PLAYER else 1.0)
@@ -332,11 +356,12 @@ func _cpu_inspect() -> void:
 	# It only looks for actually visible strokes at its current physical eye.
 	var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
 	for stroke in saved_human_lines:
-		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, cpu_inspection_radius):
+		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, cpu_inspection_radius, cpu_body.get_rid()):
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
 			message = "CPU discovered and struck a chalk line"
+			cpu_inspection_count += 1
 			_play_cue("play_argument_result", true)
 			cpu_strike_cooldown = cpu_strike_delay
 			break
@@ -347,7 +372,7 @@ func _human_strike_visible() -> void:
 		return
 	var eye := walker.global_position + Vector3(0, 1.45, 0)
 	for stroke in cpu_lines:
-		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5):
+		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5, walker.get_rid()):
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
@@ -388,6 +413,8 @@ func _begin_search(who: int) -> void:
 	phase = "SEARCHING"
 	checked_public_covers.clear()
 	cpu_roof_attempted = false
+	cpu_patrol_step = 0
+	cpu_inspection_count = 0
 	cpu_strike_cooldown = 0.0
 	phase_left = configured_search_seconds
 	human_idle_seconds = 0.0
@@ -406,7 +433,17 @@ func _begin_search(who: int) -> void:
 	message = "Search %d: %s searches" % [search_number, "HUMAN" if who == HUMAN_ID else "CPU"]
 
 func _finish_match() -> void:
+	if phase == "RESULT":
+		return
 	phase = "RESULT"
+	result_hold_left = maxf(3.0, float(ProjectSettings.get_setting("chalk_gaon/solo_winner_hold_seconds", 3.0)))
+	drawing_mode = false
+	if draw_controller != null:
+		draw_controller.enabled = false
+	if cpu_body != null:
+		cpu_body.velocity = Vector3.ZERO
+	if walker != null:
+		walker.velocity = Vector3.ZERO
 	phase_left = 0.0
 	var player_survivors := 0
 	var bot_survivors := 0
@@ -486,7 +523,7 @@ func _cpu_defender_action() -> void:
 		cpu_lines.append(stroke)
 		stroke.visible = false
 		cpu_sneak_uses += 1
-		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0):
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 7.0, walker.get_rid()):
 			stroke.struck = true
 			stroke.visible = false
 			_penalize_nearby(stroke, cpu_lines)
@@ -616,6 +653,7 @@ func _inspect_nearby_public_cover() -> void:
 			checked_public_covers[body.get_instance_id()] = true
 			_toggle_cover_body(body)
 			message = "CPU physically inspected a nearby public cover"
+			cpu_inspection_count += 1
 			return
 
 ## Roof access is a physical itinerary: walk to the ramp base, ascend the
