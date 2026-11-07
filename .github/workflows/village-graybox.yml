@@ -81,6 +81,12 @@ jobs:
           timeout 145s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DRoofPhysics.gd --log-file 3d-roof-physics.log
           grep -q 'CHALK_GAON_3D_ROOFS: PASS' 3d-roof-physics.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-roof-physics.log
+      - name: Live CPU controller physically ascends and descends rooftop
+        run: |
+          set -euo pipefail
+          timeout 125s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DCpuRoofMotion.gd --log-file 3d-cpu-roof-motion.log
+          grep -q 'CHALK_GAON_3D_CPU_ROOF_MOTION: PASS' 3d-cpu-roof-motion.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-cpu-roof-motion.log
       - name: Independent 3D round state smoke
         run: |
           set -euo pipefail
@@ -115,6 +121,7 @@ jobs:
             original-smoke.log
             3d-migration-smoke.log
             3d-roof-physics.log
+            3d-cpu-roof-motion.log
             3d-balance.log
             3d-parity.log
             3d-playtest-regression.log
