@@ -686,8 +686,13 @@ func _mobile_button(root: Control, caption: String, right_offset: float, bottom_
 ## Brick/crate cover is physically lifted and replaced. This is not a disguised
 ## visibility flag: the rigid body actually moves, changing physics raycasts.
 func _toggle_cover_body(body: RigidBody3D) -> void:
+	if body == null or not body.is_in_group("future_movable_props"):
+		return
 	var opened := bool(body.get_meta("cover_lifted", false))
 	if opened:
+		if not _can_restore_cover(body):
+			message = "Cover cannot close while an actor is underneath"
+			return
 		var base: Vector3 = body.get_meta("cover_base_position", body.global_position)
 		body.global_position = base
 		body.freeze = false
@@ -699,6 +704,8 @@ func _toggle_cover_body(body: RigidBody3D) -> void:
 		body.set_meta("cover_lifted", true)
 
 func _toggle_aimed_cover() -> bool:
+	if phase != "DRAWING" and not (phase == "SEARCHING" and searcher == HUMAN_ID):
+		return false
 	var origin := walker.global_position + Vector3(0, 1.0, 0)
 	var direction := -camera.global_transform.basis.z
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 3.0)
@@ -716,18 +723,29 @@ func _toggle_aimed_cover() -> bool:
 	return true
 
 func _inspect_nearby_public_cover() -> void:
-	if phase != "SEARCHING" or searcher != CPU_ID:
+	if phase != "SEARCHING" or searcher != CPU_ID or cpu_open_cover != null:
 		return
 	for node in get_tree().get_nodes_in_group("future_movable_props"):
 		var body := node as RigidBody3D
 		if body == null or checked_public_covers.has(body.get_instance_id()):
 			continue
-		if cpu_body.global_position.distance_to(body.global_position) < 2.6:
-			checked_public_covers[body.get_instance_id()] = true
-			_toggle_cover_body(body)
-			message = "CPU physically inspected a nearby public cover"
-			cpu_inspection_count += 1
-			return
+		if Territory3D.zone_of(body.global_position) != Territory3D.Zone.PLAYER:
+			continue
+		if cpu_body.global_position.distance_to(body.global_position) >= 2.6:
+			continue
+		var eye := cpu_body.global_position + Vector3(0, 1.4, 0)
+		var query := PhysicsRayQueryParameters3D.create(eye, body.global_position + Vector3.UP * 0.35)
+		query.exclude = [cpu_body.get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty() or hit.get("collider") != body:
+			continue
+		checked_public_covers[body.get_instance_id()] = true
+		_toggle_cover_body(body)
+		cpu_open_cover = body
+		cpu_cover_hold_seconds = 1.2
+		message = "CPU physically inspected a visible public cover"
+		cpu_inspection_count += 1
+		return
 
 ## Roof access is a physical itinerary: walk to the ramp base, ascend the
 ## colliding slope, then explore the roof. Never teleport an AI onto it.
