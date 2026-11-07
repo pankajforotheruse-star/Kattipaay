@@ -17,7 +17,7 @@ func _run() -> void:
 	_check(not Territory3D.can_enter(1, Vector3(27, 0, 0), "DRAWING", 1), "Human cannot draw or roam in CPU territory")
 	_check(not Territory3D.can_enter(1, Vector3(27, 0, 0), "SEARCHING", 2), "Defender cannot roam in CPU territory")
 	_check(Territory3D.can_enter(1, Vector3(-27, 0, 0), "SEARCHING", 2), "Human defender can remain in own territory")
-	var follow_path := game.human_nav.find_path_near(Vector3(-27, 0.85, 0), Vector3(-3.5, 0.85, 0))
+	var follow_path: PackedVector3Array = game.human_nav.find_path_near(Vector3(-27, 0.85, 0), Vector3(-3.5, 0.85, 0))
 	_check(follow_path.size() > 3, "Human defender has an obstacle-aware route toward searching CPU")
 	game.phase = "SEARCHING"
 	game.searcher = 2
@@ -25,7 +25,7 @@ func _run() -> void:
 	game.cpu_roof_attempted = false
 	game.cpu_patrol_step = 0
 	game._choose_cpu_destination()
-	var route := game.cpu_path
+	var route: PackedVector3Array = game.cpu_path
 	var has_roof := false
 	for waypoint in route:
 		if waypoint.y > 3.0:
