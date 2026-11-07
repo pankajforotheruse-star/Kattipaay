@@ -10,7 +10,7 @@ func _run() -> void:
 		for i in range(120):
 			var outcome := "HUMAN WINS" if i < [90, 65, 45, 25][difficulty] else "CPU WINS"
 			records.append({
-				"schema": "chalk_gaon_3d_match_v1", "difficulty": difficulty,
+				"schema": "chalk_gaon_3d_match_v1", "session_kind": "local_play_vs_cpu", "difficulty": difficulty,
 				"result": outcome, "cpu_inspections": i % 7,
 				"cpu_search_cells": 8 + difficulty * 3,
 				"human_marks": 80, "cpu_marks": 100
