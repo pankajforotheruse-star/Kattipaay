@@ -154,7 +154,7 @@ func from_save_dict(data: Dictionary) -> bool:
 		if p.size() != 3 or n.size() != 3:
 			return false
 		var point := Vector3(float(p[0]), float(p[1]), float(p[2]))
-		var normal := Vector3(float(n[0]), float(n[1]), float(n[2])).normalized())
+		var normal := Vector3(float(n[0]), float(n[1]), float(n[2])).normalized()
 		add_surface_point(to_global(point), (global_transform.basis * normal).normalized(), false)
 	rebuild_mesh()
 	return true
