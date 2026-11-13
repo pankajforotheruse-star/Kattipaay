@@ -1120,14 +1120,15 @@ func _can_restore_cover(body: RigidBody3D) -> bool:
 	var base: Transform3D = body.get_meta("cover_base_transform")
 	var physics := get_world_3d().direct_space_state
 	var checked := 0
-	for child in body.get_children():
+	for child in body.find_children("*", "CollisionShape3D", true, false):
 		var collider := child as CollisionShape3D
 		if collider == null or collider.disabled or collider.shape == null:
 			continue
 		checked += 1
+		var relative_shape := body.global_transform.affine_inverse() * collider.global_transform
 		var query := PhysicsShapeQueryParameters3D.new()
 		query.shape = collider.shape
-		query.transform = base * collider.transform
+		query.transform = base * relative_shape
 		query.exclude = [body.get_rid()]
 		query.collision_mask = 0xFFFFFFFF
 		query.margin = 0.002
