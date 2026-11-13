@@ -779,13 +779,14 @@ func _toggle_cover_body(body: RigidBody3D) -> void:
 		if not _can_restore_cover(body):
 			message = "Cover cannot close while an actor is underneath"
 			return
-		var base: Vector3 = body.get_meta("cover_base_position", body.global_position)
-		body.global_position = base
+		var base: Transform3D = body.get_meta("cover_base_transform", body.global_transform)
+		body.global_transform = base
 		body.freeze = false
 		body.set_meta("cover_lifted", false)
 		_play_cue("play_cover_drop")
 	else:
 		body.set_meta("cover_base_position", body.global_position)
+		body.set_meta("cover_base_transform", body.global_transform)
 		body.freeze = true
 		body.global_position += Vector3.UP * 1.8
 		body.set_meta("cover_lifted", true)
@@ -1072,15 +1073,32 @@ func _follow_cpu_as_defender(delta: float) -> void:
 		walker.global_position = previous
 		walker.velocity = Vector3.ZERO
 
-## Do not replace a lifted physical crate into a player's capsule.
+## Validate the *entire* cover collision shape at its stored transform.
+## This prevents edge/irregular-shape overlaps with actors, walls or props.
+## The lifted cover itself is excluded, but the ground and all blocking
+## physics objects remain in the query. No proximity-only approximations.
 func _can_restore_cover(body: RigidBody3D) -> bool:
-	if body == null or not is_instance_valid(body):
+	if body == null or not is_instance_valid(body) or not body.is_inside_tree():
 		return false
-	var base: Vector3 = body.get_meta("cover_base_position", body.global_position)
-	for actor in [walker, cpu_body]:
-		if actor != null and actor.global_position.distance_to(base) < 1.1:
+	if not body.has_meta("cover_base_transform"):
+		return false
+	var base: Transform3D = body.get_meta("cover_base_transform")
+	var physics := get_world_3d().direct_space_state
+	var checked := 0
+	for child in body.get_children():
+		var collider := child as CollisionShape3D
+		if collider == null or collider.disabled or collider.shape == null:
+			continue
+		checked += 1
+		var query := PhysicsShapeQueryParameters3D.new()
+		query.shape = collider.shape
+		query.transform = base * collider.transform
+		query.exclude = [body.get_rid()]
+		query.collision_mask = 0xFFFFFFFF
+		query.margin = 0.002
+		if not physics.intersect_shape(query, 128).is_empty():
 			return false
-	return true
+	return checked > 0
 
 ## Compact, contrast-safe round HUD. The original graybox debug text remains
 ## only as contextual instructions; phase and clock are always legible.
