@@ -433,7 +433,12 @@ func _attempt_cpu_draw() -> bool:
 	var jitter := Vector3(sin(float(cpu_draw_attempts) * 2.399) * 0.28,
 		0.0, cos(float(cpu_draw_attempts) * 2.399) * 0.28)
 	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position + jitter, 2.7)
-	candidates.shuffle()
+	# Match-seeded shuffle keeps complete CPU regression reproducible.
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap_index := rng.randi_range(0, index)
+		var saved: Dictionary = candidates[index]
+		candidates[index] = candidates[swap_index]
+		candidates[swap_index] = saved
 	for candidate in candidates:
 		var approach: Vector3 = candidate["approach"]
 		if cpu_body.global_position.distance_to(approach) > 3.0:
@@ -483,8 +488,10 @@ func _attempt_cpu_draw() -> bool:
 ## CharacterBody3D arrives within physical reach and a fresh raycast succeeds.
 func _plan_cpu_draw_site() -> void:
 	cpu_draw_site_replan_timer = 1.2
+	cpu_draw_site = Vector3.INF
 	var best := PackedVector3Array()
-	for i in range(12):
+	# Bounded expensive physics probes for mobile CPUs.
+	for i in range(6):
 		var proposed := Vector3(rng.randf_range(6.0, 48.0), 0.85, rng.randf_range(-20.0, 20.0))
 		var route := cpu_nav.find_path_near(cpu_body.global_position, proposed)
 		if route.is_empty():
