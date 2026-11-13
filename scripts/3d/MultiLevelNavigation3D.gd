@@ -98,6 +98,10 @@ func _valid_transition(physics: PhysicsDirectSpaceState3D, from: Vector3, to: Ve
 		if hit.is_empty():
 			return false
 		var floor_y: float = (hit["position"] as Vector3).y
+		# The waypoint must actually be at walking height above its support;
+		# a vertical ledge must not be validated by the ground far below it.
+		if absf(floor_y - (p.y - 0.85)) > 0.8:
+			return false
 		if i > 0 and absf(floor_y - previous_y) > 0.75:
 			return false
 		previous_y = floor_y
