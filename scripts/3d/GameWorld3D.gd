@@ -44,6 +44,7 @@ var cpu_draw_site := Vector3.INF
 var cpu_draw_site_replan_timer := 0.0
 var cpu_draw_attempts := 0
 var cpu_draw_failures := 0
+var cpu_consecutive_draw_failures := 0
 var cpu_draw_site_replans := 0
 var cheating_enabled := false
 var bot_follow_refresh := 0.0
@@ -476,11 +477,16 @@ func _attempt_cpu_draw() -> bool:
 		if drawn_cpu_count % 6 == 0:
 			_play_cue("play_chalk_draw")
 		cpu_recent_positions.append(point)
+		cpu_consecutive_draw_failures = 0
 		message = "CPU physically placed line %d" % drawn_cpu_count
 		return true
 	cpu_draw_failures += 1
-	if cpu_draw_site_replan_timer <= 0.0:
+	cpu_consecutive_draw_failures += 1
+	# Do not abandon a productive surface after one unlucky proposal.
+	# A route change costs precious physical travel time at high difficulties.
+	if cpu_consecutive_draw_failures >= 6 and cpu_draw_site_replan_timer <= 0.0:
 		_plan_cpu_draw_site()
+		cpu_consecutive_draw_failures = 0
 	return false
 
 ## Replan toward *reachable* publicly traversable drawing surfaces.
