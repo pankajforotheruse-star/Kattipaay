@@ -929,8 +929,6 @@ func _save_round_result() -> void:
 		return
 	last_result_saved = true
 	var store := get_node_or_null("/root/SaveManager")
-	if store == null or not store.has_method("save_local"):
-		return
 	var summary := {
 		"schema": "chalk_gaon_3d_result_v1",
 		"result": result,
@@ -942,13 +940,18 @@ func _save_round_result() -> void:
 		"cpu_survivors": _count_survivors(cpu_lines),
 		"metrics": acceptance_metrics()
 	}
-	store.call("save_local", "chalk_gaon_3d_latest_result", summary)
+	if store != null and store.has_method("save_local"):
+		store.call("save_local", "chalk_gaon_3d_latest_result", summary)
 	MatchAnalytics3D.append_match({
 		"schema": "chalk_gaon_3d_match_v1",
 		"difficulty": clampi(GameState.cpu_difficulty, 0, 3),
 		"result": result,
 		"human_marks": saved_human_lines.size(),
 		"cpu_marks": cpu_lines.size(),
+		"cpu_draw_target": cpu_target,
+		"cpu_draw_shortfall": maxi(0, cpu_target - drawn_cpu_count),
+		"cpu_draw_failures": cpu_draw_failures,
+		"cpu_draw_site_replans": cpu_draw_site_replans,
 		"human_survivors": _count_survivors(saved_human_lines),
 		"cpu_survivors": _count_survivors(cpu_lines),
 		"cpu_inspections": cpu_total_inspections,
