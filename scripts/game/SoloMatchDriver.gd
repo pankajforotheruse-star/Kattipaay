@@ -34,8 +34,8 @@
 class_name SoloMatchDriver
 extends Node
 
-const GHOST_ENTITY_ID := 2
-const HUMAN_ENTITY_ID := 1
+const GHOST_ENTITY_ID := ChalkMatchRules.CPU_ID
+const HUMAN_ENTITY_ID := ChalkMatchRules.HUMAN_ID
 
 const DRAW_PHASE_WARNING_SECONDS := 5.0
 const SEARCH_PHASE_WARNING_SECONDS := 5.0
@@ -450,8 +450,8 @@ func _begin_search_phase(phase_index: int) -> void:
 	_search_warning_played = false
 	_search_phase_last_tick = -1
 
-	var searcher: int = active_searcher if phase_index == 1 else _opponent(active_searcher)
-	var pdef: int = _opponent(searcher)
+	var searcher: int = ChalkMatchRules.searcher_for_phase(active_searcher, phase_index)
+	var pdef: int = ChalkMatchRules.opponent(searcher)
 	GameState.solo_active_searcher = searcher
 	GameState.solo_defender = pdef
 
