@@ -45,11 +45,11 @@ const MEETING_PLAYER_POS := Vector2(1150.0, 885.0)
 const MEETING_CPU_POS := Vector2(1250.0, 915.0)
 
 ## Phase pacing defaults (overridden by ProjectSettings chalk_gaon/* keys).
-var _drawing_seconds: float = 40.0
+var _drawing_seconds: float = ChalkMatchRules.DRAW_SECONDS
 var _meeting_call_timeout: float = 8.0
-var _meeting_max_seconds: float = 15.0
+var _meeting_max_seconds: float = ChalkMatchRules.MEETING_SECONDS
 var _coin_result_hold: float = 2.0
-var _search_phase_seconds: float = 30.0
+var _search_phase_seconds: float = ChalkMatchRules.SEARCH_SECONDS
 var _early_exit_grace: float = 1.0
 var _empty_phase_grace: float = 1.0
 var _winner_hold_seconds: float = 3.0
@@ -108,11 +108,11 @@ func _ready() -> void:
 		return
 
 	# Pacing overrides (the smoke test sets these to short values headless).
-	_drawing_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", 40.0))
+	_drawing_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_drawing_seconds", ChalkMatchRules.DRAW_SECONDS))
 	_meeting_call_timeout = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_call_timeout_seconds", 8.0))
-	_meeting_max_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_max_seconds", 15.0))
+	_meeting_max_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_meeting_max_seconds", ChalkMatchRules.MEETING_SECONDS))
 	_coin_result_hold = float(ProjectSettings.get_setting("chalk_gaon/solo_coin_result_hold_seconds", 2.0))
-	_search_phase_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_search_phase_seconds", 30.0))
+	_search_phase_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_search_phase_seconds", ChalkMatchRules.SEARCH_SECONDS))
 	_early_exit_grace = float(ProjectSettings.get_setting("chalk_gaon/solo_early_exit_grace_seconds", 1.0))
 	_empty_phase_grace = float(ProjectSettings.get_setting("chalk_gaon/solo_empty_phase_grace_seconds", 1.0))
 	_winner_hold_seconds = float(ProjectSettings.get_setting("chalk_gaon/solo_winner_hold_seconds", 3.0))
