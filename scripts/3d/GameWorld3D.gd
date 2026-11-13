@@ -747,7 +747,7 @@ func _reveal_nearby_cpu_strokes() -> void:
 	for stroke in cpu_lines:
 		if not is_instance_valid(stroke) or stroke.struck or stroke.discovered:
 			continue
-		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5, walker.get_rid()):
+		if stroke.visible_to_eye(eye, get_world_3d().direct_space_state, ChalkMatchRules.DISCOVERY_DISTANCE_METRES, walker.get_rid()):
 			stroke.discovered = true
 			stroke.visible = true
 			message = "Chalk spotted nearby — press E to strike"
