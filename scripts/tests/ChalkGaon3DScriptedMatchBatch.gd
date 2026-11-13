@@ -91,6 +91,10 @@ func _run() -> void:
 				"cpu_search_cells": metrics["cpu_search_cells"],
 				"human_marks": metrics["human_marks"],
 				"cpu_marks": metrics["cpu_marks"],
+				"cpu_draw_target": metrics["cpu_draw_target"],
+				"cpu_draw_shortfall": metrics["cpu_draw_shortfall"],
+				"cpu_draw_failures": metrics["cpu_draw_failures"],
+				"cpu_draw_site_replans": metrics["cpu_draw_site_replans"],
 				"cpu_roof_visits": metrics["cpu_roof_visits"],
 				"human_survivors": metrics["human_survivors"],
 				"cpu_survivors": metrics["cpu_survivors"],
@@ -109,10 +113,10 @@ func _run() -> void:
 			"full_clock": not fast_smoke, "summary": summary, "matches": match_records
 		}, "  "))
 		report.close()
-	print("SCRIPTED_3D_BALANCE difficulty=%d matches=%d human_wins=%d cpu_wins=%d draws=%d mean_search_cells=%.2f mean_cpu_inspections=%.2f" % [
+	print("SCRIPTED_3D_BALANCE difficulty=%d matches=%d human_wins=%d cpu_wins=%d draws=%d mean_search_cells=%.2f mean_cpu_inspections=%.2f mean_draw_shortfall=%.2f" % [
 		selected_difficulty, summary["matches"], summary["human_wins"],
 		summary["cpu_wins"], summary["draws"], summary["mean_cpu_search_cells"],
-		summary["mean_cpu_inspections"]])
+		summary["mean_cpu_inspections"], summary["mean_cpu_draw_shortfall"]])
 	if failures.is_empty() and int(summary["matches"]) == match_count:
 		print("CHALK_GAON_3D_SCRIPTED_MATCH_BATCH: PASS")
 		quit(0)
