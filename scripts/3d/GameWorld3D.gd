@@ -40,6 +40,11 @@ var drawn_cpu_count := 0
 var cpu_target := 0
 var cpu_draw_interval := 0.5
 var cpu_recent_positions := PackedVector3Array()
+var cpu_draw_site := Vector3.INF
+var cpu_draw_site_replan_timer := 0.0
+var cpu_draw_attempts := 0
+var cpu_draw_failures := 0
+var cpu_draw_site_replans := 0
 var cheating_enabled := false
 var bot_follow_refresh := 0.0
 var human_idle_seconds := 0.0
@@ -299,9 +304,14 @@ func _process(delta: float) -> void:
 	human_reveal_scan_cooldown = maxf(0.0, human_reveal_scan_cooldown - delta)
 	cpu_idle_time -= delta
 	if phase == "DRAWING":
+		cpu_draw_site_replan_timer = maxf(0.0, cpu_draw_site_replan_timer - delta)
 		if cpu_idle_time <= 0.0:
-			_attempt_cpu_draw()
-			cpu_idle_time = cpu_draw_interval
+			var success := _attempt_cpu_draw()
+			# Recover missed physical placement opportunities instead of
+			# silently losing a full scheduled drawing interval.
+			var remaining := maxf(phase_left, 0.1)
+			var remaining_marks := maxi(0, cpu_target - drawn_cpu_count)
+			cpu_idle_time = maxf(0.065, remaining / float(maxi(remaining_marks, 1))) if success else 0.11
 	elif phase == "SEARCHING":
 		if cheating_enabled and searcher == HUMAN_ID and cpu_idle_time <= 0.0:
 			_cpu_defender_action()
@@ -344,6 +354,17 @@ func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 func _choose_cpu_destination() -> void:
 	if cpu_body == null or not cpu_nav.built:
 		return
+	if phase == "DRAWING" and cpu_draw_site != Vector3.INF:
+		if cpu_body.global_position.distance_to(cpu_draw_site) < 1.1:
+			cpu_path.clear()
+			cpu_route_index = 0
+			return
+		var draw_route := cpu_nav.find_path_near(cpu_body.global_position, cpu_draw_site)
+		if not draw_route.is_empty():
+			cpu_path = draw_route
+			cpu_route_index = 0
+			return
+		cpu_draw_site = Vector3.INF
 	var destination_zone := Territory3D.Zone.CPU if phase == "DRAWING" or searcher == HUMAN_ID else Territory3D.Zone.PLAYER
 	var nav := cpu_nav if destination_zone == Territory3D.Zone.CPU else human_nav
 	if phase == "SEARCHING" and searcher == CPU_ID:
@@ -403,10 +424,15 @@ func _advance_bot() -> void:
 		cpu_body.velocity.x = 0.0
 		cpu_body.velocity.z = 0.0
 
-func _attempt_cpu_draw() -> void:
+func _attempt_cpu_draw() -> bool:
 	if drawn_cpu_count >= cpu_target or not cpu_nav.built:
-		return
-	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position, 2.7)
+		return false
+	cpu_draw_attempts += 1
+	# Vary probe origins while remaining within the physical reach envelope.
+	# Otherwise the 2.5m proposal grid exhausts a few identical points.
+	var jitter := Vector3(sin(float(cpu_draw_attempts) * 2.399) * 0.28,
+		0.0, cos(float(cpu_draw_attempts) * 2.399) * 0.28)
+	var candidates := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, cpu_body.global_position + jitter, 2.7)
 	candidates.shuffle()
 	for candidate in candidates:
 		var approach: Vector3 = candidate["approach"]
@@ -446,7 +472,35 @@ func _attempt_cpu_draw() -> void:
 			_play_cue("play_chalk_draw")
 		cpu_recent_positions.append(point)
 		message = "CPU physically placed line %d" % drawn_cpu_count
-		return
+		return true
+	cpu_draw_failures += 1
+	if cpu_draw_site_replan_timer <= 0.0:
+		_plan_cpu_draw_site()
+	return false
+
+## Replan toward *reachable* publicly traversable drawing surfaces.
+## A candidate is only a proposal; chalk is placed later, after the actual
+## CharacterBody3D arrives within physical reach and a fresh raycast succeeds.
+func _plan_cpu_draw_site() -> void:
+	cpu_draw_site_replan_timer = 1.2
+	var best := PackedVector3Array()
+	for i in range(12):
+		var proposed := Vector3(rng.randf_range(6.0, 48.0), 0.85, rng.randf_range(-20.0, 20.0))
+		var route := cpu_nav.find_path_near(cpu_body.global_position, proposed)
+		if route.is_empty():
+			continue
+		var destination := route[route.size() - 1]
+		var sites := CpuSurfacePlanner3D.collect_candidates(get_world_3d(), CPU_ID, destination, 2.7)
+		if sites.is_empty():
+			continue
+		best = route
+		break
+	if not best.is_empty():
+		cpu_draw_site = best[best.size() - 1]
+		cpu_path = best
+		cpu_route_index = 0
+		cpu_draw_site_replans += 1
+		message = "CPU moving to reachable chalk drawing site"
 
 func _cpu_inspect() -> void:
 	if phase != "SEARCHING" or searcher != CPU_ID:
@@ -1146,6 +1200,12 @@ func acceptance_metrics() -> Dictionary:
 		"cpu_roof_visits": cpu_total_roof_visits,
 		"cpu_roof_returns": cpu_total_roof_returns,
 		"cpu_repaths": cpu_repath_count,
+		"cpu_draw_target": cpu_target,
+		"cpu_draw_actual": drawn_cpu_count,
+		"cpu_draw_shortfall": maxi(0, cpu_target - drawn_cpu_count),
+		"cpu_draw_attempts": cpu_draw_attempts,
+		"cpu_draw_failures": cpu_draw_failures,
+		"cpu_draw_site_replans": cpu_draw_site_replans,
 		"cpu_search_cells": cpu_search_cells.size(),
 		"player_input_seconds": player_input_seconds,
 		"human_survivors": _count_survivors(saved_human_lines),
