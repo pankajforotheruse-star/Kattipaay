@@ -5,6 +5,7 @@ var failures: Array[String] = []
 func _initialize() -> void:
 	call_deferred("_run")
 func _run() -> void:
+	_check(ChalkMatchRules.DRAW_SECONDS == 40.0 and ChalkMatchRules.MEETING_SECONDS == 15.0 and ChalkMatchRules.SEARCH_SECONDS == 30.0, "Shared owner phase clock defaults")
 	_check(ChalkMatchRules.winner_from_survivors(5, 5) == 0, "Tie resolves as draw")
 	_check(ChalkMatchRules.winner_from_survivors(6, 5) == 1, "Human survivor majority")
 	_check(ChalkMatchRules.winner_from_survivors(5, 6) == 2, "CPU survivor majority")
@@ -27,6 +28,7 @@ func _run() -> void:
 	await process_frame
 	await physics_frame
 	_check(is_equal_approx(game.cpu_inspection_radius, ChalkMatchRules.DISCOVERY_DISTANCE_METRES), "CPU and human use identical physical sight distance")
+	_check(is_equal_approx(game.configured_meeting_seconds, ChalkMatchRules.MEETING_SECONDS), "3D meeting uses shared 15-second rule")
 	_check(game.cpu_multilevel.transitions.size() == 2, "CPU territory has two validated roof regions and links")
 	_check(game.human_multilevel.transitions.size() == 2, "Human territory has two validated roof regions and links")
 	_check(game.cpu_multilevel.rejected_transitions.is_empty(), "No CPU-side invalid transitions")
