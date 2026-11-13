@@ -43,6 +43,9 @@ static func analyze(records: Array[Dictionary], difficulty: int, session_kind: S
 	var coverage := 0.0
 	var human_marks := 0.0
 	var cpu_marks := 0.0
+	var cpu_target_sum := 0.0
+	var cpu_shortfall_sum := 0.0
+	var cpu_draw_failures_sum := 0.0
 	for entry in records:
 		if int(entry.get("difficulty", -1)) != difficulty or str(entry.get("session_kind", "")) != session_kind:
 			continue
@@ -58,6 +61,9 @@ static func analyze(records: Array[Dictionary], difficulty: int, session_kind: S
 		coverage += float(entry.get("cpu_search_cells", 0))
 		human_marks += float(entry.get("human_marks", 0))
 		cpu_marks += float(entry.get("cpu_marks", 0))
+		cpu_target_sum += float(entry.get("cpu_draw_target", 0))
+		cpu_shortfall_sum += float(entry.get("cpu_draw_shortfall", 0))
+		cpu_draw_failures_sum += float(entry.get("cpu_draw_failures", 0))
 	var ci := wilson_interval(human_wins, count)
 	return {
 		"difficulty": difficulty, "matches": count,
@@ -68,6 +74,9 @@ static func analyze(records: Array[Dictionary], difficulty: int, session_kind: S
 		"mean_cpu_search_cells": coverage / float(maxi(count, 1)),
 		"mean_human_marks": human_marks / float(maxi(count, 1)),
 		"mean_cpu_marks": cpu_marks / float(maxi(count, 1)),
+		"mean_cpu_draw_target": cpu_target_sum / float(maxi(count, 1)),
+		"mean_cpu_draw_shortfall": cpu_shortfall_sum / float(maxi(count, 1)),
+		"mean_cpu_draw_failures": cpu_draw_failures_sum / float(maxi(count, 1)),
 		"minimum_100_matches_met": count >= 100
 	}
 
