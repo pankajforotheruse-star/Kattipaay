@@ -2,9 +2,9 @@ extends "res://scripts/graybox/VillageGraybox.gd"
 ## Independent 3D Play vs CPU development match. Does not replace production 2D flow.
 ## 40s draw -> coin meeting -> two 30s search phases -> survivor comparison.
 ## Physical NPC movement and occlusion check, not access to opponent stroke locations.
-const DRAW_TIME := 40.0
-const MEETING_TIME := 5.0
-const SEARCH_TIME := 30.0
+const DRAW_TIME := ChalkMatchRules.DRAW_SECONDS
+const MEETING_TIME := ChalkMatchRules.MEETING_SECONDS
+const SEARCH_TIME := ChalkMatchRules.SEARCH_SECONDS
 const BOT_SPEED := 4.2
 const CPU_SEARCH_SPEEDS := [3.0, 3.6, 4.2, 4.7]
 const CPU_STRIKE_DELAYS := [1.3, 0.9, 0.65, 0.45]
