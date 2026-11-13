@@ -79,6 +79,12 @@ jobs:
           timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DTouchArbitration.gd --log-file 3d-touch-arbitration.log
           grep -q 'CHALK_GAON_3D_TOUCH_ARBITRATION: PASS' 3d-touch-arbitration.log
           ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-touch-arbitration.log
+      - name: Shared 2D-3D rules, multilevel navigation and physical cover parity
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.4-stable_linux.x86_64 --headless --path . --script res://scripts/tests/ChalkGaon3DParityHardening.gd --log-file 3d-parity-hardening.log
+          grep -q 'CHALK_GAON_3D_PARITY_HARDENING: PASS' 3d-parity-hardening.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|FATAL|Segmentation fault' 3d-parity-hardening.log
       - name: Original village art, spatial audio and animation presentation QA
         run: |
           set -euo pipefail
@@ -159,6 +165,7 @@ jobs:
             3d-touch-arbitration.log
             3d-analytics-qa.log
             3d-production-presentation.log
+            3d-parity-hardening.log
             3d-scripted-batch.log
             3d-persistence-cover.log
             3d-round.log
