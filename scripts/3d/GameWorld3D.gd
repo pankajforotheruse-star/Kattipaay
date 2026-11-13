@@ -26,6 +26,8 @@ var cpu_wander_target := Vector3.ZERO
 var cpu_idle_time := 0.0
 var cpu_nav := GroundNavigation3D.new()
 var human_nav := GroundNavigation3D.new()
+var cpu_multilevel := MultiLevelNavigation3D.new()
+var human_multilevel := MultiLevelNavigation3D.new()
 var cpu_lines: Array[ChalkStroke3D] = []
 var saved_human_lines: Array[ChalkStroke3D] = []
 var rng := RandomNumberGenerator.new()
@@ -126,6 +128,9 @@ func _ready() -> void:
 func _begin_navigation() -> void:
 	cpu_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.CPU, [walker.get_rid(), cpu_body.get_rid()])
 	human_nav.build(get_world_3d().direct_space_state, Territory3D.Zone.PLAYER, [walker.get_rid(), cpu_body.get_rid()])
+	var ignored: Array[RID] = [walker.get_rid(), cpu_body.get_rid()]
+	cpu_multilevel.build(self, get_world_3d().direct_space_state, Territory3D.Zone.CPU, cpu_nav, ignored)
+	human_multilevel.build(self, get_world_3d().direct_space_state, Territory3D.Zone.PLAYER, human_nav, ignored)
 	_choose_cpu_destination()
 
 func _make_cpu_body() -> void:
@@ -838,54 +843,20 @@ func _inspect_nearby_public_cover() -> void:
 		cpu_total_inspections += 1
 		return
 
-## Roof access is a physical itinerary: walk to the ramp base, ascend the
-## colliding slope, then explore the roof. Never teleport an AI onto it.
+## Choose a validated multilevel route. Each roof has its own navigation
+## region and ramp link; all legs are followed by real CharacterBody3D motion.
 func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
-	var targets: Array[Dictionary] = []
-	for marker in get_children():
-		if not (marker is Marker3D) or not marker.name.begins_with("RoofAnchor_"):
-			continue
-		if Territory3D.zone_of(marker.global_position) != Territory3D.Zone.PLAYER:
-			continue
-		var suffix := marker.name.trim_prefix("RoofAnchor_")
-		var base := get_node_or_null("RampBase_" + suffix) as Marker3D
-		var top := get_node_or_null("RampTop_" + suffix) as Marker3D
-		var entry := get_node_or_null("RoofEntry_" + suffix) as Marker3D
-		if base == null or top == null or entry == null:
-			continue
-		targets.append({"roof": marker, "base": base, "top": top, "entry": entry})
-	targets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_base := a["base"] as Marker3D
-		var b_base := b["base"] as Marker3D
-		return cpu_body.global_position.distance_squared_to(a_base.global_position) < cpu_body.global_position.distance_squared_to(b_base.global_position))
-	for route in targets:
-		var start: Vector3 = (route["base"] as Marker3D).global_position
-		var entrance := start + Vector3(0, 0, 1.3)
-		var ground_path := nav.find_path_near(cpu_body.global_position, entrance)
-		if ground_path.is_empty():
-			continue
-		var crest: Vector3 = (route["top"] as Marker3D).global_position
-		var roof_entry: Vector3 = (route["entry"] as Marker3D).global_position
-		cpu_path = ground_path
-		cpu_path.append(start)
-		# Dense off-mesh ramp waypoints prevent the controller cutting a
-		# corner across a roof lip while ascending or descending.
-		for step in range(1, 4):
-			cpu_path.append(start.lerp(crest, float(step) / 4.0))
-		cpu_path.append(crest)
-		cpu_path.append(roof_entry)
-		cpu_path.append((route["roof"] as Marker3D).global_position)
-		cpu_path.append(roof_entry)
-		cpu_path.append(crest)
-		for step in range(3, 0, -1):
-			cpu_path.append(start.lerp(crest, float(step) / 4.0))
-		cpu_path.append(start)
-		cpu_roof_anchor = (route["roof"] as Marker3D).global_position
-		cpu_roof_base = start
-		cpu_route_index = 0
-		message = "CPU exploring a public rooftop route"
-		return true
-	return false
+	var levels := human_multilevel if nav == human_nav else cpu_multilevel
+	var route := levels.route_to_roof(cpu_body.global_position)
+	if route.is_empty():
+		message = "No physically validated multilevel route is reachable"
+		return false
+	cpu_path = route["path"]
+	cpu_roof_anchor = route["roof"]
+	cpu_roof_base = route["base"]
+	cpu_route_index = 0
+	message = "CPU exploring validated multilevel rooftop"
+	return true
 
 ## Reuse the shared procedural sounds. AudioManager skips playback headlessly.
 func _play_cue(method: String, argument: Variant = null) -> void:
