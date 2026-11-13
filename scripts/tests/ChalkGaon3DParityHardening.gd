@@ -34,7 +34,7 @@ func _run() -> void:
 	for item in game.human_multilevel.transitions:
 		_check(item["region"] is NavigationRegion3D, "Elevated region is NavigationRegion3D")
 		_check(item["link"] is NavigationLink3D, "Physical ramp link is NavigationLink3D")
-	var invalid := game.human_multilevel._valid_transition(
+	var invalid: bool = game.human_multilevel._valid_transition(
 		game.get_world_3d().direct_space_state,
 		Vector3(-27, 0.85, 0), Vector3(-27, 14, 0))
 	_check(not invalid, "Vertical inaccessible ledge cannot become a valid ramp")
