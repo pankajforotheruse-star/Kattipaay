@@ -7,10 +7,9 @@ const MEETING_TIME := 5.0
 const SEARCH_TIME := 30.0
 const BOT_SPEED := 4.2
 const CPU_SEARCH_SPEEDS := [3.0, 3.6, 4.2, 4.7]
-const CPU_INSPECTION_RADII := [4.0, 5.0, 6.0, 7.0]
 const CPU_STRIKE_DELAYS := [1.3, 0.9, 0.65, 0.45]
-const HUMAN_ID := 1
-const CPU_ID := 2
+const HUMAN_ID := ChalkMatchRules.HUMAN_ID
+const CPU_ID := ChalkMatchRules.CPU_ID
 
 var phase := "DRAWING"
 var phase_left := DRAW_TIME
@@ -46,7 +45,7 @@ var checked_public_covers: Dictionary = {}
 var last_result_saved := false
 var cpu_roof_attempted := false
 var cpu_speed := BOT_SPEED
-var cpu_inspection_radius := 2.8
+var cpu_inspection_radius := ChalkMatchRules.DISCOVERY_DISTANCE_METRES
 var cpu_strike_delay := 0.9
 var cpu_strike_cooldown := 0.0
 var find_interact_requested := false
@@ -106,10 +105,9 @@ func _ready() -> void:
 	cheating_enabled = bool(ProjectSettings.get_setting("chalk_gaon/solo_cheating_enabled", false))
 	var difficulty := clampi(GameState.cpu_difficulty, 0, 3)
 	cpu_speed = float(CPU_SEARCH_SPEEDS[difficulty])
-	cpu_inspection_radius = float(CPU_INSPECTION_RADII[difficulty])
+	cpu_inspection_radius = ChalkMatchRules.DISCOVERY_DISTANCE_METRES
 	cpu_strike_delay = float(CPU_STRIKE_DELAYS[difficulty])
-	var ranges := [Vector2i(50, 100), Vector2i(65, 120), Vector2i(85, 150), Vector2i(110, 180)]
-	var count_range: Vector2i = ranges[difficulty]
+	var count_range: Vector2i = ChalkMatchRules.cpu_target_range(difficulty)
 	cpu_target = rng.randi_range(count_range.x, count_range.y)
 	cpu_draw_interval = configured_draw_seconds / float(cpu_target)
 	drawing_mode = false
@@ -456,7 +454,7 @@ func _cpu_inspect() -> void:
 	# It only looks for actually visible strokes at its current physical eye.
 	var eye := cpu_body.global_position + Vector3(0, 1.45, 0)
 	for stroke in saved_human_lines:
-		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, cpu_inspection_radius, cpu_body.get_rid()):
+		if is_instance_valid(stroke) and ChalkMatchRules.can_strike(stroke.owner_id, CPU_ID, phase, stroke.struck) and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, cpu_inspection_radius, cpu_body.get_rid()):
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
@@ -476,7 +474,7 @@ func _human_strike_visible() -> void:
 		return
 	var eye := walker.global_position + Vector3(0, 1.45, 0)
 	for stroke in cpu_lines:
-		if is_instance_valid(stroke) and not stroke.struck and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, 3.5, walker.get_rid()):
+		if is_instance_valid(stroke) and ChalkMatchRules.can_strike(stroke.owner_id, HUMAN_ID, phase, stroke.struck) and stroke.visible_to_eye(eye, get_world_3d().direct_space_state, ChalkMatchRules.DISCOVERY_DISTANCE_METRES, walker.get_rid()):
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
@@ -510,13 +508,13 @@ func _advance_phase() -> void:
 		_animate_coin_flip()
 		if coin_call < 0:
 			coin_call = rng.randi_range(0, 1)
-		first_searcher = HUMAN_ID if coin_face == coin_call else CPU_ID
+		first_searcher = ChalkMatchRules.first_searcher(coin_face, coin_call)
 		message = "Coin %s; %s searches first" % ["HEADS" if coin_face == 0 else "TAILS", "HUMAN" if first_searcher == HUMAN_ID else "CPU"]
 		search_number = 1
 		_begin_search(first_searcher)
 	elif phase == "SEARCHING" and search_number == 1:
 		search_number = 2
-		_begin_search(CPU_ID if first_searcher == HUMAN_ID else HUMAN_ID)
+		_begin_search(ChalkMatchRules.searcher_for_phase(first_searcher, 2))
 	elif phase == "SEARCHING":
 		_finish_match()
 
@@ -577,11 +575,7 @@ func _finish_match() -> void:
 	for stroke in cpu_lines:
 		if is_instance_valid(stroke) and not stroke.struck:
 			bot_survivors += 1
-	var winner := "DRAW"
-	if player_survivors > bot_survivors:
-		winner = "HUMAN WINS"
-	elif player_survivors < bot_survivors:
-		winner = "CPU WINS"
+	var winner := ChalkMatchRules.winner_label(player_survivors, bot_survivors)
 	result = "%s | Human %d : CPU %d" % [winner, player_survivors, bot_survivors]
 	message = result
 	_show_result_visual()
