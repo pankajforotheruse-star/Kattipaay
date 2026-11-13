@@ -208,9 +208,9 @@ func _determine_winner() -> void:
 	# wins; equal survivors are an explicit DRAW (winner_id == 0). A tie
 	# must not silently count as a human victory.
 	if _survivors_registered:
-		var human_won := _human_surviving_lines > _cpu_surviving_lines
-		var is_tie := _human_surviving_lines == _cpu_surviving_lines
-		winner_id = 0 if is_tie else (InputManager.local_entity_id if human_won else 2)
+		var winner := ChalkMatchRules.winner_from_survivors(_human_surviving_lines, _cpu_surviving_lines)
+		var human_won := winner == ChalkMatchRules.HUMAN_ID
+		winner_id = InputManager.local_entity_id if human_won else winner
 		if human_won:
 			_stats.wins += 1
 		EventBus.emit(EventBus.EV_GAME_WINNER_DETERMINED, {
