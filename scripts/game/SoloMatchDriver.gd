@@ -530,7 +530,7 @@ func _configure_search_scene(searcher: int) -> void:
 
 
 func _opponent(entity_id: int) -> int:
-	return HUMAN_ENTITY_ID if entity_id == GHOST_ENTITY_ID else GHOST_ENTITY_ID
+	return ChalkMatchRules.opponent(entity_id)
 
 
 ## End the current search phase: timeout or all target lines struck.
