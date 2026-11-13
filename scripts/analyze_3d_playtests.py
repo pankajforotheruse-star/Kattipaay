@@ -55,6 +55,9 @@ def analyze(path):
             "mean_cpu_inspections": avg("cpu_inspections"),
             "mean_human_marks": avg("human_marks"),
             "mean_cpu_marks": avg("cpu_marks"),
+            "mean_cpu_draw_target": avg("cpu_draw_target"),
+            "mean_cpu_draw_shortfall": avg("cpu_draw_shortfall"),
+            "mean_cpu_draw_failures": avg("cpu_draw_failures"),
             "mean_cpu_roof_visits": avg("cpu_roof_visits"),
             "mean_player_input_seconds": avg("player_input_seconds"),
             "minimum_100_complete_matches": n >= 100
@@ -70,13 +73,13 @@ def main():
         print(f"Missing telemetry: {path}", file=sys.stderr)
         return 2
     report = analyze(path)
-    print("| Difficulty | Matches | Human win % | 95% CI | Search cells | CPU inspections | Sample gate |")
+    print("| Difficulty | Matches | Human win % | 95% CI | Search cells | CPU inspections | CPU shortfall | Sample gate |")
     print("|---|---:|---:|---|---:|---:|---|")
     for r in report["difficulties"]:
         low, high = r["human_win_rate_95ci"]
         print(f'| {r["difficulty"]} | {r["matches"]} | {100*r["human_win_rate"]:.1f}% '
               f'| {100*low:.1f}–{100*high:.1f}% | {r["mean_cpu_search_cells"]:.1f} '
-              f'| {r["mean_cpu_inspections"]:.1f} | {"PASS" if r["minimum_100_complete_matches"] else "NOT MET"} |')
+              f'| {r["mean_cpu_inspections"]:.1f} | {r["mean_cpu_draw_shortfall"]:.1f} | {"PASS" if r["minimum_100_complete_matches"] else "NOT MET"} |')
     output = path.with_name("chalk_gaon_3d_human_playtest_analysis.json")
     output.write_text(json.dumps(report, indent=2))
     print(f"Report: {output}")
