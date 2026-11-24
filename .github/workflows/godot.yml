@@ -216,6 +216,15 @@ jobs:
           if grep -E -q "KATTIPAAY_COMPONENT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-component.log; then
             exit 1
           fi
+      - name: Run 3D exit-to-menu regression
+        run: |
+          set -euo pipefail
+          timeout 120s "$GODOT_BIN" --headless --path . --script res://scripts/tests/ChalkGaon3DExitToMenu.gd --log-file godot-3d-exit.log
+          cat godot-3d-exit.log
+          grep -q "CHALK_GAON_3D_EXIT: PASS" godot-3d-exit.log
+          if grep -E -q "CHALK_GAON_3D_EXIT: FAIL|SCRIPT ERROR|Parse Error|FATAL|Segmentation fault|Leaked instance|ObjectDB instances leaked" godot-3d-exit.log; then
+            exit 1
+          fi
       - name: Upload component logs
         if: always()
         uses: actions/upload-artifact@v4

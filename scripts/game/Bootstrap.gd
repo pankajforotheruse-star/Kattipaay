@@ -15,3 +15,13 @@ func _ready() -> void:
 	# SplashScreen then transitions SPLASH -> MAIN_MENU to reach home.tscn.
 	if GameState.current == GameState.State.SPLASH:
 		SceneManager.go_to("menu/splash.tscn")
+	else:
+		# Leaving a match (3D result hold, or PAUSE -> EXIT TO MAIN MENU) also
+		# returns here. Route every non-SPLASH state to the village menu instead
+		# of leaving the tree on this bare Node (the gray-screen dead end), and
+		# put the top-level state back to MAIN_MENU so the menu's next launch
+		# (MAIN_MENU -> PLAYING) is a legal transition.
+		if GameState.current != GameState.State.MAIN_MENU:
+			GameState.transition(GameState.State.MAIN_MENU)
+		if not SceneManager.current_scene().ends_with("home.tscn"):
+			SceneManager.go_to("menu/home.tscn")

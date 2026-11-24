@@ -87,6 +87,11 @@ var pre_pause_match: int = MatchState.NONE
 ## the SoloMatchDriver. Cleared when the solo match ends (driver _exit_tree).
 var solo_vs_cpu: bool = false
 
+## True while the current match runs in the 3D village (scenes/3d/
+## game_world_3d.tscn). SceneManager routes PLAYING to the 3D world when this
+## is set and to the 2D world otherwise. Cleared when the match context is left.
+var three_d_match: bool = false
+
 ## CPU difficulty for solo mode (GhostBotController.Difficulty enum value).
 var cpu_difficulty: int = GhostBotController.Difficulty.NORMAL
 
@@ -240,6 +245,7 @@ func _reset_match_state() -> void:
     previous_match = current_match
     current_match = MatchState.NONE
     pre_pause_match = MatchState.NONE
+    three_d_match = false
     # Broadcast the reset so EV_MATCH_STATE_CHANGED listeners see it.
     # MatchStateMachine caches current_state, and without this event the
     # cache goes stale after returning to MAIN_MENU, so the next match's
