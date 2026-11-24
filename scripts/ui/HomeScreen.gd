@@ -231,6 +231,7 @@ func _close_difficulty_picker() -> void:
 func _start_solo_with_difficulty(difficulty: int) -> void:
 	_close_difficulty_picker()
 	GameState.solo_vs_cpu = true
+	GameState.three_d_match = false
 	GameState.cpu_difficulty = difficulty
 	# Smallest safe path into the game world: GameState now allows
 	# MAIN_MENU -> PLAYING (prototype bootstrap precedent), so SceneManager
@@ -241,7 +242,14 @@ func _start_3d_with_difficulty(difficulty: int) -> void:
 	_close_difficulty_picker()
 	GameState.cpu_difficulty = difficulty
 	GameState.solo_vs_cpu = false
-	get_tree().change_scene_to_file("res://scenes/3d/game_world_3d.tscn")
+	# A 3D match is a PLAYING match, exactly like the 2D path above. Leaving it
+	# (result hold, or PAUSE -> EXIT TO MAIN MENU) returns through
+	# scenes/main.tscn, and Bootstrap needs a non-MAIN_MENU state to know where
+	# to go: with MAIN_MENU it left a bare Node on screen (the gray-screen dead
+	# end). three_d_match routes PLAYING to the 3D world, not the 2D one.
+	GameState.three_d_match = true
+	if not GameState.transition(GameState.State.PLAYING):
+		get_tree().change_scene_to_file("res://scenes/3d/game_world_3d.tscn")
 
 func _add_3d_test_launch() -> void:
 	var launch := Button.new()

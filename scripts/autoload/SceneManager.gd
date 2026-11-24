@@ -97,7 +97,11 @@ func _on_state_changed(payload: Dictionary) -> void:
 			if not _current_scene_path.ends_with("lobby.tscn"):
 				go_to("menu/lobby.tscn")
 		GameState.State.PLAYING:
-			if not _current_scene_path.ends_with("game_world.tscn"):
+			# The 3D village is a separate world scene for the same state.
+			if GameState.three_d_match:
+				if not _current_scene_path.ends_with("game_world_3d.tscn"):
+					go_to("3d/game_world_3d.tscn")
+			elif not _current_scene_path.ends_with("game_world.tscn"):
 				go_to("game/game_world.tscn")
 		GameState.State.PAUSED:
 			# Show pause overlay on top of current scene
