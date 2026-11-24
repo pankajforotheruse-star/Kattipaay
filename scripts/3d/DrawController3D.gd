@@ -2,6 +2,12 @@ class_name DrawController3D
 extends Node3D
 ## Camera-targeted world-space freehand drawing; no preset drawing locations.
 signal stroke_finished(stroke: ChalkStroke3D)
+## Emitted when a press cannot start a stroke, so the HUD can name the rule that stopped it.
+signal draw_rejected(reason: String)
+## Player-facing wording for the three independent ways a trace can fail.
+const REJECT_OFF_SURFACE := "You can't draw on that"
+const REJECT_WRONG_SIDE := "That's the CPU's side"
+const REJECT_TOO_FAR := "Too far — walk closer"
 @export var draw_range := 9.0
 @export var point_spacing := 0.065
 @export var max_connected_gap := 2.0
@@ -14,6 +20,7 @@ var enabled := true
 var current: ChalkStroke3D
 var next_stroke_id := 1
 var active_touch_id := -1
+var last_reject_reason := ""
 
 func configure(view: Camera3D, actor: CharacterBody3D) -> void:
 	camera = view
@@ -45,22 +52,33 @@ func _trace(screen_point: Vector2) -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
 	query.exclude = [player.get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return {}
-	var surface: Object = hit.get("collider")
-	if not (surface is CollisionObject3D) or not surface.is_in_group("graybox_surfaces"):
-		return {}
-	if not Territory3D.can_draw(owner_id, hit["position"]):
-		return {}
-	if player.global_position.distance_to(hit["position"]) > draw_range:
+	last_reject_reason = reject_reason(hit, owner_id, player.global_position, draw_range)
+	if not last_reject_reason.is_empty():
 		return {}
 	return hit
+
+## Classify a trace so a refused press explains itself instead of silently doing nothing.
+## Empty string means the hit is a legal drawing target.
+static func reject_reason(hit: Dictionary, drawing_owner: int, eye: Vector3, reach: float) -> String:
+	if hit.is_empty():
+		return REJECT_OFF_SURFACE
+	var surface: Object = hit.get("collider")
+	if not (surface is CollisionObject3D) or not surface.is_in_group("graybox_surfaces"):
+		return REJECT_OFF_SURFACE
+	var point: Vector3 = hit.get("position", Vector3.ZERO)
+	if not Territory3D.can_draw(drawing_owner, point):
+		return REJECT_WRONG_SIDE
+	if eye.distance_to(point) > reach:
+		return REJECT_TOO_FAR
+	return ""
 
 func _begin_stroke(screen_point: Vector2) -> void:
 	if current != null:
 		return
 	var hit := _trace(screen_point)
 	if hit.is_empty():
+		if not last_reject_reason.is_empty():
+			draw_rejected.emit(last_reject_reason)
 		return
 	var surface := hit["collider"] as CollisionObject3D
 	var stroke := ChalkStroke3D.new()
