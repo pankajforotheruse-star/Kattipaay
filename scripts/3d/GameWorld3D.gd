@@ -199,7 +199,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_play_cue("play_argument_start")
 			argument_uses += 1
 			argument_delay = 3.0
-			message = "Argument: CPU search interrupted for 3 seconds"
+			message = "You interrupted the CPU's search for 3 seconds"
 	super._unhandled_input(event)
 
 func _physics_process(delta: float) -> void:
@@ -355,7 +355,7 @@ func _human_stroke_created(stroke: ChalkStroke3D) -> void:
 			stroke.struck = true
 			stroke.visible = false
 			_penalize_nearby(stroke, saved_human_lines)
-			message = "CPU caught sneak: mark plus nearby lines removed"
+			message = "CPU caught you sneaking — that mark and nearby lines are gone"
 	saved_human_lines.append(stroke)
 	_play_cue("play_chalk_draw")
 
@@ -485,7 +485,6 @@ func _attempt_cpu_draw() -> bool:
 			_play_cue("play_chalk_draw")
 		cpu_recent_positions.append(point)
 		cpu_consecutive_draw_failures = 0
-		message = "CPU physically placed line %d" % drawn_cpu_count
 		return true
 	cpu_draw_failures += 1
 	cpu_consecutive_draw_failures += 1
@@ -520,7 +519,6 @@ func _plan_cpu_draw_site() -> void:
 		cpu_path = best
 		cpu_route_index = 0
 		cpu_draw_site_replans += 1
-		message = "CPU moving to reachable chalk drawing site"
 
 func _cpu_inspect() -> void:
 	if phase != "SEARCHING" or searcher != CPU_ID:
@@ -537,7 +535,7 @@ func _cpu_inspect() -> void:
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
-			message = "CPU discovered and struck a chalk line"
+			message = "CPU struck one of your lines"
 			_actor_pose(CPU_ID, "strike")
 			cpu_inspection_count += 1
 			cpu_total_inspections += 1
@@ -557,7 +555,7 @@ func _human_strike_visible() -> void:
 			stroke.struck = true
 			stroke.discovered = true
 			stroke.visible = false
-			message = "You found a CPU chalk line"
+			message = "You struck a CPU chalk line"
 			_actor_pose(HUMAN_ID, "strike")
 			_play_cue("play_line_strike")
 			return
@@ -588,7 +586,7 @@ func _advance_phase() -> void:
 		if coin_call < 0:
 			coin_call = rng.randi_range(0, 1)
 		first_searcher = ChalkMatchRules.first_searcher(coin_face, coin_call)
-		message = "Coin %s; %s searches first" % ["HEADS" if coin_face == 0 else "TAILS", "HUMAN" if first_searcher == HUMAN_ID else "CPU"]
+		message = "Coin %s — first search goes to %s" % ["heads" if coin_face == 0 else "tails", "you" if first_searcher == HUMAN_ID else "the CPU"]
 		search_number = 1
 		_begin_search(first_searcher)
 	elif phase == "SEARCHING" and search_number == 1:
@@ -631,7 +629,7 @@ func _begin_search(who: int) -> void:
 		cpu_body.global_position = Vector3(-3.5, 0.85, 0)
 	_choose_cpu_destination()
 	cpu_idle_time = 2.0
-	message = "Search %d: %s searches" % [search_number, "HUMAN" if who == HUMAN_ID else "CPU"]
+	message = "Search %d: %s" % [search_number, "your turn to search" if who == HUMAN_ID else "CPU searches"]
 
 func _finish_match() -> void:
 	if phase == "RESULT":
@@ -744,7 +742,7 @@ func _push_nearby_crate() -> void:
 	if body.global_position.distance_to(walker.global_position) > 3.2:
 		return
 	body.apply_central_impulse(Vector3(direction.x, 0, direction.z).normalized() * 22.0)
-	message = "Moved wooden crate"
+	message = "You moved the cover"
 
 func _cpu_defender_action() -> void:
 	# A limited defensive action occurs only while the human searches CPU territory.
@@ -753,7 +751,7 @@ func _cpu_defender_action() -> void:
 	if cpu_argue_uses < 1 and cpu_sneak_uses > 0:
 		cpu_argue_uses += 1
 		human_strike_delay = 3.0
-		message = "CPU argues: your strike action is delayed"
+		message = "CPU argued back — your strike is delayed"
 		return
 	if cpu_sneak_uses >= 3:
 		return
@@ -789,8 +787,6 @@ func _cpu_defender_action() -> void:
 			stroke.visible = false
 			_penalize_nearby(stroke, cpu_lines)
 			message = "You spotted CPU sneaking; nearby marks penalized"
-		else:
-			message = "CPU attempted a hidden defensive mark"
 		return
 
 func _penalize_nearby(caught: ChalkStroke3D, owned_lines: Array[ChalkStroke3D]) -> void:
@@ -907,7 +903,7 @@ func _toggle_cover_body(body: RigidBody3D) -> void:
 	var opened := bool(body.get_meta("cover_lifted", false))
 	if opened:
 		if not _can_restore_cover(body):
-			message = "Cover cannot close while an actor is underneath"
+			message = "You can't close the cover with someone underneath"
 			return
 		var base: Transform3D = body.get_meta("cover_base_transform", body.global_transform)
 		body.global_transform = base
@@ -938,7 +934,7 @@ func _toggle_aimed_cover() -> bool:
 	if body.global_position.distance_to(walker.global_position) > 3.5:
 		return false
 	_toggle_cover_body(body)
-	message = "Lifted cover" if body.get_meta("cover_lifted", false) else "Replaced cover"
+	message = "You lifted the cover" if body.get_meta("cover_lifted", false) else "You put the cover back"
 	return true
 
 func _inspect_nearby_public_cover() -> void:
@@ -962,7 +958,7 @@ func _inspect_nearby_public_cover() -> void:
 		_toggle_cover_body(body)
 		cpu_open_cover = body
 		cpu_cover_hold_seconds = 1.2
-		message = "CPU physically inspected a visible public cover"
+		message = "CPU checked a hiding spot"
 		_actor_pose(CPU_ID, "inspect")
 		cpu_inspection_count += 1
 		cpu_total_inspections += 1
@@ -974,13 +970,12 @@ func _assign_physical_roof_route(nav: GroundNavigation3D) -> bool:
 	var levels := human_multilevel if nav == human_nav else cpu_multilevel
 	var route := levels.route_to_roof(cpu_body.global_position)
 	if route.is_empty():
-		message = "No physically validated multilevel route is reachable"
 		return false
 	cpu_path = route["path"]
 	cpu_roof_anchor = route["roof"]
 	cpu_roof_base = route["base"]
 	cpu_route_index = 0
-	message = "CPU exploring validated multilevel rooftop"
+	message = "CPU is searching the rooftops"
 	return true
 
 ## Reuse the shared procedural sounds. AudioManager skips playback headlessly.
