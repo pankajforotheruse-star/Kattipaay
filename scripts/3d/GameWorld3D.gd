@@ -8,6 +8,7 @@ const SEARCH_TIME := ChalkMatchRules.SEARCH_SECONDS
 const BOT_SPEED := 4.2
 const CPU_SEARCH_SPEEDS := [3.0, 3.6, 4.2, 4.7]
 const CPU_STRIKE_DELAYS := [1.3, 0.9, 0.65, 0.45]
+const HINT_FEEDBACK_SECONDS := 2.5
 const HUMAN_ID := ChalkMatchRules.HUMAN_ID
 const CPU_ID := ChalkMatchRules.CPU_ID
 
@@ -32,6 +33,10 @@ var cpu_lines: Array[ChalkStroke3D] = []
 var saved_human_lines: Array[ChalkStroke3D] = []
 var rng := RandomNumberGenerator.new()
 var message := ""
+## Transient "why did that fail" line shown in the centre-bottom hint slot.
+var hint_feedback := ""
+var hint_feedback_left := 0.0
+var mobile_buttons: Dictionary = {}
 var argument_uses := 0
 var argument_delay := 0.0
 var sneak_uses := 0
@@ -129,6 +134,7 @@ func _ready() -> void:
 	# Delay ground graph sampling until the physics bodies are registered.
 	call_deferred("_begin_navigation")
 	draw_controller.stroke_finished.connect(_human_stroke_created)
+	draw_controller.draw_rejected.connect(_on_draw_rejected)
 	_update_hud()
 
 func _begin_navigation() -> void:
@@ -300,6 +306,7 @@ func _process(delta: float) -> void:
 			else:
 				cpu_cover_hold_seconds = 0.25
 	human_strike_delay = maxf(0.0, human_strike_delay - delta)
+	hint_feedback_left = maxf(0.0, hint_feedback_left - delta)
 	cpu_strike_cooldown = maxf(0.0, cpu_strike_cooldown - delta)
 	cpu_scan_cooldown = maxf(0.0, cpu_scan_cooldown - delta)
 	human_reveal_scan_cooldown = maxf(0.0, human_reveal_scan_cooldown - delta)
@@ -542,7 +549,7 @@ func _human_strike_visible() -> void:
 	if phase != "SEARCHING" or searcher != HUMAN_ID:
 		return
 	if human_strike_delay > 0.0:
-		message = "CPU distracted you: wait before striking"
+		_set_feedback("CPU distracted you: wait before striking")
 		return
 	var eye := walker.global_position + Vector3(0, 1.45, 0)
 	for stroke in cpu_lines:
@@ -554,7 +561,7 @@ func _human_strike_visible() -> void:
 			_actor_pose(HUMAN_ID, "strike")
 			_play_cue("play_line_strike")
 			return
-	message = "No visible CPU line close enough to strike"
+	_set_feedback("No chalk in sight — walk closer and look around")
 
 func _advance_phase() -> void:
 	if phase == "RESULT":
@@ -669,11 +676,59 @@ func _update_hud() -> void:
 		aiming_reticle.visible = phase == "DRAWING" or phase == "SEARCHING"
 		aiming_reticle.text = "◎" if drawing_mode else "+" 
 	if interaction_hint != null:
-		interaction_hint.text = "DRAW ON SURFACES" if drawing_mode else "F / DRAW  •  CHALK MODE" if phase == "DRAWING" else "H / T  •  CALL THE COIN" if phase == "MEETING" else "E / FIND  •  STRIKE VISIBLE CHALK" if searcher == HUMAN_ID else "Q / ARGUE  •  FOLLOW THE SEARCHER"
+		var rejecting := hint_feedback_left > 0.0 and not hint_feedback.is_empty()
+		interaction_hint.text = hint_feedback if rejecting else _phase_hint()
+		interaction_hint.add_theme_color_override("font_color", Color(1.0, 0.72, 0.55) if rejecting else Color(0.96, 0.90, 0.75))
+	_update_mobile_buttons()
 	info.add_theme_font_size_override("font_size", 16)
 	info.text = "%s\n%s" % [
-		"YOU SEARCH" if phase == "SEARCHING" and searcher == HUMAN_ID else "CPU SEARCHES" if phase == "SEARCHING" else "DRAW / MEET",
+		"YOU SEARCH" if phase == "SEARCHING" and searcher == HUMAN_ID else "CPU SEARCHES" if phase == "SEARCHING" else "RESULT" if phase == "RESULT" else "DRAW / MEET",
 		message]
+
+## One hint line per phase, naming only the controls that actually act now.
+func _phase_hint() -> String:
+	if phase == "RESULT":
+		return "R: PLAY AGAIN  •  P: MENU"
+	if phase == "MEETING":
+		return "H: HEADS  •  T: TAILS  —  CALL THE COIN"
+	if phase == "DRAWING":
+		if drawing_mode:
+			return "CHALK MODE ON — LEFT DRAG ON WALLS & FLOOR  •  F: STOP"
+		return "F: CHALK MODE  •  WASD: WALK  •  MOUSE: LOOK"
+	if phase == "SEARCHING":
+		if searcher == HUMAN_ID:
+			return "E: STRIKE CHALK IN SIGHT  •  WALK CLOSE TO IT"
+		return "Q: ARGUE ONCE  •  FOLLOW THE CPU"
+	return ""
+
+## Short-lived explanation of why the last draw or strike attempt was refused.
+func _set_feedback(text: String) -> void:
+	message = text
+	hint_feedback = text
+	hint_feedback_left = HINT_FEEDBACK_SECONDS
+
+func _on_draw_rejected(reason: String) -> void:
+	_set_feedback(reason)
+
+## Touch buttons stay on screen for a stable layout but dim out when they cannot act.
+func _update_mobile_buttons() -> void:
+	if mobile_buttons.is_empty():
+		return
+	var can_draw_now := phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3)
+	var states := {
+		"DRAW": can_draw_now,
+		"FIND": phase == "SEARCHING" and searcher == HUMAN_ID,
+		"HEADS": phase == "MEETING",
+		"TAILS": phase == "MEETING",
+		"ARGUE": phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1,
+	}
+	for caption in states:
+		var button: Button = mobile_buttons.get(caption)
+		if button == null or not is_instance_valid(button):
+			continue
+		var live := bool(states[caption])
+		button.disabled = not live
+		button.modulate = Color(1, 1, 1, 1) if live else Color(1, 1, 1, 0.4)
 
 func _push_nearby_crate() -> void:
 	var origin := walker.global_position + Vector3(0, 1.0, 0)
@@ -787,31 +842,33 @@ func _make_touch_controls() -> void:
 		await get_tree().create_timer(0.22).timeout
 		mobile_jump = false)
 	_mobile_button(field, "CROUCH", -215, -245, func() -> void: _toggle_crouch())
-	_mobile_button(field, "DRAW", -105, -165, func() -> void:
+	mobile_buttons["DRAW"] = _mobile_button(field, "DRAW", -105, -165, func() -> void:
 		if phase == "DRAWING" or (cheating_enabled and phase == "SEARCHING" and searcher == CPU_ID and sneak_uses < 3):
 			drawing_mode = not drawing_mode)
-	_mobile_button(field, "FIND", -215, -165, func() -> void:
+	mobile_buttons["FIND"] = _mobile_button(field, "FIND", -215, -165, func() -> void:
 		if phase == "SEARCHING" and searcher == HUMAN_ID:
 			_human_strike_visible()
 		else:
 			_push_nearby_crate())
-	_mobile_button(field, "ARGUE", -105, -85, func() -> void:
+	mobile_buttons["ARGUE"] = _mobile_button(field, "ARGUE", -105, -85, func() -> void:
 		if phase == "SEARCHING" and searcher == CPU_ID and argument_uses < 1:
 			argument_uses += 1
 			argument_delay = 3.0)
-	_mobile_button(field, "HEADS", -325, -85, func() -> void:
+	mobile_buttons["HEADS"] = _mobile_button(field, "HEADS", -325, -85, func() -> void:
 		if phase == "MEETING":
 			coin_call = 0)
-	_mobile_button(field, "TAILS", -215, -85, func() -> void:
+	mobile_buttons["TAILS"] = _mobile_button(field, "TAILS", -215, -85, func() -> void:
 		if phase == "MEETING":
 			coin_call = 1)
 	var hint := Label.new()
-	hint.text = "Left drag: move | Right drag: look"
+	hint.text = "Touch: drag left half to move, right half to look\nMouse: WASD to move, mouse to look\nF / DRAW: chalk mode — then left drag on walls & floor"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	hint.position = Vector2(15, -45)
+	hint.position = Vector2(15, -104)
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", Color(0.96, 0.90, 0.75))
 	field.add_child(hint)
 
-func _mobile_button(root: Control, caption: String, right_offset: float, bottom_offset: float, action: Callable) -> void:
+func _mobile_button(root: Control, caption: String, right_offset: float, bottom_offset: float, action: Callable) -> Button:
 	var control := Button.new()
 	control.text = caption
 	control.custom_minimum_size = Vector2(94, 58)
@@ -840,6 +897,7 @@ func _mobile_button(root: Control, caption: String, right_offset: float, bottom_
 	control.add_theme_stylebox_override("pressed", pressed)
 	control.pressed.connect(action)
 	root.add_child(control)
+	return control
 
 ## Brick/crate cover is physically lifted and replaced. This is not a disguised
 ## visibility flag: the rigid body actually moves, changing physics raycasts.
